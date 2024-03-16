@@ -1,0 +1,17 @@
+{
+  "name": "falkordb",
+  "version": "1.0.0",
+  "description": "A FalkorDB javascript library",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "falkordb/falkordb.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.28",
+    "typescript": "^5.4.2"
+  },
+  "dependencies": {
+    "redis": "^4.6.13"
+  }
+}
