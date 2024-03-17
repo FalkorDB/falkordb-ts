@@ -69,7 +69,7 @@ export default class ResultSet {
 	 */
 	async parseResponse(resp: any[]) {
 		if (Array.isArray(resp)) {
-			let statistics = resp[resp.length - 1];
+			const statistics = resp[resp.length - 1];
 
 			// TODO - handle error
 			// if (statistics instanceof ReplyError) throw statistics;
@@ -108,7 +108,7 @@ export default class ResultSet {
 		this._header = rawHeader;
 		// Discard header types.
 		this._typelessHeader = new Array(this._header.length);
-		for (var i = 0; i < this._header.length; i++) {
+		for (let i = 0; i < this._header.length; i++) {
 			this._typelessHeader[i] = this._header[i][1] as string;
 		}
 	}
@@ -120,15 +120,15 @@ export default class ResultSet {
 	 * @param {object[]} rawResultSet raw result set representation
 	 */
 	async parseRecords(rawResultSet: any[]) {
-		let result_set = rawResultSet[1];
+		const result_set = rawResultSet[1];
 		this._results = new Array(result_set.length);
 
-		for (var i = 0; i < result_set.length; i++) {
-			let row = result_set[i];
-			let record = new Array(row.length);
-			for (var j = 0; j < row.length; j++) {
-				let cell = row[j];
-				let cellType = this._header[j][0];
+		for (let i = 0; i < result_set.length; i++) {
+			const row = result_set[i];
+			const record = new Array(row.length);
+			for (let j = 0; j < row.length; j++) {
+				const cell = row[j];
+				const cellType = this._header[j][0];
 				switch (cellType) {
 					case ResultSetColumnTypes.COLUMN_SCALAR:
 						record[j] = await this.parseScalar(cell);
@@ -156,13 +156,13 @@ export default class ResultSet {
 	 */
 	async parseEntityProperties(props: any[]) {
 		// [[name, value, value type] X N]
-		let properties = new Map<string, any>();
-		for (var i = 0; i < props.length; i++) {
-			let prop = props[i];
-			var propIndex = prop[0];
+		const properties = new Map<string, any>();
+		for (let i = 0; i < props.length; i++) {
+			const prop = props[i];
+			const propIndex = prop[0];
 			let prop_name = this._graph.getProperty(propIndex);
 			// will try to get the right property for at most 10 times
-			var tries = 0;
+			let tries = 0;
 			while (prop_name == undefined && tries < 10) {
 				prop_name = await this._graph.fetchAndGetProperty(propIndex);
 				tries++;
@@ -173,7 +173,7 @@ export default class ResultSet {
 						propIndex
 				);
 			}
-			let prop_value = await this.parseScalar(prop.slice(1, prop.length));
+			const prop_value = await this.parseScalar(prop.slice(1, prop.length));
 			properties.set(prop_name, prop_value);
 		}
 		return properties;
@@ -190,10 +190,10 @@ export default class ResultSet {
 		// [label string offset (integer)],
 		// [[name, value, value type] X N]
 
-		let node_id = cell[0];
+		const node_id = cell[0];
 		let label = this._graph.getLabel(cell[1][0]);
 		// will try to get the right label for at most 10 times
-		var tries = 0;
+		let tries = 0;
 		while (label == undefined && tries < 10) {
 			label = await this._graph.fetchAndGetLabel(cell[1][0]);
 			tries++;
@@ -203,7 +203,7 @@ export default class ResultSet {
 				"unable to retrive label value for label index " + cell[1][0]
 			);
 		}
-		let properties = await this.parseEntityProperties(cell[2]);
+		const properties = await this.parseEntityProperties(cell[2]);
 		return new Node(node_id, [label], properties);
 	}
 
@@ -220,10 +220,10 @@ export default class ResultSet {
 		// dest node ID offset (integer),
 		// [[name, value, value type] X N]
 
-		let edge_id: number = cell[0];
+		const edge_id: number = cell[0];
 		let relation = this._graph.getRelationship(cell[1]);
 		// will try to get the right relationship type for at most 10 times
-		var tries = 0;
+		let tries = 0;
 		while (relation == undefined && tries < 10) {
 			relation = await this._graph.fetchAndGetRelationship(cell[1]);
 			tries++;
@@ -234,9 +234,9 @@ export default class ResultSet {
 					cell[1]
 			);
 		}
-		let src_node_id = cell[2];
-		let dest_node_id = cell[3];
-		let properties = await this.parseEntityProperties(cell[4]);
+		const src_node_id = cell[2];
+		const dest_node_id = cell[3];
+		const properties = await this.parseEntityProperties(cell[4]);
 		return new Edge(edge_id, src_node_id, relation, dest_node_id, properties);
 	}
 
@@ -247,7 +247,7 @@ export default class ResultSet {
 	 * @returns {Promise<object[]>} Parsed array.
 	 */
 	async parseArray(rawArray: any[]) {
-		for (var i = 0; i < rawArray.length; i++) {
+		for (let i = 0; i < rawArray.length; i++) {
 			rawArray[i] = await this.parseScalar(rawArray[i]);
 		}
 		return rawArray;
@@ -260,8 +260,8 @@ export default class ResultSet {
 	 * @returns {Promise<Path>} Path object.
 	 */
 	async parsePath(rawPath: any[]) {
-		let nodes: Node[] = await this.parseScalar(rawPath[0]) as Node[];
-		let edges: Edge[] = await this.parseScalar(rawPath[1]) as Edge[];
+		const nodes: Node[] = await this.parseScalar(rawPath[0]) as Node[];
+		const edges: Edge[] = await this.parseScalar(rawPath[1]) as Edge[];
 		return new Path(nodes, edges);
 	}
 
@@ -272,9 +272,9 @@ export default class ResultSet {
 	 * @returns {Promise<object>} Map object.
 	 */
 	async parseMap(rawMap: any[]) {
-		let m = new Map<string, any>();
-		for (var i = 0; i < rawMap.length; i+=2) {
-			var key = rawMap[i];
+		const m = new Map<string, any>();
+		for (let i = 0; i < rawMap.length; i+=2) {
+			const key = rawMap[i];
 			m.set(key, await this.parseScalar(rawMap[i+1]));
 		}
 
@@ -300,8 +300,8 @@ export default class ResultSet {
 	 * @returns {Promise<object>} Actual value - scalar, array, Node, Edge, Path
 	 */
 	async parseScalar(cell: any[]) {
-		let scalar_type = cell[0];
-		let value = cell[1];
+		const scalar_type = cell[0];
+		const value = cell[1];
 		let scalar = undefined;
 
 		switch (scalar_type) {

@@ -16,6 +16,7 @@
     "build:test-utils": "npm run build -w ./packages/test-utils",
     "build:tests-tools": "npm run build:client && npm run build:test-utils",
     "build": "tsc",
+    "lint": "eslint . --ext .ts",
     "build-all": "npm run build:test-utils && npm run build",
     "documentation": "npm run documentation -ws --if-present",
     "gh-pages": "gh-pages -d ./documentation -e ./documentation -u 'documentation-bot <documentation@bot>'"
@@ -33,9 +34,12 @@
   ],
   "devDependencies": {
     "@tsconfig/node14": "^14.1.0",
+    "@types/node": "^20.11.28",
+    "@typescript-eslint/eslint-plugin": "^7.2.0",
+    "@typescript-eslint/parser": "^7.2.0",
+    "eslint": "^8.57.0",
     "gh-pages": "^6.0.0",
     "release-it": "^16.1.5",
-    "@types/node": "^20.11.28",
     "typescript": "^5.4.2"
   },
   "dependencies": {

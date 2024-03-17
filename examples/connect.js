@@ -7,3 +7,5 @@ const graph = db.selectGraph('myGraph')
 const result = await graph.query('MATCH (n) RETURN n')
 
 console.log(result)
+
+db.close()

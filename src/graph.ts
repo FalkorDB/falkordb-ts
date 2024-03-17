@@ -41,7 +41,7 @@ export default class Graph {
      * @returns {string[]} strings array.
 	 */
 	_extractStrings(resultSet: ResultSet) {
-		var strings: string[] = [];
+		const strings: string[] = [];
 		while (resultSet.hasNext()) {
 
 			// TODO handle null values
@@ -57,7 +57,7 @@ export default class Graph {
      */
 	paramToString(paramValue: any) {
 		if (paramValue == null) return "null";
-		let paramType = typeof paramValue;
+		const paramType = typeof paramValue;
 		if (paramType == "string") {
 			let strValue = "";
             paramValue = paramValue.replace(/[\\"']/g, '\\$&');  
@@ -67,8 +67,8 @@ export default class Graph {
 			return strValue;
 		}
 		if (Array.isArray(paramValue)) {
-			let stringsArr = new Array(paramValue.length);
-			for (var i = 0; i < paramValue.length; i++) {
+			const stringsArr = new Array(paramValue.length);
+			for (let i = 0; i < paramValue.length; i++) {
 				stringsArr[i] = this.paramToString(paramValue[i]);
 			}
 			return ["[", stringsArr.join(", "), "]"].join("");
@@ -82,10 +82,10 @@ export default class Graph {
 	 * @return {string} a cypher parameters string.
 	 */
 	buildParamsHeader(params: Map<string, any>) {
-		let paramsArray = ["CYPHER"];
+		const paramsArray = ["CYPHER"];
 
-		for (var key in params) {
-			let value = this.paramToString(params.get(key));
+		for (const key in params) {
+			const value = this.paramToString(params.get(key));
 			paramsArray.push(`${key}=${value}`);
 		}
 		paramsArray.push(" ");
@@ -129,13 +129,13 @@ export default class Graph {
 		if (params) {
 			query = this.buildParamsHeader(params) + query;
 		}
-		var res = await this._client.sendCommand([
+		const res = await this._client.sendCommand([
 			command,
 			this._graphId,
 			query,
 			"--compact"
 		]);
-		var resultSet = new ResultSet(this);
+		const resultSet = new ResultSet(this);
 		return resultSet.parseResponse(res as any[]);
 	}
 
@@ -150,7 +150,7 @@ export default class Graph {
 		this._labels = [];
 		this._relationshipTypes = [];
 		this._properties = [];
-		var resultSet = new ResultSet(this);
+		const resultSet = new ResultSet(this);
 		return resultSet.parseResponse(res as any[]);
 	}
 
@@ -161,8 +161,8 @@ export default class Graph {
 	 * @param {string[]} [y] Yield outputs
 	 * @returns {Promise<ResultSet>} a promise contains the procedure result set data
 	 */
-	callProcedure(procedure: string, args = new Array(), y = new Array()) {
-		let q = "CALL " + procedure + "(" + args.join(",") + ")" + y.join(" ");
+	callProcedure(procedure: string, args = [], y = []) {
+		const q = "CALL " + procedure + "(" + args.join(",") + ")" + y.join(" ");
 		return this.query(q);
 	}
 

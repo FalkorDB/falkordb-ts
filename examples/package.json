@@ -6,8 +6,9 @@
     "private": true,
     "type": "module",
     "dependencies": {
-      "falkordb": "../"
+        "falkordb": "../"
+    },
+    "devDependencies": {
+        "eslint": "^8.57.0"
     }
-  }
-  
-  
+}

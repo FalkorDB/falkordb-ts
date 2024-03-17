@@ -29,8 +29,8 @@ export default class Statistics {
 	 */
 	getStatistics() {
 		if (!this._statistics.size) {
-			for (let row of this._raw) {
-				let touple = row.split(":");
+			for (const row of this._raw) {
+				const touple = row.split(":");
 				this._statistics.set(touple[0], touple[1].trim());
 			}
 		}
@@ -43,7 +43,7 @@ export default class Statistics {
      * @returns {number} The actual value if exists, 0 otherwise. (integer)
      */
 	getIntValue(label: string) {
-		let value = this.getStringValue(label);
+		const value = this.getStringValue(label);
 		return value ? parseInt(value) : 0;
 	}
 
@@ -53,7 +53,7 @@ export default class Statistics {
      * @returns {number} The actual value if exists, 0 otherwise.
      */
 	getFloatValue(label: string) {
-		let value = this.getStringValue(label);
+		const value = this.getStringValue(label);
 		return value ? parseFloat(value) : 0;
 	}
 
