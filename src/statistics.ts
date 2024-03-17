@@ -1,23 +1,26 @@
-"use strict";
-
 const Label = require("./label");
 
-class Statistics {
+export default class Statistics {
+
+	private _raw: string[];
+	private _statistics: Map<string, string>;
+
     /**
      * Builds a query statistics object out of raw data.
      * @constructor
-     * @param {object[]} raw - raw data.
+     * @param {string[]} raw - raw data.
      */
-	constructor(raw) {
+	constructor(raw: string[]) {
 		this._raw = raw;
+		this._statistics = new Map<string, string>();
 	}
 
     /**
      * Returns a statistics value according to the statistics label.
      * @param {import('./label')} label - Statistics label.
      */
-	getStringValue(label) {
-		return this.getStatistics()[label];
+	getStringValue(label: string) {
+		return this.getStatistics().get(label);
 	}
 
 	/**
@@ -25,11 +28,10 @@ class Statistics {
 	 * @return {Object<string, string>} statistics object
 	 */
 	getStatistics() {
-		if (!this._statistics) {
-			this._statistics = {};
+		if (!this._statistics.size) {
 			for (let row of this._raw) {
 				let touple = row.split(":");
-				this._statistics[touple[0]] = touple[1].trim();
+				this._statistics.set(touple[0], touple[1].trim());
 			}
 		}
 		return this._statistics;
@@ -40,7 +42,7 @@ class Statistics {
      * @param {import('./label')} label
      * @returns {number} The actual value if exists, 0 otherwise. (integer)
      */
-	getIntValue(label) {
+	getIntValue(label: string) {
 		let value = this.getStringValue(label);
 		return value ? parseInt(value) : 0;
 	}
@@ -50,7 +52,7 @@ class Statistics {
      * @param {import('./label')} label
      * @returns {number} The actual value if exists, 0 otherwise.
      */
-	getFloatValue(label) {
+	getFloatValue(label: string) {
 		let value = this.getStringValue(label);
 		return value ? parseFloat(value) : 0;
 	}
@@ -125,5 +127,3 @@ class Statistics {
 		return this.getFloatValue(Label.QUERY_INTERNAL_EXECUTION_TIME);
 	}
 }
-
-module.exports = Statistics;

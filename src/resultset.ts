@@ -1,3 +1,9 @@
+import Graph from "./graph";
+import Statistics from "./statistics";
+import Record from "./record";
+import Node from "./node";
+import Edge from "./edge";
+import Path from "./path";
 
 /**
  * @enum {number}
@@ -33,12 +39,21 @@ const ResultSetValueTypes = {
  * Hold a query result
  */
 export default class ResultSet {
+
+	private _graph: Graph;
+	private _position: number;
+	private _resultsCount: number;
+	private _header: any[][];
+	private _results: Record[];
+	private _typelessHeader: string[] = [];
+	private _statistics: Statistics | undefined;
+
 	/**
 	 * Builds an empty ResultSet object.
 	 *
 	 * @param {Graph} graph
 	 */
-	constructor(graph) {
+	constructor(graph: Graph) {
 		this._graph = graph; //_graph is graph api
 		this._position = 0; //allowing iterator like behevior
 		this._resultsCount = 0; //total number of records in this result set
@@ -52,10 +67,13 @@ export default class ResultSet {
 	 * @param {object[]} resp  - raw response representation - the raw representation of response is at most 3 lists of objects.
 	 *                    The last list is the statistics list.
 	 */
-	async parseResponse(resp) {
+	async parseResponse(resp: any[]) {
 		if (Array.isArray(resp)) {
 			let statistics = resp[resp.length - 1];
-			if (statistics instanceof ReplyError) throw statistics;
+
+			// TODO - handle error
+			// if (statistics instanceof ReplyError) throw statistics;
+
 			if (resp.length < 3) {
 				this._statistics = new Statistics(statistics);
 			} else {
@@ -74,7 +92,7 @@ export default class ResultSet {
 	 * @async
 	 * @param {object[]} resp raw response
 	 */
-	async parseResults(resp) {
+	async parseResults(resp: any[]) {
 		this.parseHeader(resp[0]);
 		await this.parseRecords(resp);
 	}
@@ -85,13 +103,13 @@ export default class ResultSet {
 	 * tuple[0] represents the type of the column, and tuple[1] represents the name of the column.
 	 * @param {object[]} rawHeader raw header
 	 */
-	parseHeader(rawHeader) {
+	parseHeader(rawHeader: any[][]) {
 		// An array of column name/column type pairs.
 		this._header = rawHeader;
 		// Discard header types.
 		this._typelessHeader = new Array(this._header.length);
 		for (var i = 0; i < this._header.length; i++) {
-			this._typelessHeader[i] = this._header[i][1];
+			this._typelessHeader[i] = this._header[i][1] as string;
 		}
 	}
 
@@ -101,7 +119,7 @@ export default class ResultSet {
 	 * @async
 	 * @param {object[]} rawResultSet raw result set representation
 	 */
-	async parseRecords(rawResultSet) {
+	async parseRecords(rawResultSet: any[]) {
 		let result_set = rawResultSet[1];
 		this._results = new Array(result_set.length);
 
@@ -136,9 +154,9 @@ export default class ResultSet {
 	 * @param {object[]} props raw properties representation
 	 * @returns {Promise<object>} Map with the parsed properties.
 	 */
-	async parseEntityProperties(props) {
+	async parseEntityProperties(props: any[]) {
 		// [[name, value, value type] X N]
-		let properties = {};
+		let properties = new Map<string, any>();
 		for (var i = 0; i < props.length; i++) {
 			let prop = props[i];
 			var propIndex = prop[0];
@@ -156,7 +174,7 @@ export default class ResultSet {
 				);
 			}
 			let prop_value = await this.parseScalar(prop.slice(1, prop.length));
-			properties[prop_name] = prop_value;
+			properties.set(prop_name, prop_value);
 		}
 		return properties;
 	}
@@ -167,7 +185,7 @@ export default class ResultSet {
 	 * @param {object[]} cell raw node representation.
 	 * @returns {Promise<Node>} Node object.
 	 */
-	async parseNode(cell) {
+	async parseNode(cell: any[]) {
 		// Node ID (integer),
 		// [label string offset (integer)],
 		// [[name, value, value type] X N]
@@ -186,9 +204,7 @@ export default class ResultSet {
 			);
 		}
 		let properties = await this.parseEntityProperties(cell[2]);
-		let node = new Node(label, properties);
-		node.setId(node_id);
-		return node;
+		return new Node(node_id, [label], properties);
 	}
 
 	/**
@@ -197,14 +213,14 @@ export default class ResultSet {
 	 * @param {object[]} cell raw edge representation
 	 * @returns {Promise<Edge>} Edge object.
 	 */
-	async parseEdge(cell) {
+	async parseEdge(cell: any[]) {
 		// Edge ID (integer),
 		// reltype string offset (integer),
 		// src node ID offset (integer),
 		// dest node ID offset (integer),
 		// [[name, value, value type] X N]
 
-		let edge_id = cell[0];
+		let edge_id: number = cell[0];
 		let relation = this._graph.getRelationship(cell[1]);
 		// will try to get the right relationship type for at most 10 times
 		var tries = 0;
@@ -221,9 +237,7 @@ export default class ResultSet {
 		let src_node_id = cell[2];
 		let dest_node_id = cell[3];
 		let properties = await this.parseEntityProperties(cell[4]);
-		let edge = new Edge(src_node_id, relation, dest_node_id, properties);
-		edge.setId(edge_id);
-		return edge;
+		return new Edge(edge_id, src_node_id, relation, dest_node_id, properties);
 	}
 
 	/**
@@ -232,7 +246,7 @@ export default class ResultSet {
 	 * @param {object[]} rawArray raw array representation
 	 * @returns {Promise<object[]>} Parsed array.
 	 */
-	async parseArray(rawArray) {
+	async parseArray(rawArray: any[]) {
 		for (var i = 0; i < rawArray.length; i++) {
 			rawArray[i] = await this.parseScalar(rawArray[i]);
 		}
@@ -245,9 +259,9 @@ export default class ResultSet {
 	 * @param {object[]} rawPath raw path representation
 	 * @returns {Promise<Path>} Path object.
 	 */
-	async parsePath(rawPath) {
-		let nodes = await this.parseScalar(rawPath[0]);
-		let edges = await this.parseScalar(rawPath[1]);
+	async parsePath(rawPath: any[]) {
+		let nodes: Node[] = await this.parseScalar(rawPath[0]) as Node[];
+		let edges: Edge[] = await this.parseScalar(rawPath[1]) as Edge[];
 		return new Path(nodes, edges);
 	}
 
@@ -257,11 +271,11 @@ export default class ResultSet {
 	 * @param {object[]} rawMap raw map representation
 	 * @returns {Promise<object>} Map object.
 	 */
-	async parseMap(rawMap) {
-		let m = {};
+	async parseMap(rawMap: any[]) {
+		let m = new Map<string, any>();
 		for (var i = 0; i < rawMap.length; i+=2) {
 			var key = rawMap[i];
-			m[key] = await this.parseScalar(rawMap[i+1]);
+			m.set(key, await this.parseScalar(rawMap[i+1]));
 		}
 
 		return m;
@@ -272,12 +286,11 @@ export default class ResultSet {
 	 * @param {object[]} rawPoint 2-valued lat-lon array representation
 	 * @returns {{ latitude: number, longitude: number }} Map object with latitude and longitude keys.
 	 */
-	parsePoint(rawPoint) {
-		let m = {};
-		m["latitude"] = Number(rawPoint[0])
-		m["longitude"] = Number(rawPoint[1])
-
-		return m;
+	parsePoint(rawPoint: any[]) {
+		return {
+			latitude: Number(rawPoint[0]),
+			longitude: Number(rawPoint[1])
+		};
 	}
 
 	/**
@@ -286,7 +299,7 @@ export default class ResultSet {
 	 * @param {object[]} cell raw value representation
 	 * @returns {Promise<object>} Actual value - scalar, array, Node, Edge, Path
 	 */
-	async parseScalar(cell) {
+	async parseScalar(cell: any[]) {
 		let scalar_type = cell[0];
 		let value = cell[1];
 		let scalar = undefined;

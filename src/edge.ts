@@ -6,7 +6,7 @@ import Node from "./node";
 export default class Edge {
 
     private _id: number;
-    private _relationshipId: number;
+    private _relationshipType: string;
     private _srcNode: Node;
     private _destNode: Node;
     private _properties: Map<string, any>;
@@ -14,13 +14,13 @@ export default class Edge {
     /**
      * Builds an Edge object.
      * @param {Node} srcNode - Source node of the edge.
-     * @param {number} relationshipId - Relationship type of the edge.
+     * @param {string} relationshipType - Relationship type of the edge.
      * @param {Node} destNode - Destination node of the edge.
      * @param {Map} properties - Properties map of the edge.
      */
-    constructor(id: number, srcNode: Node, relationshipId: number, destNode: Node, properties: Map<string, any>) {
+    constructor(id: number, srcNode: Node, relationshipType: string, destNode: Node, properties: Map<string, any>) {
         this._id = id;            //edge's id - set by RedisGraph
-        this._relationshipId = relationshipId;       //edge's relationship type
+        this._relationshipType = relationshipType;       //edge's relationship type
         this._srcNode = srcNode;         //edge's source node
         this._destNode = destNode;       //edge's destination node
         this._properties = properties;   //edge's list of properties (list of Key:Value)
@@ -31,7 +31,7 @@ export default class Edge {
     }
 
     public get relationshipId() {
-        return this._relationshipId;
+        return this._relationshipType;
     }
 
     public get srcNode() {

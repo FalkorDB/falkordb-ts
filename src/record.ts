@@ -23,10 +23,7 @@ export default class Record {
      * @returns {object} Requested value.
      */
 	get(key: string|number): object {
-		let index = key;
-		if (typeof key === "string") {
-			index = this._header.indexOf(key);
-		}
+		let index = typeof key === "string" ? this._header.indexOf(key) : key;
 		return this._values[index];
 	}
 
@@ -35,12 +32,8 @@ export default class Record {
      * @param {string | number} key (integer)
      * @returns {string} Requested string representation of the value.
      */
-	getString(key) {
-		let index = key;
-		if (typeof key === "string") {
-			index = this._header.indexOf(key);
-		}
-
+	getString(key: string|number) {
+		let index = typeof key === "string" ? this._header.indexOf(key) : key
 		let value = this._values[index];
 		if (value !== undefined && value !== null) {
 			return value.toString();
@@ -68,7 +61,7 @@ export default class Record {
      * @param {string} key 
      * @returns {boolean} true if header contains key.
      */
-	containsKey(key) {
+	containsKey(key: string) {
 		return this._header.includes(key);
 	}
 

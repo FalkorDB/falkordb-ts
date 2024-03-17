@@ -32,6 +32,9 @@
     "falkordb"
   ],
   "devDependencies": {
+    "@tsconfig/node14": "^14.1.0",
+    "gh-pages": "^6.0.0",
+    "release-it": "^16.1.5",
     "@types/node": "^20.11.28",
     "typescript": "^5.4.2"
   },
