@@ -6,4 +6,9 @@ export { default as Path } from './src/path';
 
 export { default as Graph } from './src/graph';
 
+export { default as FalkorDB } from './src/falkordb';
+
+
+
+
 

@@ -1,0 +1,13 @@
+{
+    "name": "falkordb-examples",
+    "version": "1.0.0",
+    "description": "falkordb example scripts",
+    "main": "index.js",
+    "private": true,
+    "type": "module",
+    "dependencies": {
+      "falkordb": "../"
+    }
+  }
+  
+  

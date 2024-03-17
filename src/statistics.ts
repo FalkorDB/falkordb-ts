@@ -1,4 +1,4 @@
-const Label = require("./label");
+import Label  from './label';
 
 export default class Statistics {
 

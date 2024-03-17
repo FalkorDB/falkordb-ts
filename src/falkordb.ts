@@ -89,8 +89,6 @@ export interface FalkorDBOptions {
     clientInfoTag?: string;
 }
 
-
-
 export default class FalkorDB {
 
     private _client: RedisClientType;
@@ -99,7 +97,7 @@ export default class FalkorDB {
         this._client = client;
     }
 
-    async connect(options?: FalkorDBOptions) {
+    static async connect(options?: FalkorDBOptions) {
         const client = await createClient(options)
             .on('error', err => console.log('Redis Client Error', err))
             .connect();

@@ -15,7 +15,6 @@ export default class Graph {
 	private _propertyPromise: Promise<string[]> | null; // used as a synchronization mechanizom for property names retrival
 	private _relationshipPromise: Promise<string[]> | null; // used as a synchronization mechanizom for relationship types retrival
 	private _client: RedisClientType;
-	private _sendCommand: any;
 	
      /**
       * Creates a client to a specific graph
@@ -33,12 +32,6 @@ export default class Graph {
 		this._labelsPromise = null;        // used as a synchronization mechanizom for labels retrival
 		this._propertyPromise = null;      // used as a synchronization mechanizom for property names retrival
 		this._relationshipPromise = null;  // used as a synchronization mechanizom for relationship types retrival
-
-		// this._client =
-		// 	host && typeof host.send_command === 'function' // check if it's an instance of `redis` or `ioredis`
-		// 		? host
-		// 		: redis.createClient(port, host, options);
-		// this._sendCommand = util.promisify(this._client.send_command).bind(this._client);
     }
 
 	/**
@@ -136,13 +129,14 @@ export default class Graph {
 		if (params) {
 			query = this.buildParamsHeader(params) + query;
 		}
-		var res = await this._sendCommand(command, [
+		var res = await this._client.sendCommand([
+			command,
 			this._graphId,
 			query,
 			"--compact"
 		]);
 		var resultSet = new ResultSet(this);
-		return resultSet.parseResponse(res);
+		return resultSet.parseResponse(res as any[]);
 	}
 
 	/**
@@ -151,13 +145,13 @@ export default class Graph {
 	 * @returns {Promise<ResultSet>} a promise contains the delete operation running time statistics
 	 */
 	async deleteGraph() {
-		var res = await this._sendCommand("graph.DELETE", [this._graphId]);
+		const res = await this._client.sendCommand(["graph.DELETE", this._graphId]);
 		//clear internal graph state
 		this._labels = [];
 		this._relationshipTypes = [];
 		this._properties = [];
 		var resultSet = new ResultSet(this);
-		return resultSet.parseResponse(res);
+		return resultSet.parseResponse(res as any[]);
 	}
 
 	/**
