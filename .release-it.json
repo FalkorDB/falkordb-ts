@@ -1,0 +1,7 @@
+{
+  "git": {
+    "tagName": "falkordb@${version}",
+    "commitMessage": "Release ${tagName}",
+    "tagAnnotation": "Release ${tagName}"
+  }
+}
