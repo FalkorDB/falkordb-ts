@@ -10,5 +10,6 @@ console.log(result)
 
 console.log(await db.list())
 console.log(await db.info())
+console.log(await db.connection.info())
 
 db.close()

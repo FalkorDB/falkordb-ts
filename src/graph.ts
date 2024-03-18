@@ -131,15 +131,15 @@ type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
 	data?: Array<T>;
 };
 
-export type GraphClientType = RedisClientType<{ falkordb: typeof Commands }, RedisFunctions, RedisScripts>;
+export type GraphConnection = RedisClientType<{ falkordb: typeof Commands }, RedisFunctions, RedisScripts>;
 
 export default class Graph {
-	#client: GraphClientType;
+	#client: GraphConnection;
 	#name: string;
 	#metadata?: GraphMetadata;
 
 	constructor(
-		client: GraphClientType,
+		client: GraphConnection,
 		name: string
 	) {
 		this.#client = client;

@@ -4,7 +4,7 @@ import * as net from 'net';
 
 import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
 
-import Graph, { GraphClientType } from './graph';
+import Graph, { GraphConnection } from './graph';
 import commands from './commands';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
@@ -92,9 +92,9 @@ export interface FalkorDBOptions {
 
 export default class FalkorDB {
 
-    #client: GraphClientType;
+    #client: GraphConnection;
 
-    private constructor(client: GraphClientType) {
+    private constructor(client: GraphConnection) {
         this.#client = client;
     }
 
@@ -105,16 +105,19 @@ export default class FalkorDB {
             falkordb : commands
         }
 
-        const client: GraphClientType = await createClient<{falkordb: typeof commands}, RedisFunctions, RedisScripts>(redisOption)
+        const client: GraphConnection = await createClient<{falkordb: typeof commands}, RedisFunctions, RedisScripts>(redisOption)
             .on('error', err => console.log('Redis Client Error', err))
             .connect();
 
         return new FalkorDB(client)
     }
     
-
     selectGraph(graphId: string) {
         return new Graph(this.#client, graphId);
+    }
+
+    public get connection() {
+        return this.#client;
     }
     
     async list() {
@@ -132,6 +135,8 @@ export default class FalkorDB {
     async info(section?: string) {
 		return  this.#client.falkordb.info(section)
 	}
+
+    
 
     /**
      * Closes the client.
