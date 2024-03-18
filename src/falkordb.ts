@@ -2,9 +2,10 @@
 import * as tls from 'tls';
 import * as net from 'net';
 
-import { RedisClientType, createClient } from 'redis';
+import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
 
-import Graph from './graph';
+import Graph, { GraphClientType } from './graph';
+import commands from './commands';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
@@ -91,28 +92,51 @@ export interface FalkorDBOptions {
 
 export default class FalkorDB {
 
-    private _client: RedisClientType;
+    #client: GraphClientType;
 
-    private constructor(client: RedisClientType) {
-        this._client = client;
+    private constructor(client: GraphClientType) {
+        this.#client = client;
     }
 
     static async connect(options?: FalkorDBOptions) {
-        const client = await createClient(options)
+        const redisOption = (options?? {}) as RedisClientOptions<{falkordb: typeof commands}, RedisFunctions, RedisScripts>;
+        
+        redisOption.modules = {
+            falkordb : commands
+        }
+
+        const client: GraphClientType = await createClient<{falkordb: typeof commands}, RedisFunctions, RedisScripts>(redisOption)
             .on('error', err => console.log('Redis Client Error', err))
             .connect();
 
-        return new FalkorDB(client as RedisClientType)
+        return new FalkorDB(client)
     }
+    
 
     selectGraph(graphId: string) {
-        return new Graph(this._client, graphId);
+        return new Graph(this.#client, graphId);
     }
+    
+    async list() {
+		return this.#client.falkordb.list()
+	}
+
+    async configGet(configKey: string) {
+		return this.#client.falkordb.configGet(configKey)
+	}
+
+    async configSet(configKey: string, value: number) {
+		return  this.#client.falkordb.configSet(configKey, value)
+	}
+
+    async info(section?: string) {
+		return  this.#client.falkordb.info(section)
+	}
 
     /**
      * Closes the client.
      */
     async close() {
-        return this._client.quit();
+        return this.#client.quit();
     }
 }

@@ -1,282 +1,387 @@
-import { RedisClientType } from 'redis';
-import ResultSet from './resultset';
+import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
+import { RedisClientType, RedisFunctions, RedisScripts } from "redis";
+import { QueryOptions } from "./commands";
+import { QueryReply } from "./commands/QUERY";
+import Commands from "./commands";
 
-/**
- * FalkorDB Graph
- */
+interface GraphMetadata {
+	labels: Array<string>;
+	relationshipTypes: Array<string>;
+	propertyKeys: Array<string>;
+}
+
+// https://github.com/FalkorDB/FalkorDB/blob/master/src/resultset/formatters/resultset_formatter.h#L20
+enum GraphValueTypes {
+	UNKNOWN = 0,
+	NULL = 1,
+	STRING = 2,
+	INTEGER = 3,
+	BOOLEAN = 4,
+	DOUBLE = 5,
+	ARRAY = 6,
+	EDGE = 7,
+	NODE = 8,
+	PATH = 9,
+	MAP = 10,
+	POINT = 11
+}
+
+type GraphEntityRawProperties = Array<[
+	id: number,
+	...value: GraphRawValue
+]>;
+
+type GraphEdgeRawValue = [
+	GraphValueTypes.EDGE,
+	[
+		id: number,
+		relationshipTypeId: number,
+		sourceId: number,
+		destinationId: number,
+		properties: GraphEntityRawProperties
+	]
+];
+
+type GraphNodeRawValue = [
+	GraphValueTypes.NODE,
+	[
+		id: number,
+		labelIds: Array<number>,
+		properties: GraphEntityRawProperties
+	]
+];
+
+type GraphPathRawValue = [
+	GraphValueTypes.PATH,
+	[
+		nodes: [
+			GraphValueTypes.ARRAY,
+			Array<GraphNodeRawValue>
+		],
+		edges: [
+			GraphValueTypes.ARRAY,
+			Array<GraphEdgeRawValue>
+		]
+	]
+];
+
+type GraphMapRawValue = [
+	GraphValueTypes.MAP,
+	Array<string | GraphRawValue>
+];
+
+type GraphRawValue = [
+	GraphValueTypes.NULL,
+	null
+] | [
+	GraphValueTypes.STRING,
+	string
+] | [
+	GraphValueTypes.INTEGER,
+	number
+] | [
+	GraphValueTypes.BOOLEAN,
+	string
+] | [
+	GraphValueTypes.DOUBLE,
+	string
+] | [
+	GraphValueTypes.ARRAY,
+	Array<GraphRawValue>
+] | GraphEdgeRawValue | GraphNodeRawValue | GraphPathRawValue | GraphMapRawValue | [
+	GraphValueTypes.POINT,
+	[
+		latitude: string,
+		longitude: string
+	]
+];
+
+type GraphEntityProperties = Record<string, GraphValue>;
+
+interface GraphEdge {
+	id: number;
+	relationshipType: string;
+	sourceId: number;
+	destinationId: number;
+	properties: GraphEntityProperties;
+}
+
+interface GraphNode {
+	id: number;
+	labels: Array<string>;
+	properties: GraphEntityProperties;
+}
+
+interface GraphPath {
+	nodes: Array<GraphNode>;
+	edges: Array<GraphEdge>;
+}
+
+type GraphMap = {
+	[key: string]: GraphValue;
+};
+
+type GraphValue = null | string | number | boolean | Array<GraphValue>
+	| GraphEdge | GraphNode | GraphPath | GraphMap | {
+		latitude: string;
+		longitude: string;
+	};
+
+type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
+	data?: Array<T>;
+};
+
+export type GraphClientType = RedisClientType<{ falkordb: typeof Commands }, RedisFunctions, RedisScripts>;
+
 export default class Graph {
+	#client: GraphClientType;
+	#name: string;
+	#metadata?: GraphMetadata;
 
-	private _graphId: string; // Graph ID
-	private _labels: string[]; // List of node labels.
-	private _relationshipTypes: string[]; // List of relation types.
-	private _properties: string[]; // List of properties.
-
-	private	_labelsPromise: Promise<string[]> | null; // used as a synchronization mechanizom for labels retrival
-	private _propertyPromise: Promise<string[]> | null; // used as a synchronization mechanizom for property names retrival
-	private _relationshipPromise: Promise<string[]> | null; // used as a synchronization mechanizom for relationship types retrival
-	private _client: RedisClientType;
-	
-     /**
-      * Creates a client to a specific graph
-      * 
-      * @param {string} graphId the graph id
-      * @param {RedisClient} [client] Redis host or node_redis client or ioredis client
-      */
-	constructor(client: RedisClientType, graphId: string) {
-		this._client = client;
-		this._graphId = graphId;        // Graph ID
-		this._labels = [];              // List of node labels.
-		this._relationshipTypes = [];   // List of relation types.
-		this._properties = [];          // List of properties.
-
-		this._labelsPromise = null;        // used as a synchronization mechanizom for labels retrival
-		this._propertyPromise = null;      // used as a synchronization mechanizom for property names retrival
-		this._relationshipPromise = null;  // used as a synchronization mechanizom for relationship types retrival
-    }
-
-	/**
-	 * Auxiliary function to extract string(s) data from procedures such as:
-	 * db.labels, db.propertyKeys and db.relationshipTypes
-	 * @param {ResultSet} resultSet - a procedure result set
-     * @returns {string[]} strings array.
-	 */
-	_extractStrings(resultSet: ResultSet) {
-		const strings: string[] = [];
-		while (resultSet.hasNext()) {
-
-			// TODO handle null values
-			strings.push(resultSet.next().getString(0)?? "");
-		}
-		return strings;
+	constructor(
+		client: GraphClientType,
+		name: string
+	) {
+		this.#client = client;
+		this.#name = name;
 	}
 
-    /**
-     * Transforms a parameter value to string.
-     * @param {*} paramValue
-     * @returns {string} the string representation of paramValue.
-     */
-	paramToString(paramValue: any) {
-		if (paramValue == null) return "null";
-		const paramType = typeof paramValue;
-		if (paramType == "string") {
-			let strValue = "";
-            paramValue = paramValue.replace(/[\\"']/g, '\\$&');  
-			if (paramValue[0] != '"') strValue += '"';
-			strValue += paramValue;
-			if (!paramValue.endsWith('"') || paramValue.endsWith("\\\"")) strValue += '"';
-			return strValue;
-		}
-		if (Array.isArray(paramValue)) {
-			const stringsArr = new Array(paramValue.length);
-			for (let i = 0; i < paramValue.length; i++) {
-				stringsArr[i] = this.paramToString(paramValue[i]);
-			}
-			return ["[", stringsArr.join(", "), "]"].join("");
-		}
-		return paramValue;
+	async query<T>(
+		query: RedisCommandArgument,
+		options?: QueryOptions
+	) {
+		return this.#parseReply<T>(
+			await this.#client.falkordb.query(
+				this.#name,
+				query,
+				options,
+				true
+			)
+		);
 	}
 
-	/**
-	 * Extracts parameters from dictionary into cypher parameters string.
-	 * @param {Map} params parameters dictionary.
-	 * @return {string} a cypher parameters string.
-	 */
-	buildParamsHeader(params: Map<string, any>) {
-		const paramsArray = ["CYPHER"];
-
-		for (const key in params) {
-			const value = this.paramToString(params.get(key));
-			paramsArray.push(`${key}=${value}`);
-		}
-		paramsArray.push(" ");
-		return paramsArray.join(" ");
+	async roQuery<T>(
+		query: RedisCommandArgument,
+		options?: QueryOptions
+	) {
+		return this.#parseReply<T>(
+			await this.#client.falkordb.roQuery(
+				this.#name,
+				query,
+				options,
+				true
+			)
+		);
 	}
 
-	/**
-	 * Execute a Cypher query
-     * @async
-	 * @param {string} query Cypher query
-	 * @param {Map} [params] Parameters map
-	 * @returns {Promise<ResultSet>} a promise contains a result set
-	 */
-	query(query: string, params?: Map<string, any>) {
-		return this._query("graph.QUERY", query, params);
+	async delete() {
+		return this.#client.falkordb.delete(this.#name)
 	}
 
-	/**
-	 * Execute a Cypher readonly query
-	 * @async
-	 * @param {string} query Cypher query
-	 * @param {Map} [params] Parameters map
-	 *
-	 * @returns {Promise<ResultSet>} a promise contains a result set
-	 */
-	readonlyQuery(query: string, params: Map<string, any>) {
-		return this._query("graph.RO_QUERY", query, params);
+	async explain(
+		query: string,
+	) {
+		await this.#client.falkordb.explain(
+			this.#name,
+			query
+		)
 	}
 
-	/**
-	 * Execute a Cypher query
-	 * @private
-	 * @async
-	 * @param {'graph.QUERY'|'graph.RO_QUERY'} command
-	 * @param {string} query Cypher query
-	 * @param {Map} [params] Parameters map
-	 *
-	 * @returns {Promise<ResultSet>} a promise contains a result set
-	 */
-	async _query(command: string, query: string, params?: Map<string, any>) {
-		if (params) {
-			query = this.buildParamsHeader(params) + query;
-		}
-		const res = await this._client.sendCommand([
-			command,
-			this._graphId,
-			query,
-			"--compact"
+	async profile(
+		query: string,
+	) {
+		await this.#client.falkordb.profile(
+			this.#name,
+			query
+		)
+	}
+
+	async slowLog() {
+		await this.#client.falkordb.slowLog(
+			this.#name,
+		)
+	}
+
+	#setMetadataPromise?: Promise<GraphMetadata>;
+
+	#updateMetadata(): Promise<GraphMetadata> {
+		this.#setMetadataPromise ??= this.#setMetadata()
+			.finally(() => this.#setMetadataPromise = undefined);
+		return this.#setMetadataPromise;
+	}
+
+	// DO NOT use directly, use #updateMetadata instead
+	async #setMetadata(): Promise<GraphMetadata> {
+		const [labels, relationshipTypes, propertyKeys] = await Promise.all([
+			this.#client.falkordb.roQuery(this.#name, 'CALL db.labels()'),
+			this.#client.falkordb.roQuery(this.#name, 'CALL db.relationshipTypes()'),
+			this.#client.falkordb.roQuery(this.#name, 'CALL db.propertyKeys()')
 		]);
-		const resultSet = new ResultSet(this);
-		return resultSet.parseResponse(res as any[]);
+
+		this.#metadata = {
+			labels: this.#cleanMetadataArray(labels.data as Array<[string]>),
+			relationshipTypes: this.#cleanMetadataArray(relationshipTypes.data as Array<[string]>),
+			propertyKeys: this.#cleanMetadataArray(propertyKeys.data as Array<[string]>)
+		};
+
+		return this.#metadata;
 	}
 
-	/**
-	 * Deletes the entire graph
-     * @async
-	 * @returns {Promise<ResultSet>} a promise contains the delete operation running time statistics
-	 */
-	async deleteGraph() {
-		const res = await this._client.sendCommand(["graph.DELETE", this._graphId]);
-		//clear internal graph state
-		this._labels = [];
-		this._relationshipTypes = [];
-		this._properties = [];
-		const resultSet = new ResultSet(this);
-		return resultSet.parseResponse(res as any[]);
+	#cleanMetadataArray(arr: Array<[string]>): Array<string> {
+		return arr.map(([value]) => value);
 	}
 
-	/**
-	 * Calls procedure
-	 * @param {string} procedure Procedure to call
-	 * @param {string[]} [args] Arguments to pass
-	 * @param {string[]} [y] Yield outputs
-	 * @returns {Promise<ResultSet>} a promise contains the procedure result set data
-	 */
-	callProcedure(procedure: string, args = [], y = []) {
-		const q = "CALL " + procedure + "(" + args.join(",") + ")" + y.join(" ");
-		return this.query(q);
+	#getMetadata<T extends keyof GraphMetadata>(
+		key: T,
+		id: number
+	): GraphMetadata[T][number] | Promise<GraphMetadata[T][number]> {
+		return this.#metadata?.[key][id] ?? this.#getMetadataAsync(key, id);
 	}
 
-	/**
-	 * Retrieves all labels in graph.
-     * @async
-	 */
-	async labels() {
-		if (this._labelsPromise == null) {
-			this._labelsPromise = this.callProcedure("db.labels").then(
-				response => {
-					return this._extractStrings(response);
+	// DO NOT use directly, use #getMetadata instead
+	async #getMetadataAsync<T extends keyof GraphMetadata>(
+		key: T,
+		id: number
+	): Promise<GraphMetadata[T][number]> {
+		const value = (await this.#updateMetadata())[key][id];
+		if (value === undefined) throw new Error(`Cannot find value from ${key}[${id}]`);
+		return value;
+	}
+
+	async #parseReply<T>(reply: QueryReply): Promise<GraphReply<T>> {
+		if (!reply.data) return reply;
+
+		const promises: Array<Promise<unknown>> = [],
+			parsed = {
+				metadata: reply.metadata,
+				data: reply.data!.map((row) => {
+					const data: Record<string, GraphValue> = {};
+					if (Array.isArray(row)) {
+						for (let i = 0; i < row.length; i++) {
+							const value = row[i] as GraphRawValue;
+							data[reply.headers[i][1]] = this.#parseValue(value, promises);
+						}
+					}
+
+					return data as unknown as T;
+				})
+			};
+
+		if (promises.length) await Promise.all(promises);
+
+		return parsed;
+	}
+
+	#parseValue([valueType, value]: GraphRawValue, promises: Array<Promise<unknown>>): GraphValue {
+		switch (valueType) {
+			case GraphValueTypes.NULL:
+				return null;
+
+			case GraphValueTypes.STRING:
+			case GraphValueTypes.INTEGER:
+				return value;
+
+			case GraphValueTypes.BOOLEAN:
+				return value === 'true';
+
+			case GraphValueTypes.DOUBLE:
+				return parseFloat(value);
+
+			case GraphValueTypes.ARRAY:
+				return value.map(x => this.#parseValue(x, promises));
+
+			case GraphValueTypes.EDGE:
+				return this.#parseEdge(value, promises);
+
+			case GraphValueTypes.NODE:
+				return this.#parseNode(value, promises);
+
+			case GraphValueTypes.PATH:
+				return {
+					nodes: value[0][1].map(([, node]) => this.#parseNode(node, promises)),
+					edges: value[1][1].map(([, edge]) => this.#parseEdge(edge, promises))
+				};
+
+			case GraphValueTypes.MAP: {
+				const map: GraphMap = {};
+				for (let i = 0; i < value.length; i++) {
+					map[value[i++] as string] = this.#parseValue(value[i] as GraphRawValue, promises);
 				}
+
+				return map;
+			}
+
+			case GraphValueTypes.POINT:
+				return {
+					latitude: parseFloat(value[0]),
+					longitude: parseFloat(value[1])
+				};
+
+			default:
+				throw new Error(`unknown scalar type: ${valueType}`);
+		}
+	}
+
+	#parseEdge([
+		id,
+		relationshipTypeId,
+		sourceId,
+		destinationId,
+		properties
+	]: GraphEdgeRawValue[1], promises: Array<Promise<unknown>>): GraphEdge {
+		const edge = {
+			id,
+			sourceId,
+			destinationId,
+			properties: this.#parseProperties(properties, promises)
+		} as GraphEdge;
+
+		const relationshipType = this.#getMetadata('relationshipTypes', relationshipTypeId);
+		if (relationshipType instanceof Promise) {
+			promises.push(
+				relationshipType.then(value => edge.relationshipType = value)
 			);
-			this._labels = await this._labelsPromise;
-			this._labelsPromise = null;
 		} else {
-			await this._labelsPromise;
+			edge.relationshipType = relationshipType;
 		}
+
+		return edge;
 	}
 
-	/**
-	 * Retrieves all relationship types in graph.
-     * @async
-	 */
-	async relationshipTypes() {
-		if (this._relationshipPromise == null) {
-			this._relationshipPromise = this.callProcedure(
-				"db.relationshipTypes"
-			).then(response => {
-				return this._extractStrings(response);
-			});
-			this._relationshipTypes = await this._relationshipPromise;
-			this._relationshipPromise = null;
-		} else {
-			await this._relationshipPromise;
+	#parseNode([
+		id,
+		labelIds,
+		properties
+	]: GraphNodeRawValue[1], promises: Array<Promise<unknown>>): GraphNode {
+		const labels = new Array<string>(labelIds.length);
+		for (let i = 0; i < labelIds.length; i++) {
+			const value = this.#getMetadata('labels', labelIds[i]);
+			if (value instanceof Promise) {
+				promises.push(value.then(value => labels[i] = value));
+			} else {
+				labels[i] = value;
+			}
 		}
+
+		return {
+			id,
+			labels,
+			properties: this.#parseProperties(properties, promises)
+		};
 	}
 
-	/**
-	 * Retrieves all properties in graph.
-     * @async
-	 */
-	async propertyKeys() {
-		if (this._propertyPromise == null) {
-			this._propertyPromise = this.callProcedure("db.propertyKeys").then(
-				response => {
-					return this._extractStrings(response);
-				}
-			);
-			this._properties = await this._propertyPromise;
-			this._propertyPromise = null;
-		} else {
-			await this._propertyPromise;
+	#parseProperties(raw: GraphEntityRawProperties, promises: Array<Promise<unknown>>): GraphEntityProperties {
+		const parsed: GraphEntityProperties = {};
+		for (const [id, type, value] of raw) {
+			const parsedValue = this.#parseValue([type, value] as GraphRawValue, promises),
+				key = this.#getMetadata('propertyKeys', id);
+			if (key instanceof Promise) {
+				promises.push(key.then(key => parsed[key] = parsedValue));
+			} else {
+				parsed[key] = parsedValue;
+			}
 		}
-	}
 
-	/**
-	 * Retrieves label by ID.
-	 * @param {number} id internal ID of label. (integer)
-	 * @returns {string} String label.
-	 */
-	getLabel(id: number) : string {
-		return this._labels[id];
-	}
-
-	/**
-	 * Retrieve all the labels from the graph and returns the wanted label
-     * @async
-	 * @param {number} id internal ID of label. (integer)
-	 * @returns {Promise<string>} String label.
-	 */
-	async fetchAndGetLabel(id: number){
-		await this.labels();
-		return this._labels[id];
-	}
-
-	/**
-	 * Retrieves relationship type by ID.
-	 * @param {number} id internal ID of relationship type. (integer)
-	 * @returns {string} relationship type.
-	 */
-	getRelationship(id: number) {
-		return this._relationshipTypes[id];
-	}
-
-	/**
-	 * Retrieves al the relationships types from the graph, and returns the wanted type
-     * @async
-	 * @param {number} id internal ID of relationship type. (integer)
-	 * @returns {Promise<string>} String relationship type.
-	 */
-	async fetchAndGetRelationship(id: number) {
-		await this.relationshipTypes();
-		return this._relationshipTypes[id];
-	}
-
-	/**
-	 * Retrieves property name by ID.
-	 * @param {number} id internal ID of property. (integer)
-	 * @returns {string} String property.
-	 */
-	getProperty(id: number) {
-		return this._properties[id];
-	}
-
-	/**
-	 * Retrieves al the properties from the graph, and returns the wanted property
-     * @asyncTODO
-	 * @param {number} id internal ID of property. (integer)
-	 * @returns {Promise<string>} String property.
-	 */
-	async fetchAndGetProperty(id: number) {
-		await this.propertyKeys();
-		return this._properties[id];
+		return parsed;
 	}
 }
