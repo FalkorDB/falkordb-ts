@@ -1,6 +1,7 @@
 
 import * as tls from 'tls';
 import * as net from 'net';
+import { EventEmitter } from 'events';
 
 import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
 
@@ -90,28 +91,32 @@ export interface FalkorDBOptions {
     clientInfoTag?: string;
 }
 
-export default class FalkorDB {
+export default class FalkorDB extends EventEmitter {
 
     #client: GraphConnection;
 
     private constructor(client: GraphConnection) {
+        super();
         this.#client = client;
     }
 
     static async connect(options?: FalkorDBOptions) {
-        const redisOption = (options?? {}) as RedisClientOptions<{falkordb: typeof commands}, RedisFunctions, RedisScripts>;
-        
+        const redisOption = (options ?? {}) as RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+
         redisOption.modules = {
-            falkordb : commands
+            falkordb: commands
         }
 
-        const client: GraphConnection = await createClient<{falkordb: typeof commands}, RedisFunctions, RedisScripts>(redisOption)
-            .on('error', err => console.log('Redis Client Error', err))
+        const client = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
+        const falkordb = new FalkorDB(client);
+
+        await client
+            .on('error', err => falkordb.emit('error', err)) // Forward errors
             .connect();
 
-        return new FalkorDB(client)
+        return falkordb
     }
-    
+
     selectGraph(graphId: string) {
         return new Graph(this.#client, graphId);
     }
@@ -119,24 +124,24 @@ export default class FalkorDB {
     public get connection() {
         return this.#client;
     }
-    
+
     async list() {
-		return this.#client.falkordb.list()
-	}
+        return this.#client.falkordb.list()
+    }
 
     async configGet(configKey: string) {
-		return this.#client.falkordb.configGet(configKey)
-	}
+        return this.#client.falkordb.configGet(configKey)
+    }
 
     async configSet(configKey: string, value: number) {
-		return  this.#client.falkordb.configSet(configKey, value)
-	}
+        return this.#client.falkordb.configSet(configKey, value)
+    }
 
     async info(section?: string) {
-		return  this.#client.falkordb.info(section)
-	}
+        return this.#client.falkordb.info(section)
+    }
 
-    
+
 
     /**
      * Closes the client.

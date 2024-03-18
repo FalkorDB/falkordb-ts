@@ -1,6 +1,8 @@
 import { FalkorDB } from 'falkordb';
 
 const db = await FalkorDB.connect()
+db.on('error', console.error)
+
 console.log('Connected to FalkorDB')
 
 const graph = db.selectGraph('myGraph')
