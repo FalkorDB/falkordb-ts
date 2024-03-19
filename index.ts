@@ -1,5 +1,5 @@
-export { default as Graph } from './src/graph';
-export { default as FalkorDB } from './src/falkordb';
+xport { default as Graph } from './src/graph';
+xport { default as FalkorDB } from './src/falkordb';
 
 
 
