@@ -31,7 +31,7 @@ jobs:
 
     - name: Notify Google Chat
       id: test-action
-      if: failure() # only send notification in case of failure
+      # if: failure() # only send notification in case of failure
       uses: SimonScholz/google-chat-action@v1.1.0
       with:
           webhookUrl: '${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}'
