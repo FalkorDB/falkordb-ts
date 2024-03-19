@@ -207,7 +207,7 @@ export default class Graph {
 
 	async constraintCreate(constraintType: ConstraintType, entityType: EntityType,
 		label: string, ...properties: string[]) {
-		await this.#client.falkordb.constraintCreate(
+		return this.#client.falkordb.constraintCreate(
 			this.#name,
 			constraintType,
 			entityType,
@@ -218,7 +218,7 @@ export default class Graph {
 
 	async constraintDrop(constraintType: ConstraintType, entityType: EntityType,
 		label: string, ...properties: string[]) {
-		await this.#client.falkordb.constraintDrop(
+		return this.#client.falkordb.constraintDrop(
 			this.#name,
 			constraintType,
 			entityType,
