@@ -28,3 +28,12 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
     # - run: npm test
+
+    - name: Notify Google Chat
+      id: test-action
+      if: failure() # only send notification in case of failure
+      uses: SimonScholz/google-chat-action@v1.1.0
+      with:
+          webhookUrl: '${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}'
+          jobStatus: ${{ job.status }}
+          threadKey: ${{ github.event.number }}
