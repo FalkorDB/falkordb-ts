@@ -181,7 +181,7 @@ export default class Graph {
 	async explain(
 		query: string,
 	) {
-		await this.#client.falkordb.explain(
+		return this.#client.falkordb.explain(
 			this.#name,
 			query
 		)
@@ -190,20 +190,20 @@ export default class Graph {
 	async profile(
 		query: string,
 	) {
-		await this.#client.falkordb.profile(
+		return this.#client.falkordb.profile(
 			this.#name,
 			query
 		)
 	}
 
 	async slowLog() {
-		await this.#client.falkordb.slowLog(
+		return this.#client.falkordb.slowLog(
 			this.#name,
 		)
 	}
 
 	async copy(destGraph: string) {
-		await this.#client.falkordb.copy(
+		return this.#client.falkordb.copy(
 			this.#name,
 			destGraph
 		)
