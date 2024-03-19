@@ -8,6 +8,8 @@ import * as PROFILE from './PROFILE';
 import * as QUERY from './QUERY';
 import * as RO_QUERY from './RO_QUERY';
 import * as SLOWLOG from './SLOWLOG';
+import * as CONSTRAINT_CREATE from './CONSTRAINT_CREATE';
+import * as CONSTRAINT_DROP from './CONSTRAINT_DROP';
 import * as COPY from './COPY';
 
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
@@ -33,6 +35,10 @@ export default {
     roQuery: RO_QUERY,
     SLOWLOG,
     slowLog: SLOWLOG,
+    CONSTRAINT_CREATE,
+    constraintCreate: CONSTRAINT_CREATE,
+    CONSTRAINT_DROP,
+    constraintDrop: CONSTRAINT_DROP,
     COPY,
     copy: COPY
 };

@@ -3,6 +3,9 @@ import { RedisClientType, RedisFunctions, RedisScripts } from "redis";
 import { QueryOptions } from "./commands";
 import { QueryReply } from "./commands/QUERY";
 import Commands from "./commands";
+import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
+
+export { ConstraintType, EntityType };
 
 interface GraphMetadata {
 	labels: Array<string>;
@@ -199,6 +202,28 @@ export default class Graph {
 	async slowLog() {
 		return this.#client.falkordb.slowLog(
 			this.#name,
+		)
+	}
+
+	async constraintCreate(constraintType: ConstraintType, entityType: EntityType,
+		label: string, ...properties: string[]) {
+		return this.#client.falkordb.constraintCreate(
+			this.#name,
+			constraintType,
+			entityType,
+			label,
+			...properties
+		)
+	}
+
+	async constraintDrop(constraintType: ConstraintType, entityType: EntityType,
+		label: string, ...properties: string[]) {
+		return this.#client.falkordb.constraintDrop(
+			this.#name,
+			constraintType,
+			entityType,
+			label,
+			...properties
 		)
 	}
 
