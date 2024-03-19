@@ -28,3 +28,21 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
     # - run: npm test
+
+    - name: Notify Google Chat
+      id: test-action
+      if: failure() # only send notification in case of failure
+      uses: SimonScholz/google-chat-action@v1.1.0
+      with:
+          webhookUrl: '${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}'
+          jobStatus: ${{ job.status }}
+          title: Google Chat GitHub Action
+          subtitle: Brought to you by Simon ;-)
+          imageUrl: https://raw.githubusercontent.com/SimonScholz/simonscholz.github.io/gatsby-homepage/src/assets/img/avatar.webp
+          imageType: SQUARE
+          imageAltText: Alternative image text
+          createDefaultSection: false
+          collapsibleDefaultSection: false
+          uncollapsibleWidgetsCount: 3
+          additionalSections: '[{"header": "Additional Section", "collapsible": true, "widgets": [{"decoratedText": {"startIcon": {"knownIcon": "STAR"},"text": "Additional Section"}}] }]'
+          threadKey: ${{ github.event.number }}
