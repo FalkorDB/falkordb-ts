@@ -202,6 +202,13 @@ export default class Graph {
 		)
 	}
 
+	async copy(destGraph: string) {
+		await this.#client.falkordb.copy(
+			this.#name,
+			destGraph
+		)
+	}
+
 	#setMetadataPromise?: Promise<GraphMetadata>;
 
 	#updateMetadata(): Promise<GraphMetadata> {

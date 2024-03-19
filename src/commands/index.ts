@@ -8,6 +8,8 @@ import * as PROFILE from './PROFILE';
 import * as QUERY from './QUERY';
 import * as RO_QUERY from './RO_QUERY';
 import * as SLOWLOG from './SLOWLOG';
+import * as COPY from './COPY';
+
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
 
 export default {
@@ -30,7 +32,9 @@ export default {
     RO_QUERY,
     roQuery: RO_QUERY,
     SLOWLOG,
-    slowLog: SLOWLOG
+    slowLog: SLOWLOG,
+    COPY,
+    copy: COPY
 };
 
 type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
