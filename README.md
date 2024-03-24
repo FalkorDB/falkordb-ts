@@ -1,6 +1,6 @@
 # falkordb-ts
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/falkordb/falkordb-ts/tests.yml?branch=main)](https://github.com/falkordb/falkordb-ts/actions/workflows/tests.yml)
+[![Tests](https://img.shields.io/github/actions/workflow/status/falkordb/falkordb-ts/node.js.yml?branch=main)](https://github.com/falkordb/falkordb-ts/actions/workflows/node.js.yml)
 [![Coverage](https://codecov.io/gh/falkordb/falkordb-ts/branch/master/graph/badge.svg?token=nNxm2N0Xrl)](https://codecov.io/gh/falkordb/falkordb-ts)
 [![License](https://img.shields.io/github/license/falkordb/falkordb-ts.svg)](https://github.com/falkordb/falkordb-ts/blob/master/LICENSE)
 
