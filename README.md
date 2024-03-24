@@ -1,8 +1,8 @@
 # falkordb-ts
 
 [![Tests](https://img.shields.io/github/actions/workflow/status/falkordb/falkordb-ts/node.js.yml?branch=main)](https://github.com/falkordb/falkordb-ts/actions/workflows/node.js.yml)
-[![Coverage](https://codecov.io/gh/falkordb/falkordb-ts/branch/master/graph/badge.svg?token=nNxm2N0Xrl)](https://codecov.io/gh/falkordb/falkordb-ts)
-[![License](https://img.shields.io/github/license/falkordb/falkordb-ts.svg)](https://github.com/falkordb/falkordb-ts/blob/master/LICENSE)
+[![Coverage](https://codecov.io/gh/falkordb/falkordb-ts/branch/main/graph/badge.svg?token=nNxm2N0Xrl)](https://codecov.io/gh/falkordb/falkordb-ts)
+[![License](https://img.shields.io/github/license/falkordb/falkordb-ts.svg)](https://github.com/falkordb/falkordb-ts/blob/main/LICENSE)
 
 [![Discord](https://img.shields.io/discord/1146782921294884966.svg?style=social&logo=discord)](https://discord.com/invite/99y2Ubh6tg)
 [![Twitter](https://img.shields.io/twitter/follow/falkordb?style=social)](https://twitter.com/falkordb)
