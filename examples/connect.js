@@ -1,6 +1,13 @@
 import { FalkorDB } from 'falkordb';
 
-const db = await FalkorDB.connect()
+const db = await FalkorDB.connect({
+    username: 'myUsername',
+    password: 'myPassword',
+    socket: {
+        host: 'localhost',
+        port: 6379
+    }
+})
 db.on('error', console.error)
 
 console.log('Connected to FalkorDB')

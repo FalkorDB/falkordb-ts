@@ -1,7 +1,7 @@
 # falkordb-ts
 
-[![Tests](https://img.shields.io/github/actions/workflow/status/falkordb/falkordb-ts/tests.yml?branch=master)](https://github.com/falkordb/falkordb-ts/actions/workflows/tests.yml)
-[![Coverage](https://codecov.io/gh/falkordb/falkordb-ts/branch/master/graph/badge.svg?token=xcfqHhJC37)](https://codecov.io/gh/falkordb/falkordb-ts)
+[![Tests](https://img.shields.io/github/actions/workflow/status/falkordb/falkordb-ts/node.js.yml?branch=main)](https://github.com/falkordb/falkordb-ts/actions/workflows/node.js.yml)
+[![Coverage](https://codecov.io/gh/falkordb/falkordb-ts/branch/master/graph/badge.svg?token=nNxm2N0Xrl)](https://codecov.io/gh/falkordb/falkordb-ts)
 [![License](https://img.shields.io/github/license/falkordb/falkordb-ts.svg)](https://github.com/falkordb/falkordb-ts/blob/master/LICENSE)
 
 [![Discord](https://img.shields.io/discord/1146782921294884966.svg?style=social&logo=discord)](https://discord.com/invite/99y2Ubh6tg)
@@ -30,17 +30,24 @@ npm install falkordb
 ```typescript
 import { FalkorDB } from 'falkordb';
 
-const db = await FalkorDB.connect()
+const db = await FalkorDB.connect({
+    username: 'myUsername',
+    password: 'myPassword',
+    socket: {
+        host: 'localhost',
+        port: 6379
+    }
+})
+
 console.log('Connected to FalkorDB')
 
 const graph = db.selectGraph('myGraph')
-const result = await graph.query('MATCH (n) RETURN n')
 
+const result = await graph.query('MATCH (n) RETURN n')
 console.log(result)
 
 console.log(await db.list())
 console.log(await db.info())
-console.log(await db.connection.info())
 
 db.close()
 ```
