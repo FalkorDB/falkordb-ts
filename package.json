@@ -23,12 +23,12 @@
   },
   "repository": {
     "type": "git",
-    "url": "git://github.com/falkordb/falkordb-js.git"
+    "url": "git://github.com/falkordb/falkordb-ts.git"
   },
   "bugs": {
-    "url": "https://github.com/falkordb/falkordb-js/issues"
+    "url": "https://github.com/falkordb/falkordb-ts/issues"
   },
-  "homepage": "https://github.com/falkordb/falkordb-js",
+  "homepage": "https://github.com/falkordb/falkordb-ts",
   "keywords": [
     "falkordb"
   ],
