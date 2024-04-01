@@ -91,9 +91,22 @@ export interface FalkorDBOptions {
     clientInfoTag?: string;
 }
 
+function extractDetails(masters: Array<Array<string>>) {
+    const allDetails: Record<string, string>[] = [];
+    for (const master of masters) {
+        const details: Record<string, string> = {};
+        for (let i = 0; i < master.length; i += 2) {
+            details[master[i]] = master[i + 1];
+        }
+        allDetails.push(details);
+    }
+    return allDetails;
+}
+
 export default class FalkorDB extends EventEmitter {
 
     #client: GraphConnection;
+    #sentinel?: GraphConnection;
 
     private constructor(client: GraphConnection) {
         super();
@@ -108,11 +121,38 @@ export default class FalkorDB extends EventEmitter {
         }
 
         const client = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
+
         const falkordb = new FalkorDB(client);
 
         await client
             .on('error', err => falkordb.emit('error', err)) // Forward errors
             .connect();
+
+        try {
+            const masters = await client.falkordb.sentinelMasters();
+            const details = extractDetails(masters);
+
+            if (details.length > 1) {
+                throw new Error('Multiple masters are not supported');
+            }
+            const serverOptions = {
+                ...redisOption,
+                socket: {
+                    host: details[0]['ip'] as string,
+                    port: parseInt(details[0]['port'])
+                }
+            }
+            const serverClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
+            await serverClient
+                .on('error', err => falkordb.emit('error', err)) // Forward errors
+                .connect();
+
+            falkordb.#client = serverClient;
+            falkordb.#sentinel = client;
+
+        } catch (e) {
+            console.debug('Error in connecting to sentinel, connecting to server directly');
+        }
 
         return falkordb
     }

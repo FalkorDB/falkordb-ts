@@ -11,6 +11,8 @@ import * as SLOWLOG from './SLOWLOG';
 import * as CONSTRAINT_CREATE from './CONSTRAINT_CREATE';
 import * as CONSTRAINT_DROP from './CONSTRAINT_DROP';
 import * as COPY from './COPY';
+import * as SENTINEL_MASTER from './SENTINEL_MASTER';
+import * as SENTINEL_MASTERS from './SENTINEL_MASTERS';
 
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
 
@@ -40,7 +42,11 @@ export default {
     CONSTRAINT_DROP,
     constraintDrop: CONSTRAINT_DROP,
     COPY,
-    copy: COPY
+    copy: COPY,
+    SENTINEL_MASTER,
+    sentinelMaster: SENTINEL_MASTER,
+    SENTINEL_MASTERS,
+    sentinelMasters: SENTINEL_MASTERS
 };
 
 type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
