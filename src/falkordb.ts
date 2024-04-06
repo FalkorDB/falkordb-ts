@@ -3,14 +3,18 @@ import * as tls from 'tls';
 import * as net from 'net';
 import { EventEmitter } from 'events';
 
-import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
+import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, createClient } from 'redis';
 
 import Graph, { GraphConnection } from './graph';
 import commands from './commands';
+import { RedisClientType } from '@redis/client';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
 };
+
+type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+type TypedRedisClientType = RedisClientType<RedisDefaultModules & { falkordb: typeof commands }, RedisFunctions, RedisScripts>
 
 interface TlsSocketOptions extends tls.ConnectionOptions {
     tls: true;
@@ -113,8 +117,58 @@ export default class FalkorDB extends EventEmitter {
         this.#client = client;
     }
 
+    private async connectServer(client: TypedRedisClientType, redisOption: TypedRedisClientOptions) {
+
+        // If not connected to sentinel, throws an error on missing command
+        const masters = await client.falkordb.sentinelMasters();
+        const details = extractDetails(masters);
+
+        if (details.length > 1) {
+            throw new Error('Multiple masters are not supported');
+        }
+        this.#sentinel = client;
+
+        // Connect to the server with the details from sentinel
+        const serverOptions = {
+            ...redisOption,
+            socket: {
+                host: details[0]['ip'] as string,
+                port: parseInt(details[0]['port'])
+            }
+        }
+        const serverClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
+
+        // Set original client as sentinel and server client as client
+        this.#client = serverClient;
+
+        await serverClient
+            .on('error', async err => {
+
+                console.debug('Error on server connection', err)
+
+                // Disconnect the client to avoid further errors and retries
+                serverClient.disconnect();
+
+                // If error occurs on previous server connection, no need to reconnect
+                if (this.#client !== serverClient) {
+                    return;
+                }
+
+                try {
+                    await this.connectServer(client, redisOption)
+                    console.debug('Connected to server')
+                } catch (e) {
+                    console.debug('Error on server reconnect', e)
+
+                    // Forward errors if reconnection fails
+                    this.emit('error', err)
+                }
+            })
+            .connect();
+    }
+
     static async connect(options?: FalkorDBOptions) {
-        const redisOption = (options ?? {}) as RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+        const redisOption = (options ?? {}) as TypedRedisClientOptions;
 
         redisOption.modules = {
             falkordb: commands
@@ -129,27 +183,7 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         try {
-            const masters = await client.falkordb.sentinelMasters();
-            const details = extractDetails(masters);
-
-            if (details.length > 1) {
-                throw new Error('Multiple masters are not supported');
-            }
-            const serverOptions = {
-                ...redisOption,
-                socket: {
-                    host: details[0]['ip'] as string,
-                    port: parseInt(details[0]['port'])
-                }
-            }
-            const serverClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
-            await serverClient
-                .on('error', err => falkordb.emit('error', err)) // Forward errors
-                .connect();
-
-            falkordb.#client = serverClient;
-            falkordb.#sentinel = client;
-
+            falkordb.connectServer(client, redisOption)
         } catch (e) {
             console.debug('Error in connecting to sentinel, connecting to server directly');
         }
