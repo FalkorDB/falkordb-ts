@@ -126,31 +126,33 @@ export default class FalkorDB extends EventEmitter {
         if (details.length > 1) {
             throw new Error('Multiple masters are not supported');
         }
-        this.#sentinel = client;
-
+        
         // Connect to the server with the details from sentinel
-        const serverOptions = {
+        const socketOptions: tls.ConnectionOptions = {
+            ...redisOption.socket,
+            host: details[0]['ip'] as string,
+            port: parseInt(details[0]['port'])
+        };
+        const serverOptions: TypedRedisClientOptions = {
             ...redisOption,
-            socket: {
-                host: details[0]['ip'] as string,
-                port: parseInt(details[0]['port'])
-            }
-        }
-        const serverClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
+            socket: socketOptions
+        };
+        const realClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
 
         // Set original client as sentinel and server client as client
-        this.#client = serverClient;
+        this.#sentinel = client;
+        this.#client = realClient;
 
-        await serverClient
+        await realClient
             .on('error', async err => {
 
                 console.debug('Error on server connection', err)
 
                 // Disconnect the client to avoid further errors and retries
-                serverClient.disconnect();
+                realClient.disconnect();
 
                 // If error occurs on previous server connection, no need to reconnect
-                if (this.#client !== serverClient) {
+                if (this.#client !== realClient) {
                     return;
                 }
 
@@ -183,7 +185,7 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         try {
-            falkordb.connectServer(client, redisOption)
+            await falkordb.connectServer(client, redisOption)
         } catch (e) {
             console.debug('Error in connecting to sentinel, connecting to server directly');
         }
