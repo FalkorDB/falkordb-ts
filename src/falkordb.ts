@@ -103,6 +103,12 @@ export default class FalkorDB extends EventEmitter {
     static async connect(options?: FalkorDBOptions) {
         const redisOption = (options ?? {}) as RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
 
+        // If the URL is provided, and the protocl is falkordb replace it with redis for the underline redis client
+        // e.g. falkordb://localhost:6379 -> redis://localhost:6379
+        if (redisOption.url && redisOption.url.startsWith('falkordb')) {
+            redisOption.url = redisOption.url.replace('falkordb', 'redis');
+        }
+
         redisOption.modules = {
             falkordb: commands
         }
