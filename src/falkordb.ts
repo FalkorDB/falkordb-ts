@@ -45,7 +45,7 @@ export type SocketOptions = SocketCommonOptions & (NetSocketOptions | TlsSocketO
 export interface FalkorDBOptions {
 
     /**
-     * `falkordb[s]://[[username][:password]@][host][:port][/db-number]`
+     * `falkor[s]://[[username][:password]@][host][:port][/db-number]`
      */
     url?: string;
 
@@ -102,6 +102,12 @@ export default class FalkorDB extends EventEmitter {
 
     static async connect(options?: FalkorDBOptions) {
         const redisOption = (options ?? {}) as RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+
+        // If the URL is provided, and the protocol is `falkor` replaces it with `redis` for the underline redis client
+        // e.g. falkor://localhost:6379 -> redis://localhost:6379
+        if (redisOption.url && redisOption.url.startsWith('falkor')) {
+            redisOption.url = redisOption.url.replace('falkor', 'redis');
+        }
 
         redisOption.modules = {
             falkordb: commands
