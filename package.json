@@ -1,6 +1,6 @@
 {
   "name": "falkordb",
-  "version": "6.1.0",
+  "version": "6.2.0-beta.1",
   "description": "A FalkorDB javascript library",
   "license": "MIT",
   "main": "./dist/index.js",
