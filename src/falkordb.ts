@@ -8,6 +8,7 @@ import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, 
 import Graph, { GraphConnection } from './graph';
 import commands from './commands';
 import { RedisClientType } from '@redis/client';
+import { Options as PoolOptions } from 'generic-pool';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
@@ -93,6 +94,11 @@ export interface FalkorDBOptions {
      * Tag to append to library name that is sent to the Redis server
      */
     clientInfoTag?: string;
+
+    /**
+     * Connection pool options 
+     */
+    poolOptions?: PoolOptions;
 }
 
 function extractDetails(masters: Array<Array<string>>) {
@@ -176,6 +182,11 @@ export default class FalkorDB extends EventEmitter {
         // e.g. falkor://localhost:6379 -> redis://localhost:6379
         if (redisOption.url && redisOption.url.startsWith('falkor')) {
             redisOption.url = redisOption.url.replace('falkor', 'redis');
+        }
+
+        // Just copy the pool options to the isolation pool options as expected by the redis client
+        if(options?.poolOptions){
+            redisOption.isolationPoolOptions = options.poolOptions;
         }
 
         redisOption.modules = {

@@ -140,6 +140,7 @@ export default class Graph {
 	#client: GraphConnection;
 	#name: string;
 	#metadata?: GraphMetadata;
+	#usePool: boolean;
 
 	constructor(
 		client: GraphConnection,
@@ -147,43 +148,79 @@ export default class Graph {
 	) {
 		this.#client = client;
 		this.#name = name;
+		this.#usePool = !!(this.#client.options?.isolationPoolOptions);
 	}
 
 	async query<T>(
 		query: RedisCommandArgument,
 		options?: QueryOptions
 	) {
-		return this.#parseReply<T>(
+
+		const reply = this.#usePool ?
+			await this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.query(
+					this.#name,
+					query,
+					options,
+					true
+				)
+			})
+			:
 			await this.#client.falkordb.query(
 				this.#name,
 				query,
 				options,
 				true
 			)
-		);
+
+		return this.#parseReply<T>(reply);
 	}
 
 	async roQuery<T>(
 		query: RedisCommandArgument,
 		options?: QueryOptions
 	) {
-		return this.#parseReply<T>(
+
+		const reply = this.#usePool ?
+			await this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.roQuery(
+					this.#name,
+					query,
+					options,
+					true
+				)
+			})
+			:
 			await this.#client.falkordb.roQuery(
 				this.#name,
 				query,
 				options,
 				true
-			)
-		);
+			);
+
+		return this.#parseReply<T>(reply);
 	}
 
 	async delete() {
+		if (this.#usePool) {
+			return this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.delete(this.#name)
+			})
+		}
 		return this.#client.falkordb.delete(this.#name)
 	}
 
 	async explain(
 		query: string,
 	) {
+		if (this.#usePool) {
+			return this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.explain(
+					this.#name,
+					query
+				)
+			})
+		}
 		return this.#client.falkordb.explain(
 			this.#name,
 			query
@@ -193,6 +230,15 @@ export default class Graph {
 	async profile(
 		query: string,
 	) {
+		if (this.#usePool) {
+
+			return this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.profile(
+					this.#name,
+					query
+				)
+			})
+		}
 		return this.#client.falkordb.profile(
 			this.#name,
 			query
@@ -200,6 +246,13 @@ export default class Graph {
 	}
 
 	async slowLog() {
+		if (this.#usePool) {
+			return this.#client.executeIsolated(async isolatedClient => {
+				return isolatedClient.falkordb.slowLog(
+					this.#name,
+				)
+			})
+		}
 		return this.#client.falkordb.slowLog(
 			this.#name,
 		)

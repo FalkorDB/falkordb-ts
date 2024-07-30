@@ -34,16 +34,18 @@
   ],
   "devDependencies": {
     "@tsconfig/node14": "^14.1.0",
+    "@types/jest": "^29.5.12",
     "@types/node": "^20.11.28",
-    "@typescript-eslint/eslint-plugin": "^7.2.0",
-    "@typescript-eslint/parser": "^7.2.0",
+    "@typescript-eslint/eslint-plugin": "^7.16.0",
+    "@typescript-eslint/parser": "^7.18.0",
     "eslint": "^8.57.0",
     "gh-pages": "^6.0.0",
-    "release-it": "^17.1.1",
+    "release-it": "^17.6.0",
     "typescript": "^5.4.2"
   },
   "dependencies": {
-    "redis": "^4.6.13",
-    "@redis/client": "*"
+    "@redis/client": "^1.6.0",
+    "generic-pool": "^3.9.0",
+    "redis": "^4.7.0"
   }
 }
