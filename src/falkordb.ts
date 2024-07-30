@@ -98,7 +98,7 @@ export interface FalkorDBOptions {
     /**
      * Connection pool options 
      */
-    isolationPoolOptions?: PoolOptions;
+    poolOptions?: PoolOptions;
 }
 
 function extractDetails(masters: Array<Array<string>>) {
@@ -182,6 +182,11 @@ export default class FalkorDB extends EventEmitter {
         // e.g. falkor://localhost:6379 -> redis://localhost:6379
         if (redisOption.url && redisOption.url.startsWith('falkor')) {
             redisOption.url = redisOption.url.replace('falkor', 'redis');
+        }
+
+        // Just copy the pool options to the isolation pool options as expected by the redis client
+        if(options?.poolOptions){
+            redisOption.isolationPoolOptions = options.poolOptions;
         }
 
         redisOption.modules = {
