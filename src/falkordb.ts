@@ -8,6 +8,7 @@ import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, 
 import Graph, { GraphConnection } from './graph';
 import commands from './commands';
 import { RedisClientType } from '@redis/client';
+import { Options as PoolOptions } from 'generic-pool';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
@@ -93,6 +94,11 @@ export interface FalkorDBOptions {
      * Tag to append to library name that is sent to the Redis server
      */
     clientInfoTag?: string;
+
+    /**
+     * Connection pool options 
+     */
+    isolationPoolOptions?: PoolOptions;
 }
 
 function extractDetails(masters: Array<Array<string>>) {
