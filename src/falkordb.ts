@@ -3,11 +3,11 @@ import * as tls from 'tls';
 import * as net from 'net';
 import { EventEmitter } from 'events';
 
-import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, createClient } from 'redis';
+import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, createClient, createCluster } from 'redis';
 
 import Graph, { GraphConnection } from './graph';
 import commands from './commands';
-import { RedisClientType } from '@redis/client';
+import { RedisClientType, RedisClusterOptions } from '@redis/client';
 import { Options as PoolOptions } from 'generic-pool';
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
@@ -194,19 +194,37 @@ export default class FalkorDB extends EventEmitter {
         }
 
         const client = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
+        
 
-        const falkordb = new FalkorDB(client);
 
+        let falkordb = new FalkorDB(client);
+        
         await client
+        .on('error', err => falkordb.emit('error', err)) // Forward errors
+        .connect();
+        
+        try {
+            await client.clusterInfo()
+            const clusterClient = createCluster((options ?? {}) as RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>)
+            
+            falkordb = new FalkorDB(clusterClient);
+            
+            await clusterClient
             .on('error', err => falkordb.emit('error', err)) // Forward errors
             .connect();
-
+            
+            return falkordb
+        } catch (e) {
+            
+            console.debug('Error in connecting to cluster, connecting single server');
+        }
+        
         try {
             await falkordb.connectServer(client, redisOption)
         } catch (e) {
             console.debug('Error in connecting to sentinel, connecting to server directly');
         }
-
+        
         return falkordb
     }
 
