@@ -3,19 +3,25 @@ import * as tls from 'tls';
 import * as net from 'net';
 import { EventEmitter } from 'events';
 
-import { RedisClientOptions, RedisDefaultModules, RedisFunctions, RedisScripts, createClient, createCluster } from 'redis';
+import { RedisClientOptions, RedisFunctions, RedisScripts, createClient, createCluster } from 'redis';
 
-import Graph, { GraphConnection } from './graph';
+import Graph from './graph';
 import commands from './commands';
-import { RedisClientType, RedisClusterOptions } from '@redis/client';
+import { RedisClusterOptions } from '@redis/client';
 import { Options as PoolOptions } from 'generic-pool';
+import { Client } from './clients/client';
+import { Single, SingleGraphConnection } from './clients/single';
+import { Sentinel } from './clients/sentinel';
+import { Cluster } from './clients/cluster';
+import { NullClient } from './clients/nullClient';
+
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
 };
 
-type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
-type TypedRedisClientType = RedisClientType<RedisDefaultModules & { falkordb: typeof commands }, RedisFunctions, RedisScripts>
+export type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+export type TypedRedisClusterClientOptions = RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
 
 interface TlsSocketOptions extends tls.ConnectionOptions {
     tls: true;
@@ -101,79 +107,21 @@ export interface FalkorDBOptions {
     poolOptions?: PoolOptions;
 }
 
-function extractDetails(masters: Array<Array<string>>) {
-    const allDetails: Record<string, string>[] = [];
-    for (const master of masters) {
-        const details: Record<string, string> = {};
-        for (let i = 0; i < master.length; i += 2) {
-            details[master[i]] = master[i + 1];
-        }
-        allDetails.push(details);
+async function clientFactory(client: SingleGraphConnection) {
+
+    const info = await client.info("server")
+
+    if (info.includes("redis_mode:sentinel")) {
+        return new Sentinel(client)
+    } else if (info.includes("redis_mode:cluster")) {
+        return new Cluster(client);
     }
-    return allDetails;
+    return new Single(client)
 }
 
 export default class FalkorDB extends EventEmitter {
 
-    #client: GraphConnection;
-    #sentinel?: GraphConnection;
-
-    private constructor(client: GraphConnection) {
-        super();
-        this.#client = client;
-    }
-
-    private async connectServer(client: TypedRedisClientType, redisOption: TypedRedisClientOptions) {
-
-        // If not connected to sentinel, throws an error on missing command
-        const masters = await client.falkordb.sentinelMasters();
-        const details = extractDetails(masters);
-
-        if (details.length > 1) {
-            throw new Error('Multiple masters are not supported');
-        }
-        
-        // Connect to the server with the details from sentinel
-        const socketOptions: tls.ConnectionOptions = {
-            ...redisOption.socket,
-            host: details[0]['ip'] as string,
-            port: parseInt(details[0]['port'])
-        };
-        const serverOptions: TypedRedisClientOptions = {
-            ...redisOption,
-            socket: socketOptions
-        };
-        const realClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
-
-        // Set original client as sentinel and server client as client
-        this.#sentinel = client;
-        this.#client = realClient;
-
-        await realClient
-            .on('error', async err => {
-
-                console.debug('Error on server connection', err)
-
-                // Disconnect the client to avoid further errors and retries
-                realClient.disconnect();
-
-                // If error occurs on previous server connection, no need to reconnect
-                if (this.#client !== realClient) {
-                    return;
-                }
-
-                try {
-                    await this.connectServer(client, redisOption)
-                    console.debug('Connected to server')
-                } catch (e) {
-                    console.debug('Error on server reconnect', e)
-
-                    // Forward errors if reconnection fails
-                    this.emit('error', err)
-                }
-            })
-            .connect();
-    }
+    #client: Client = new NullClient();
 
     static async connect(options?: FalkorDBOptions) {
         const redisOption = (options ?? {}) as TypedRedisClientOptions;
@@ -185,7 +133,7 @@ export default class FalkorDB extends EventEmitter {
         }
 
         // Just copy the pool options to the isolation pool options as expected by the redis client
-        if(options?.poolOptions){
+        if (options?.poolOptions) {
             redisOption.isolationPoolOptions = options.poolOptions;
         }
 
@@ -193,38 +141,39 @@ export default class FalkorDB extends EventEmitter {
             falkordb: commands
         }
 
-        const client = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
-        
+        // Create an empty FalkorDB instance for the redisClient on error event to work
+        const falkordb = new FalkorDB();
 
-
-        let falkordb = new FalkorDB(client);
-        
-        await client
-        .on('error', err => falkordb.emit('error', err)) // Forward errors
-        .connect();
-        
-        try {
-            await client.clusterInfo()
-            const clusterClient = createCluster((options ?? {}) as RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>)
-            
-            falkordb = new FalkorDB(clusterClient);
-            
-            await clusterClient
+        // Create initial redis single client
+        const redisClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
+        await redisClient
             .on('error', err => falkordb.emit('error', err)) // Forward errors
             .connect();
-            
-            return falkordb
-        } catch (e) {
-            
-            console.debug('Error in connecting to cluster, connecting single server');
-        }
-        
-        try {
-            await falkordb.connectServer(client, redisOption)
-        } catch (e) {
-            console.debug('Error in connecting to sentinel, connecting to server directly');
-        }
-        
+
+        // Create FalkorDB client wrapper
+        const client = await clientFactory(redisClient);
+        await client.init(falkordb);
+
+        // Set the client to the FalkorDB instance after it was initialized
+        falkordb.#client = client;  
+
+
+        // verify if it's connected to shard that is part of a cluster
+        // if(await isCluster(client)){
+        //     client.disconnect();
+
+        //     const redisClusterOption = redisOption as TypedRedisClusterClientOptions;
+        //     const clusterClient = createCluster<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisClusterOption)
+
+        //     falkordb = new FalkorDB(clusterClient);
+
+        //     await clusterClient
+        //     .on('error', err => falkordb.emit('error', err)) // Forward errors
+        //     .connect();
+
+        //     return falkordb
+        // }
+
         return falkordb
     }
 
@@ -237,22 +186,20 @@ export default class FalkorDB extends EventEmitter {
     }
 
     async list() {
-        return this.#client.falkordb.list()
+        return this.#client.list()
     }
 
     async configGet(configKey: string) {
-        return this.#client.falkordb.configGet(configKey)
+        return this.#client.configGet(configKey)
     }
 
     async configSet(configKey: string, value: number) {
-        return this.#client.falkordb.configSet(configKey, value)
+        return this.#client.configSet(configKey, value)
     }
 
     async info(section?: string) {
-        return this.#client.falkordb.info(section)
+        return this.#client.info(section)
     }
-
-
 
     /**
      * Closes the client.

@@ -1,5 +1,5 @@
 
-export function transformArguments( srcGraph: string, destGraph: string, ): Array<string> {
+export function transformArguments( srcGraph: string, destGraph: string): Array<string> {
     return [
         'GRAPH.COPY',
         srcGraph,
