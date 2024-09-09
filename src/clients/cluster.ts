@@ -25,17 +25,7 @@ export class Cluster implements Client {
     }
 
     async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
-
-
         return this.#client.falkordb.query(graph, query, options)
-
-        // const slots = this.#client.slots
-        // // let client = await this.#slots.getClient(firstKey, isReadonly);
-        // const slot = calculateSlot(graph);
-
-        // const client = this.#client.nodeClient(slots[slot].master);
-        // if(client.)
-        // new Single(client).query(graph, query, options)
     }
     async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
         return this.#client.falkordb.roQuery(graph, query, options)

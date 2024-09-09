@@ -19,10 +19,6 @@ function extractDetails(masters: Array<Array<string>>) {
 
 export class Sentinel extends Single {
 
-    constructor(client: SingleGraphConnection) {
-        super(client);
-    }    
-
     init(falkordb: FalkorDB): Promise<void> {
         const redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
 		return this.tryConnectSentinelServer(this.client, redisOption, falkordb);

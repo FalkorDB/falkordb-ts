@@ -4,6 +4,17 @@ import FalkorDB from "../falkordb";
 import { ConstraintType, EntityType } from "../graph";
 import { Client } from "./client";
 
+/**
+ * The `NullClient` class is a placeholder implementation of the `Client` interface.
+ * 
+ * This class is designed to be used in scenarios where a client is required, but no actual
+ * implementation is available. All methods in this class throw a "Method not implemented."
+ * error, indicating that the functionality has not been provided.
+ * 
+ * The `NullClient` can serve as a base class or a stub for future implementations, or as a
+ * fallback in cases where a functional client is not needed or cannot be instantiated.
+ * 
+ */
 export class NullClient implements Client {
     init(falkordb: FalkorDB): Promise<void> {
         throw new Error("Method not implemented.");
