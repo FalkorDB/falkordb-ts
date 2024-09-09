@@ -5,15 +5,29 @@ import commands, { QueryOptions } from "../commands";
 import { createCluster, RedisClusterType } from "@redis/client";
 import FalkorDB, { TypedRedisClusterClientOptions } from "../falkordb";
 import { SingleGraphConnection } from "./single";
-
+import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
+import * as lodash from 'lodash'
 export type ClusterGraphConnection = RedisClusterType<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
 
+/**
+ * A client that connects to a Redis Cluster.
+ */
 export class Cluster implements Client {
 
     #client: ClusterGraphConnection;
 
     constructor(client: SingleGraphConnection) {
+
+        // Convert the single client options to a cluster client options
         const redisClusterOption = client.options as TypedRedisClusterClientOptions;
+        redisClusterOption.rootNodes = [client.options as RedisClusterClientOptions];
+
+        // Remove the URL from the defaults so it won't override the dynamic cluster URLs
+        const defaults = lodash.cloneDeep(client.options);
+        defaults?.url && delete defaults.url;
+
+        redisClusterOption.defaults = defaults;
+        redisClusterOption.maxCommandRedirections = 100000;
         client.disconnect();
         this.#client = createCluster<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisClusterOption)
     }
@@ -25,10 +39,10 @@ export class Cluster implements Client {
     }
 
     async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
-        return this.#client.falkordb.query(graph, query, options)
+        return this.#client.falkordb.query(graph, query, options, true)
     }
     async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
-        return this.#client.falkordb.roQuery(graph, query, options)
+        return this.#client.falkordb.roQuery(graph, query, options, true)
     }
 
     async delete(graph: string) {

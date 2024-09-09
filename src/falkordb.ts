@@ -157,23 +157,6 @@ export default class FalkorDB extends EventEmitter {
         // Set the client to the FalkorDB instance after it was initialized
         falkordb.#client = client;  
 
-
-        // verify if it's connected to shard that is part of a cluster
-        // if(await isCluster(client)){
-        //     client.disconnect();
-
-        //     const redisClusterOption = redisOption as TypedRedisClusterClientOptions;
-        //     const clusterClient = createCluster<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisClusterOption)
-
-        //     falkordb = new FalkorDB(clusterClient);
-
-        //     await clusterClient
-        //     .on('error', err => falkordb.emit('error', err)) // Forward errors
-        //     .connect();
-
-        //     return falkordb
-        // }
-
         return falkordb
     }
 

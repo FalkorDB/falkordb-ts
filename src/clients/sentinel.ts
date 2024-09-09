@@ -24,6 +24,10 @@ export class Sentinel extends Single {
 		return this.tryConnectSentinelServer(this.client, redisOption, falkordb);
 	}
 
+    /**
+     * Connect to the server using the details from sentinel server
+     * Register error event to reconnect on error from the sentinel server
+     */
     private async tryConnectSentinelServer(client: SingleGraphConnection, redisOption: TypedRedisClientOptions, falkordb: FalkorDB) {
 
         // TODO support multi sentinels
