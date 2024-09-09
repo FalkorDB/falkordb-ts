@@ -48,7 +48,10 @@ await graph.query(`CREATE (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {na
         (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
         (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})`)
 
-result = await graph.query('MATCH (r:Rider)-[:rides]->(t:Team) WHERE t.name = $name RETURN r.name', {params: {name: 'Yamaha'}})
+result = await graph.query(`MATCH (r:Rider)-[:rides]->(t:Team) 
+                            WHERE t.name = $name RETURN r.name`, 
+                            {params: {name: 'Yamaha'}})
+                            
 console.log(result) // Valentino Rossi
 
 console.log(await db.list())
