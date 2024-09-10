@@ -4,6 +4,8 @@ import { QueryOptions } from "./commands";
 import { QueryReply } from "./commands/QUERY";
 import Commands from "./commands";
 import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
+import { RedisClusterType } from "@redis/client";
+import { Client } from "./clients/client";
 
 export { ConstraintType, EntityType };
 
@@ -130,49 +132,30 @@ type GraphValue = null | string | number | boolean | Array<GraphValue>
 		longitude: string;
 	};
 
-type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
+export type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
 	data?: Array<T>;
 };
 
-export type GraphConnection = RedisClientType<{ falkordb: typeof Commands }, RedisFunctions, RedisScripts>;
+// export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
 export default class Graph {
-	#client: GraphConnection;
+	#client: Client;
 	#name: string;
 	#metadata?: GraphMetadata;
-	#usePool: boolean;
 
 	constructor(
-		client: GraphConnection,
+		client: Client,
 		name: string
 	) {
 		this.#client = client;
 		this.#name = name;
-		this.#usePool = !!(this.#client.options?.isolationPoolOptions);
 	}
 
 	async query<T>(
 		query: RedisCommandArgument,
 		options?: QueryOptions
 	) {
-
-		const reply = this.#usePool ?
-			await this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.query(
-					this.#name,
-					query,
-					options,
-					true
-				)
-			})
-			:
-			await this.#client.falkordb.query(
-				this.#name,
-				query,
-				options,
-				true
-			)
-
+		const reply = await this.#client.query(this.#name, query, options);
 		return this.#parseReply<T>(reply);
 	}
 
@@ -180,48 +163,18 @@ export default class Graph {
 		query: RedisCommandArgument,
 		options?: QueryOptions
 	) {
-
-		const reply = this.#usePool ?
-			await this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.roQuery(
-					this.#name,
-					query,
-					options,
-					true
-				)
-			})
-			:
-			await this.#client.falkordb.roQuery(
-				this.#name,
-				query,
-				options,
-				true
-			);
-
+		const reply = await this.#client.roQuery(this.#name, query, options);
 		return this.#parseReply<T>(reply);
 	}
 
 	async delete() {
-		if (this.#usePool) {
-			return this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.delete(this.#name)
-			})
-		}
-		return this.#client.falkordb.delete(this.#name)
+		return this.#client.delete(this.#name)
 	}
 
 	async explain(
 		query: string,
 	) {
-		if (this.#usePool) {
-			return this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.explain(
-					this.#name,
-					query
-				)
-			})
-		}
-		return this.#client.falkordb.explain(
+		return this.#client.explain(
 			this.#name,
 			query
 		)
@@ -230,37 +183,18 @@ export default class Graph {
 	async profile(
 		query: string,
 	) {
-		if (this.#usePool) {
-
-			return this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.profile(
-					this.#name,
-					query
-				)
-			})
-		}
-		return this.#client.falkordb.profile(
-			this.#name,
-			query
-		)
+		return this.#client.profile( this.#name, query)
 	}
 
 	async slowLog() {
-		if (this.#usePool) {
-			return this.#client.executeIsolated(async isolatedClient => {
-				return isolatedClient.falkordb.slowLog(
-					this.#name,
-				)
-			})
-		}
-		return this.#client.falkordb.slowLog(
+		return this.#client.slowLog(
 			this.#name,
 		)
 	}
 
 	async constraintCreate(constraintType: ConstraintType, entityType: EntityType,
 		label: string, ...properties: string[]) {
-		return this.#client.falkordb.constraintCreate(
+		return this.#client.constraintCreate(
 			this.#name,
 			constraintType,
 			entityType,
@@ -271,7 +205,7 @@ export default class Graph {
 
 	async constraintDrop(constraintType: ConstraintType, entityType: EntityType,
 		label: string, ...properties: string[]) {
-		return this.#client.falkordb.constraintDrop(
+		return this.#client.constraintDrop(
 			this.#name,
 			constraintType,
 			entityType,
@@ -281,7 +215,7 @@ export default class Graph {
 	}
 
 	async copy(destGraph: string) {
-		return this.#client.falkordb.copy(
+		return this.#client.copy(
 			this.#name,
 			destGraph
 		)
@@ -298,9 +232,9 @@ export default class Graph {
 	// DO NOT use directly, use #updateMetadata instead
 	async #setMetadata(): Promise<GraphMetadata> {
 		const [labels, relationshipTypes, propertyKeys] = await Promise.all([
-			this.#client.falkordb.roQuery(this.#name, 'CALL db.labels()'),
-			this.#client.falkordb.roQuery(this.#name, 'CALL db.relationshipTypes()'),
-			this.#client.falkordb.roQuery(this.#name, 'CALL db.propertyKeys()')
+			this.#client.roQuery(this.#name, 'CALL db.labels()'),
+			this.#client.roQuery(this.#name, 'CALL db.relationshipTypes()'),
+			this.#client.roQuery(this.#name, 'CALL db.propertyKeys()')
 		]);
 
 		this.#metadata = {

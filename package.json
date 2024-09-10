@@ -35,6 +35,7 @@
   "devDependencies": {
     "@tsconfig/node14": "^14.1.0",
     "@types/jest": "^29.5.12",
+    "@types/lodash": "^4.17.7",
     "@types/node": "^22.0.0",
     "@typescript-eslint/eslint-plugin": "^7.16.0",
     "@typescript-eslint/parser": "^7.18.0",
@@ -45,7 +46,9 @@
   },
   "dependencies": {
     "@redis/client": "^1.6.0",
+    "cluster-key-slot": "1.1.2",
     "generic-pool": "^3.9.0",
+    "lodash": "^4.17.21",
     "redis": "^4.7.0"
   }
 }
