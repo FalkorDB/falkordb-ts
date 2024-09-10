@@ -32,6 +32,11 @@ export class Cluster implements Client {
         this.#client = createCluster<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisClusterOption)
     }
 
+    async getConnection() {
+        const connection = this.#client.nodeClient(this.#client.getRandomNode());
+        return connection instanceof Promise ? await connection : connection;
+    }
+
     async init(falkordb: FalkorDB) {
         await this.#client
             .on('error', err => falkordb.emit('error', err)) // Forward errors
