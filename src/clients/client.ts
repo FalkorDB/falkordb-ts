@@ -10,7 +10,7 @@ export interface Client {
 
     list(): Promise<Array<string>>
     configGet(configKey: string): Promise<(string | number)[] | (string | number)[][]>
-    configSet(configKey: string, value: number): Promise<void>
+    configSet(configKey: string, value: number | string): Promise<void>
     info(section?: string): Promise<(string | string[])[]>
     query<T>(graph: string, query: RedisCommandArgument,options?: QueryOptions): Promise<any>
     profile<T>(graph: string, query: RedisCommandArgument): Promise<any>

@@ -62,7 +62,7 @@ export class Cluster implements Client {
         return this.#client.falkordb.configGet(configKey)
     }
 
-    async configSet(configKey: string, value: number) {
+    async configSet(configKey: string, value: number | string) {
         const reply = this.#client.falkordb.configSet(configKey, value)
         return reply.then(() => { })
     }

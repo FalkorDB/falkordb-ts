@@ -25,7 +25,7 @@ export class NullClient implements Client {
     configGet(configKey: string): Promise<(string | number)[] | (string | number)[][]> {
         throw new Error("Method not implemented.");
     }
-    configSet(configKey: string, value: number): Promise<void> {
+    configSet(configKey: string, value: number | string): Promise<void> {
         throw new Error("Method not implemented.");
     }
     info(section?: string): Promise<(string | string[])[]> {
