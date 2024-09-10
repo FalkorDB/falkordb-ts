@@ -165,7 +165,7 @@ export default class FalkorDB extends EventEmitter {
     }
 
     public get connection() {
-        return this.#client;
+        return this.#client.getConnection();
     }
 
     async list() {

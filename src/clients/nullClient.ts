@@ -3,6 +3,7 @@ import { QueryOptions } from "../commands";
 import FalkorDB from "../falkordb";
 import { ConstraintType, EntityType } from "../graph";
 import { Client } from "./client";
+import { SingleGraphConnection } from "./single";
 
 /**
  * The `NullClient` class is a placeholder implementation of the `Client` interface.
@@ -16,6 +17,10 @@ import { Client } from "./client";
  * 
  */
 export class NullClient implements Client {
+    
+    getConnection(): Promise<SingleGraphConnection> {
+        throw new Error("Method not implemented.");
+    }
     init(falkordb: FalkorDB): Promise<void> {
         throw new Error("Method not implemented.");
     }

@@ -158,4 +158,8 @@ export class Single implements Client {
         const reply = this.client.quit();
 		return reply.then(() => {})
     }
+
+	async getConnection(){
+		return this.client;
+	}
 }
