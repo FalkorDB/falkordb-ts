@@ -1,9 +1,9 @@
-export function transformArguments(configKey: string, value: number): Array<string> {
+export function transformArguments(configKey: string, value: number | string): Array<string> {
     return [
         'GRAPH.CONFIG',
         'SET',
         configKey,
-        value.toString()
+        typeof value === "string" ? value : value.toString()
     ];
 }
 
