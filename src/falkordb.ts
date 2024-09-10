@@ -177,7 +177,7 @@ export default class FalkorDB extends EventEmitter {
     }
 
     async configSet(configKey: string, value: number | string) {
-        return this.#client.falkordb.configSet(configKey, value)
+        return this.#client.configSet(configKey, value)
     }
 
     async info(section?: string) {
