@@ -21,7 +21,7 @@ export class Single implements Client {
 		return Promise.resolve();
 	}
 
-    async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
+    async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
 
         const reply = this.#usePool ?
             await this.client.executeIsolated(async isolatedClient => {
@@ -29,7 +29,7 @@ export class Single implements Client {
                     graph,
                     query,
                     options,
-                    true
+                    compact
                 )
             })
             :
@@ -37,20 +37,20 @@ export class Single implements Client {
                 graph,
                 query,
                 options,
-                true
+                compact
             );
 
         return reply;
     }
 	
-    async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
+    async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
         const reply = this.#usePool ?
 			await this.client.executeIsolated(async isolatedClient => {
 				return isolatedClient.falkordb.roQuery(
 					graph,
 					query,
 					options,
-					true
+					compact
 				)
 			})
 			:
@@ -58,7 +58,7 @@ export class Single implements Client {
 				graph,
 				query,
 				options,
-				true
+				compact
 			);
 
 		return reply;

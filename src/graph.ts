@@ -232,9 +232,9 @@ export default class Graph {
 	// DO NOT use directly, use #updateMetadata instead
 	async #setMetadata(): Promise<GraphMetadata> {
 		const [labels, relationshipTypes, propertyKeys] = await Promise.all([
-			this.#client.roQuery(this.#name, 'CALL db.labels()'),
-			this.#client.roQuery(this.#name, 'CALL db.relationshipTypes()'),
-			this.#client.roQuery(this.#name, 'CALL db.propertyKeys()')
+			this.#client.roQuery(this.#name, 'CALL db.labels()', undefined, false),
+			this.#client.roQuery(this.#name, 'CALL db.relationshipTypes()', undefined, false),
+			this.#client.roQuery(this.#name, 'CALL db.propertyKeys()', undefined, false)
 		]);
 
 		this.#metadata = {
