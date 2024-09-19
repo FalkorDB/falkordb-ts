@@ -17,11 +17,11 @@ export interface Client {
 
     info(section?: string): Promise<(string | string[])[]>
 
-    query<T>(graph: string, query: RedisCommandArgument,options?: QueryOptions): Promise<any>
+    query<T>(graph: string, query: RedisCommandArgument,options?: QueryOptions, compact?: boolean): Promise<any>
 
     profile<T>(graph: string, query: RedisCommandArgument): Promise<any>
 
-    roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions): Promise<any>
+    roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact?: boolean): Promise<any>
 
     copy<T>(srcGraph: string, destGraph: string): Promise<any>
 

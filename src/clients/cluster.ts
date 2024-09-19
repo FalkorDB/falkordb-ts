@@ -43,11 +43,11 @@ export class Cluster implements Client {
             .connect();
     }
 
-    async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
-        return this.#client.falkordb.query(graph, query, options, true)
+    async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
+        return this.#client.falkordb.query(graph, query, options, compact)
     }
-    async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions) {
-        return this.#client.falkordb.roQuery(graph, query, options, true)
+    async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
+        return this.#client.falkordb.roQuery(graph, query, options, compact)
     }
 
     async delete(graph: string) {
