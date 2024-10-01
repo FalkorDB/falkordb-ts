@@ -1,15 +1,15 @@
 import { FalkorDB } from 'falkordb';
 
 export const client = async () => {
-    try{
+    try {
         return await FalkorDB.connect({
             socket: {
-                host: 'localhost',
-                port: 6379
-            }
+                host: process.env.FALKORDB_HOST || 'localhost',
+                port: parseInt(process.env.FALKORDB_PORT || '6379', 10)
+            },
         });
-    } catch (error){
-        console.log('Failed to connect to FalkorDB:', error);
+    } catch (error) {
+        console.error('Failed to connect to FalkorDB:', error);
         throw error;
     }
 };
