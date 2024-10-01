@@ -13,7 +13,6 @@
   ],
   "scripts": {
     "test": "npm run test -ws --if-present",
-    "jest": "jest",
     "build:test-utils": "npm run build -w ./packages/test-utils",
     "build:tests-tools": "npm run build:client && npm run build:test-utils",
     "build": "tsc",
@@ -48,7 +47,6 @@
   "dependencies": {
     "@redis/client": "^1.6.0",
     "cluster-key-slot": "1.1.2",
-    "falkordb": "^6.2.2",
     "generic-pool": "^3.9.0",
     "lodash": "^4.17.21",
     "redis": "^4.7.0"
