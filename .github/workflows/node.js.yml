@@ -34,9 +34,6 @@ jobs:
     - run: npm ci
     - run: npm run build --if-present
 
-    - name: Install FalkorDB
-      run: npm install falkordb
-      
     - name: Install Jest and Types
       run: npm install --save-dev jest @types/jest
 
