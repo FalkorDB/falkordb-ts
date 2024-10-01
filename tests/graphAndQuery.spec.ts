@@ -1,5 +1,6 @@
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
+import { getRandomNumber } from './utils';
 
 describe('FalkorDB Execute Query', () => {
     let clientInstance: any;
@@ -13,16 +14,17 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('Create a graph and check for its existence', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graphName = `graph_${getRandomNumber()}`
+        const graph = clientInstance.selectGraph(graphName);
         await graph.query("CREATE (:Person {name:'Alice'})");
         const currCount = await clientInstance.list()
-        const exists = currCount.includes("testGraph");
+        const exists = currCount.includes(graphName);
         await graph.delete()
         expect(exists).toBe(true)
     });
 
     it('Execute a query and return the correct results', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
         const result = await graph.query("MATCH (n:Person) RETURN n.name");
         await graph.delete()
@@ -30,7 +32,7 @@ describe('FalkorDB Execute Query', () => {
     });
     
     it('Copy an existing graph and validate the existence of the new graph', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
         await graph.copy("graphcopy")
         await graph.delete()
@@ -42,7 +44,7 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('Execute a roQuery and return the correct results', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
         const result = await graph.query("MATCH (n:Person) RETURN n.name");
         await graph.delete()
@@ -50,27 +52,19 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('fail test: when trying to execute a write query with roQuery', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
-        try {
-            await graph.roQuery("CREATE (:Person {name:'Bob'})");
-        } catch (error) {
-            expect(error).toBeDefined();
-        }
+        await expect(graph.roQuery("CREATE (:Person {name:'Bob'})")).rejects.toThrow();
         await graph.delete();
     });
 
     it('fail test: when executing an invalid query', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
-        try {
-            await graph.query("INVALID QUERY SYNTAX");
-        } catch (error) {
-            expect(error).toBeDefined();
-        }
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        await expect(graph.query("INVALID QUERY SYNTAX")).rejects.toThrow();
     });
 
     it('creates two nodes and a relationship, then retrieves and validates nodes and relationship', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `
             CREATE (n1:Person {name: 'Alice', age: 30})-[r:KNOWS]->(n2:Person {name: 'Bob', age: 25})
             RETURN n1, n2, r
@@ -100,7 +94,7 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('creates nodes with array properties and verifies query results', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `
             CREATE (n:Person {name: 'Alice', hobbies: ['Reading', 'Hiking', 'Cooking']})
             RETURN n
@@ -120,7 +114,7 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('validates the creation of a path between nodes with edges', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `
             CREATE (n1:Person {name: 'Alice', age: 30})-[r:KNOWS {since: 2020}]->(n2:Person {name: 'Bob', age: 25})
             RETURN n1, n2, r
@@ -147,7 +141,7 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('runs a query with various parameter types and checks if they return correctly', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const params = [1, 5.4, "hello world", true, false, null, ["apple", "banana", "cherry"], '\\\" RETURN 1122 //'];
     
         for (const param of params) {
@@ -159,8 +153,8 @@ describe('FalkorDB Execute Query', () => {
     });
       
     it('runs a query and validates the returned map structure', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
-        const query = `RETURN {name: 'John', age: 29, isEmployed: True, skills: ['Python', 'JavaScript'], salary: NULL, address: {city: 'New York', zip: 10001}}`;
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        const query = `RETURN {name: 'John', age: 29, isEmployed: True, skills: ['Python', 'JavaScript'], salary: null, address: {city: 'New York', zip: 10001}}`;
         const result = await graph.query(query);
     
         expect(result.data).toHaveLength(1);
@@ -179,7 +173,7 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('tests geographic points with latitude and longitude values', async () => {
-        const graph = clientInstance.selectGraph('testGraph');
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `RETURN point({latitude: 40.7128, longitude: -74.0060}) AS point`;
         const result = await graph.query(query);
         const createdPoint = result.data[0].point;
