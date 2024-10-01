@@ -41,7 +41,7 @@ jobs:
       run: npm install --save-dev ts-jest
 
     - name: Run tests
-      run: npm run jest
+      run: npx jest
       env:
         FALKORDB_HOST: localhost
         FALKORDB_PORT: 6379
