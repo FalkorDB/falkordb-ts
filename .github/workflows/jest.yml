@@ -1,0 +1,27 @@
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      falkordb:
+        image: falkordb/falkordb:latest
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '16'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install FalkorDB
+        run: npm install falkordb
+
+      - name: Run tests
+        run: npm run jest
