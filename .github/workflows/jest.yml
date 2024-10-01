@@ -36,6 +36,9 @@ jobs:
       - name: Install Jest Types
         run: npm install --save-dev @types/jest
 
+      - name: Install ts-jest
+        run: npm install --save-dev ts-jest
+
       - name: Install FalkorDB
         run: npm install falkordb
 
