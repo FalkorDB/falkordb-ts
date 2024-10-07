@@ -1,4 +1,4 @@
-import { FalkorDB } from 'falkordb';
+import FalkorDB from '../src/falkordb';
 
 export const client = async () => {
     try {
