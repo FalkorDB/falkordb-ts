@@ -292,5 +292,86 @@ describe('FalkorDB Execute Query', () => {
       expect(resultB.data.length).toBe(1);
       await graphA.delete();
     });
+    
+    it('Generate and verify the query execution plan', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (:Person {name: 'Alice'})");
+      const executionPlan = await graph.explain("MATCH (n:Person) RETURN n");
+      expect(executionPlan).toContain('Results');
+      expect(executionPlan).toContain('    Project');
+      expect(executionPlan).toContain('        Node By Label Scan | (n:Person)');
+      await graph.delete();
+    });
+
+    it('Validates the execution plan generated from a single query', async () => {
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        const createQuery = `
+            CREATE
+                (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
+                (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
+                (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})
+        `;
+        await graph.query(createQuery);
+
+        const result = await graph.explain(
+            `MATCH (r:Rider)-[:rides]->(t:Team)
+            WHERE t.name = $name
+            RETURN r.name, t.name`, 
+            { name: "Yehuda" }
+        );
+      
+        const expectedParts = [
+            'Results',
+            '    Project',
+            '        Conditional Traverse | (t)->(r:Rider)',
+            '            Filter',
+            '                Node By Label Scan | (t:Team)'
+        ];
+
+        expectedParts.forEach((expectedPart, index) => {
+            expect(result[index]).toEqual(expectedPart);
+        });
+        await graph.delete();
+    });
+
+    it('Validates the execution plan generated from multiple queries combined with a UNION clause', async () => {
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        const createQuery = `
+            CREATE
+                (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
+                (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
+                (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})
+        `;
+        await graph.query(createQuery);
+        const result = await graph.explain(
+            `MATCH (r:Rider)-[:rides]->(t:Team)
+            WHERE t.name = $name
+            RETURN r.name, t.name
+            UNION
+            MATCH (r:Rider)-[:rides]->(t:Team)
+            WHERE t.name = $name
+            RETURN r.name, t.name`,
+            { name: "Yamaha" },
+        );
+        
+        const expectedParts = [
+            'Results',
+            '    Distinct',
+            '        Join',
+            '            Project',
+            '                Conditional Traverse | (t)->(r:Rider)',
+            '                    Filter',
+            '                        Node By Label Scan | (t:Team)',
+            '            Project',
+            '                Conditional Traverse | (t)->(r:Rider)',
+            '                    Filter',
+            '                        Node By Label Scan | (t:Team)'
+        ];
+        
+        expectedParts.forEach((expectedPart, index) => {
+            expect(result[index]).toEqual(expectedPart);
+        });
+        await graph.delete();
+    });
    
 });
