@@ -5,8 +5,5 @@ module.exports = {
     transform: { "^.+\\.ts$": "ts-jest"},
     testRegex: "((\\.|/)(test|spec))\\.ts$",
     moduleFileExtensions: ["ts", "js", "json", "node"],
-    setupFilesAfterEnv: ["<rootDir>/tests/dbConnection.ts"],
-    moduleNameMapper: {
-      '^falkordb$': '<rootDir>/src/falkordb', 
-    },
+    setupFilesAfterEnv: ["<rootDir>/tests/dbConnection.ts"]
   };
