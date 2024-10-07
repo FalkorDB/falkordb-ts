@@ -328,8 +328,8 @@ describe('FalkorDB Execute Query', () => {
             '                Node By Label Scan | (t:Team)'
         ];
 
-        expectedParts.forEach(expectedPart => {
-            expect(result).toContain(expectedPart);
+        expectedParts.forEach((expectedPart, index) => {
+            expect(result[index]).toEqual(expectedPart);
         });
         await graph.delete();
     });
@@ -367,8 +367,9 @@ describe('FalkorDB Execute Query', () => {
             '                    Filter',
             '                        Node By Label Scan | (t:Team)'
         ];
-        expectedParts.forEach(expectedPart => {
-            expect(result).toContain(expectedPart);
+        
+        expectedParts.forEach((expectedPart, index) => {
+            expect(result[index]).toEqual(expectedPart);
         });
         await graph.delete();
     });
