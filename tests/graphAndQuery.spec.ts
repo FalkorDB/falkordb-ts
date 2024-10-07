@@ -1,6 +1,9 @@
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
-import { getRandomNumber } from './utils';
+
+function getRandomNumber(): number {
+    return Math.floor(Math.random() * 999999);
+}
 
 describe('FalkorDB Execute Query', () => {
     let clientInstance: any;
