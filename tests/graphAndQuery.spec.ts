@@ -186,5 +186,111 @@ describe('FalkorDB Execute Query', () => {
         expect(fixedLong).toBe(-74.0060);
         await graph.delete();
     });
+
+    it('Create and delete an index on a property and handle duplicate operations', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (:Person {name: 'Alice', age: 30}), (:Person {name: 'Bob', age: 25})");
+      await graph.query("CREATE INDEX ON :Person(name)");
+      const indexResult = await graph.query("CALL db.indexes");
+      expect(indexResult.data[0].label).toBe('Person');
+      expect(indexResult.data[0].properties).toEqual(['name']);
+      await expect(graph.query("CREATE INDEX ON :Person(name)")).rejects.toThrow();
+      await graph.query("DROP INDEX ON :Person(name)");
+      const updatedIndexResult = await graph.query("CALL db.indexes");
+      expect(updatedIndexResult).not.toContainEqual(expect.objectContaining({ label: 'Person', properties: ['name'] }));
+      await graph.delete();
+    });
+  
+    it('Validate correct string representations of nodes and edges in query results', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (n1:Person {name: 'Alice'})-[:KNOWS]->(n2:Person {name: 'Bob'})");
+      const query = 'MATCH (n1)-[r]->(n2) RETURN n1, r, n2';
+      const result = await graph.query(query);
+      expect(result.data).not.toBeNull();
     
+      const node1 = result.data[0].n1;
+      const edge = result.data[0].r;
+      const node2 = result.data[0].n2;
+        
+      expect(typeof node1.toString()).toBe('string');
+      expect(typeof edge.toString()).toBe('string');
+      expect(typeof node2.toString()).toBe('string');
+      await graph.delete();
+    });
+
+    it('Validate absence of matching edges and return null for non-existing relationships', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (n:Person {name: 'Alice'})");
+      const query = 'MATCH (n:Person) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m';
+      const result = await graph.query(query);
+      expect(result.data).not.toBeNull();
+      const matchResult = result.data[0];
+      expect(matchResult.r).toBeNull();
+      expect(matchResult.m).toBeNull();
+      await graph.delete();
+    });
+
+    it('Validate cached query results after the first run', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (n:Person {name: 'Alice'})");
+      const query = 'MATCH (n:Person) RETURN n';
+      const firstResult = await graph.query(query);
+      expect(firstResult.data).not.toBeNull();
+      const secondResult = await graph.query(query);
+      expect(secondResult.metadata[0]).toContain('Cached execution: 1');
+      await graph.delete();
+    });
+
+    it('Verify slow query logging', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      const createQuery = `CREATE (:Director {name:'Christopher Nolan'})-[:DIRECTED]->(:Movie {title:'Inception'}),
+                            (:Director {name:'Steven Spielberg'})-[:DIRECTED]->(:Movie {title:'Jurassic Park'}),
+                            (:Director {name:'Quentin Tarantino'})-[:DIRECTED]->(:Movie {title:'Pulp Fiction'})`;
+      await graph.query(createQuery);
+      const slowLogResults = await graph.slowLog();
+      expect(slowLogResults).toBeDefined();
+      expect(slowLogResults[0].command).toBe("GRAPH.QUERY"); 
+      expect(slowLogResults[0].query).toBe(createQuery);
+      expect(slowLogResults[0].took).toBeGreaterThan(0);
+      await graph.delete();
+    });
+
+    it('Assert query execution time exceeds 1-sec limit', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("UNWIND range(0, 1000) AS val CREATE (:Node {v: val})");
+      const result = await graph.query("MATCH (a), (b), (c), (d) RETURN *");
+      const executionTimeStr = result.metadata[1];
+      const executionTime = parseFloat(executionTimeStr.split(': ')[1]);
+      expect(() => { expect(executionTime).toBeLessThan(1)}).toThrow();
+      await graph.delete();
+    });
+
+    it('Create and match nodes with multiple labels', async () => {
+      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+      await graph.query("CREATE (a:Person:Employee {name: 'Alice', age: 30})");
+      await graph.query("CREATE (b:Person:Manager {name: 'Bob', age: 45})");
+      const resultA = await graph.roQuery("MATCH (n:Person:Employee {name: 'Alice'}) RETURN n");
+      const resultB = await graph.roQuery("MATCH (n:Person:Manager {name: 'Bob'}) RETURN n");
+      expect(resultA.data.length).toBe(1);
+      expect(resultA.data[0].n.properties.name).toBe('Alice');
+      expect(resultB.data.length).toBe(1);
+      expect(resultB.data[0].n.properties.name).toBe('Bob');
+      await graph.delete();
+    });
+
+    it('Verify that client cache stays in sync with simple node creation and query', async () => {
+      const graphA = clientInstance.selectGraph("cache-sync");
+      const graphB = clientInstance.selectGraph("cache-sync");
+      await graphA.query("CREATE (:LabelA)");
+      await graphB.query("CREATE (:LabelB)");
+    
+      const resultA = await graphA.query("MATCH (n) RETURN n");
+      expect(resultA.data.length).toBe(2);
+      await graphB.delete();
+      await graphA.query("CREATE (:LabelC)");
+      const resultB = await graphA.query("MATCH (n) RETURN n");
+      expect(resultB.data.length).toBe(1);
+      await graphA.delete();
+    });
+   
 });
