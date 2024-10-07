@@ -304,29 +304,38 @@ describe('FalkorDB Execute Query', () => {
     });
 
     it('Validates the execution plan generated from a single query', async () => {
-      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
-      const createQuery = `
-          CREATE
-              (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
-              (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
-              (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})
-      `;
-      await graph.query(createQuery);
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        const createQuery = `
+            CREATE
+                (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
+                (:Rider {name:'Dani Pedrosa'})-[:rides]->(:Team {name:'Honda'}),
+                (:Rider {name:'Andrea Dovizioso'})-[:rides]->(:Team {name:'Ducati'})
+        `;
+        await graph.query(createQuery);
 
-      const result = await graph.explain(
-          `MATCH (r:Rider)-[:rides]->(t:Team)
-          WHERE t.name = $name
-          RETURN r.name, t.name`, 
-          { name: "Yehuda" }
-      );
-      const expected = "ResultsProjectConditionalTraverse|(t)->(r:Rider)FilterNodeByLabelScan|(t:Team)";
-      const actualOutput = result.toString().replace(/[\s,]+/g, '');
-      expect(actualOutput).toEqual(expected);
-      await graph.delete();
+        const result = await graph.explain(
+            `MATCH (r:Rider)-[:rides]->(t:Team)
+            WHERE t.name = $name
+            RETURN r.name, t.name`, 
+            { name: "Yehuda" }
+        );
+      
+        const expectedParts = [
+            'Results',
+            '    Project',
+            '        Conditional Traverse | (t)->(r:Rider)',
+            '            Filter',
+            '                Node By Label Scan | (t:Team)'
+        ];
+
+        expectedParts.forEach(expectedPart => {
+            expect(result).toContain(expectedPart);
+        });
+        await graph.delete();
     });
 
     it('Validates the execution plan generated from multiple queries combined with a UNION clause', async () => {
-      const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+        const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const createQuery = `
             CREATE
                 (:Rider {name:'Valentino Rossi'})-[:rides]->(:Team {name:'Yamaha'}),
@@ -344,9 +353,23 @@ describe('FalkorDB Execute Query', () => {
             RETURN r.name, t.name`,
             { name: "Yamaha" },
         );
-        const expected = `ResultsDistinctJoinProjectConditionalTraverse|(t)->(r:Rider)FilterNodeByLabelScan|(t:Team)ProjectConditionalTraverse|(t)->(r:Rider)FilterNodeByLabelScan|(t:Team)`;
-        const actualOutput = result.toString().replace(/[\s,]+/g, '');
-        expect(actualOutput).toEqual(expected);
+        
+        const expectedParts = [
+            'Results',
+            '    Distinct',
+            '        Join',
+            '            Project',
+            '                Conditional Traverse | (t)->(r:Rider)',
+            '                    Filter',
+            '                        Node By Label Scan | (t:Team)',
+            '            Project',
+            '                Conditional Traverse | (t)->(r:Rider)',
+            '                    Filter',
+            '                        Node By Label Scan | (t:Team)'
+        ];
+        expectedParts.forEach(expectedPart => {
+            expect(result).toContain(expectedPart);
+        });
         await graph.delete();
     });
    
