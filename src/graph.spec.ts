@@ -145,4 +145,13 @@ describe('Graph', () => {
             }
         }]);
     }, GLOBAL.SERVERS.OPEN);
+
+    testUtils.testWithClient('point', async client => {
+        const graph = new Graph(client as GraphClientType, 'graph'),
+            { data } = await graph.query('RETURN vecf32([2.1, 0.82, 1.3]) AS vector');
+
+        assert.deepEqual(data, [{
+            vector: [2.1, 0.82, 1.3]
+        }]);
+    }, GLOBAL.SERVERS.OPEN);
 });
