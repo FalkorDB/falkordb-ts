@@ -1,6 +1,6 @@
 import { strict as assert } from 'assert';
-import testUtils, { GLOBAL } from './test-utils';
-import Graph, { GraphClientType } from './graph';
+import testUtils, { GLOBAL } from '../src/test-utils';
+import Graph, { GraphClientType } from '../src/graph';
 
 describe('Graph', () => {
     testUtils.testWithClient('null', async client => {

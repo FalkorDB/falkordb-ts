@@ -132,7 +132,7 @@ type GraphValue = null | string | number | boolean | Array<GraphValue>
 	| GraphEdge | GraphNode | GraphPath | GraphMap | {
 		latitude: string;
 		longitude: string;
-	} | number[];
+	} |                   [];
 
 export type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
 	data?: Array<T>;

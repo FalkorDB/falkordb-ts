@@ -1,5 +1,5 @@
 import TestUtils from '@redis/test-utils';
-import Graph from '.';
+import Graph from '../src/graph';
 
 export default new TestUtils({
     dockerImageName: 'falkordb/falkordb',
@@ -12,7 +12,7 @@ export const GLOBAL = {
             serverArguments: ['--loadmodule /usr/lib/redis/modules/falkordb.so'],
             clientOptions: {
                 modules: {
-                    graph: Graph
+                    graph: Graph 
                 }
             }
         }
