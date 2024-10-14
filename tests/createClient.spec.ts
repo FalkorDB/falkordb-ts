@@ -37,7 +37,7 @@ describe('FalkorDB Client', () => {
         {role: "RESULTSET_SIZE", input: 20},
         {role: "QUERY_MEM_CAPACITY", input: 20},
         {role: "VKEY_MAX_ENTITY_COUNT", input: 20},
-        {role: "CMD_INFO", input: 1},
+        {role: "CMD_INFO", input: "no"},
         {role: "MAX_INFO_QUERIES", input: 20}
     ]
 
@@ -47,7 +47,8 @@ describe('FalkorDB Client', () => {
             const prevValue = await db.configGet(role);
             const prevValueFormatted = Number(prevValue[1]); 
             await db.configSet(role, input);
-            await db.configSet(role, prevValueFormatted);
+            const value = (role === "CMD_INFO") ? (prevValueFormatted === 1 ? "yes" : "no") : prevValueFormatted
+            await db.configSet(role, value);
             await db.close();
         });
     });    
