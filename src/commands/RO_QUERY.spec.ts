@@ -2,6 +2,12 @@ import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from '../test-utils';
 import { transformArguments } from './RO_QUERY';
 
+/**
+ * Executes a read-only query on a RedisGraph key
+ * @param {string} key - The RedisGraph key to query
+ * @param {string} query - The Cypher query to execute
+ * @returns {Promise<Array>} An array containing the query results
+ */
 describe('RO_QUERY', () => {
     it('transformArguments', () => {
         assert.deepEqual(
