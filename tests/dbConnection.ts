@@ -1,5 +1,10 @@
 import FalkorDB from '../src/falkordb';
 
+/**
+ * Establishes a connection to FalkorDB.
+ * @returns {Promise<FalkorDB>} A Promise that resolves to a FalkorDB client instance.
+ * @throws {Error} If the connection to FalkorDB fails.
+ */
 export const client = async () => {
     try {
         return await FalkorDB.connect({
