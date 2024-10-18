@@ -49,7 +49,12 @@ export default class TestUtils {
         const dashIndex = version.indexOf('-');
         return (dashIndex === -1 ? version : version.substring(0, dashIndex))
             .split('.')
-            .map(x => {
+            /**
+             * Validates and converts a Redis version string to an array of numbers.
+             * @param {string} version - The Redis version string to be processed.
+             * @returns {number[]} An array of numbers representing the version components.
+             * @throws {TypeError} If the input version string contains non-numeric characters.
+             */            .map(x => {
                 const value = Number(x);
                 if (Number.isNaN(value)) {
                     throw new TypeError(`${version} is not a valid redis version`);
@@ -65,6 +70,13 @@ export default class TestUtils {
                 type: 'string',
                 default: defaultVersion
             })
+            /**
+             * Coerces the given version string into an object with string and parsed number representation.
+             * @param {string} version - The version string to be coerced.
+             * @returns {Object} An object containing the original version string and its parsed numeric representation.
+             * @returns {string} returns.string - The original version string.
+             * @returns {number[]} returns.numbers - An array of numbers parsed from the version string.
+             */
             .coerce(argumentName, (version: string) => {
                 return {
                     string: version,
@@ -104,6 +116,13 @@ export default class TestUtils {
 
     isVersionGreaterThanHook(minimumVersion: Array<number> | undefined): void {
         const isVersionGreaterThan = this.isVersionGreaterThan.bind(this);
+        /**
+         * Skips the test if the current version is not greater than the minimum required version.
+         * This function is used as a setup step before running a test.
+         * @param {void} No parameters
+         * @returns {void} This function doesn't return a value, but may skip the test
+         * @throws {Error} Implicitly throws an error if the test is skipped
+         */
         before(function () {
             if (!isVersionGreaterThan(minimumVersion)) {
                 return this.skip();
@@ -123,6 +142,13 @@ export default class TestUtils {
         let dockerPromise: ReturnType<typeof spawnRedisServer>;
         if (this.isVersionGreaterThan(options.minimumDockerVersion)) {
             const dockerImage = this.#DOCKER_IMAGE;
+            /**
+             * Sets up a Redis server in a Docker container before running tests.
+             * This method is intended to be used as a setup function in a test framework.
+             * It increases the timeout to 30 seconds to allow for server startup.
+             * @param {function} function - The function to be executed before tests.
+             * @returns {Promise} A promise that resolves when the Redis server is ready.
+             */
             before(function () {
                 this.timeout(30000);
 
@@ -131,6 +157,13 @@ export default class TestUtils {
             });
         }
 
+        /**
+         * Executes a test case with Redis client setup and cleanup.
+         * @param {string} title - The title of the test case.
+         * @param {Function} fn - The test function to be executed.
+         * @returns {Promise<void>} A promise that resolves when the test is complete.
+         * @throws {Error} If an error occurs during test execution.
+         */
         it(title, async function() {
             if (!dockerPromise) return this.skip();
 
@@ -166,6 +199,11 @@ export default class TestUtils {
         S extends RedisScripts
     >(cluster: RedisClusterType<M, F, S>): Promise<unknown> {
         return Promise.all(
+            /**
+             * Flushes all data from the Redis databases of master nodes in the cluster.
+             * @param {Array} cluster.masters - An array of master nodes in the cluster.
+             * @returns {Promise<void[]>} A promise that resolves when all flush operations are complete.
+             */
             cluster.masters.map(async ({ client }) => {
                 if (client) {
                     await (await client).flushAll();
@@ -186,6 +224,14 @@ export default class TestUtils {
         let dockersPromise: ReturnType<typeof spawnRedisCluster>;
         if (this.isVersionGreaterThan(options.minimumDockerVersion)) {
             const dockerImage = this.#DOCKER_IMAGE;
+            /**
+             * Sets up a Redis cluster for testing purposes before running tests.
+             * @param {Object} options - Configuration options for the Redis cluster.
+             * @param {number} [options.numberOfMasters] - The number of master nodes in the cluster.
+             * @param {number} [options.numberOfReplicas] - The number of replica nodes for each master.
+             * @param {Array<string>} [options.serverArguments] - Additional arguments to pass to the Redis server.
+             * @returns {Promise<Object>} A promise that resolves with the Docker container information.
+             */
             before(function () {
                 this.timeout(30000);
 
@@ -198,6 +244,13 @@ export default class TestUtils {
             });
         }
 
+        /**
+         * Executes a test case for a Redis cluster operation.
+         * @param {string} title - The title of the test case.
+         * @param {function} fn - The async function containing the test logic.
+         * @returns {void} This method doesn't return a value.
+         * @throws {Error} May throw an error if the cluster operations fail.
+         */
         it(title, async function () {
             if (!dockersPromise) return this.skip();
 
