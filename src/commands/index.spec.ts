@@ -1,6 +1,18 @@
 import { strict as assert } from 'assert';
 import { pushQueryArguments } from '.';
 
+/**
+ * Pushes query arguments onto an array for a graph query operation.
+ * @param {string[]} initialArray - The initial array to push arguments onto, typically containing the command.
+ * @param {string} graph - The name of the graph to query.
+ * @param {string} query - The query string to execute.
+ * @param {Object|number} [options] - Optional parameters or timeout value.
+ * @param {Object} [options.params] - Key-value pairs of query parameters.
+ * @param {number} [options.TIMEOUT] - Timeout value in milliseconds.
+ * @param {boolean} [compact] - If true, adds the '--compact' flag to the query.
+ * @returns {string[]} An array of arguments ready for execution.
+ * @throws {TypeError} If an invalid parameter type is provided in options.params.
+ */
 describe('pushQueryArguments', () => {
   it('simple', () => {
     assert.deepEqual(
