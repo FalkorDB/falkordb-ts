@@ -1,10 +1,7 @@
 import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
-import { RedisClientType, RedisFunctions, RedisScripts } from "redis";
 import { QueryOptions } from "./commands";
 import { QueryReply } from "./commands/QUERY";
-import Commands from "./commands";
 import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
-import { RedisClusterType } from "@redis/client";
 import { Client } from "./clients/client";
 
 export { ConstraintType, EntityType };
@@ -28,7 +25,8 @@ enum GraphValueTypes {
 	NODE = 8,
 	PATH = 9,
 	MAP = 10,
-	POINT = 11
+	POINT = 11,
+	VECTORF32 = 12
 }
 
 type GraphEntityRawProperties = Array<[
@@ -99,7 +97,11 @@ type GraphRawValue = [
 		latitude: string,
 		longitude: string
 	]
-];
+] | [
+	GraphValueTypes.VECTORF32,
+	number[]
+]
+;
 
 type GraphEntityProperties = Record<string, GraphValue>;
 
@@ -130,7 +132,7 @@ type GraphValue = null | string | number | boolean | Array<GraphValue>
 	| GraphEdge | GraphNode | GraphPath | GraphMap | {
 		latitude: string;
 		longitude: string;
-	};
+	} | number[];
 
 export type GraphReply<T> = Omit<QueryReply, 'headers' | 'data'> & {
 	data?: Array<T>;
@@ -232,9 +234,9 @@ export default class Graph {
 	// DO NOT use directly, use #updateMetadata instead
 	async #setMetadata(): Promise<GraphMetadata> {
 		const [labels, relationshipTypes, propertyKeys] = await Promise.all([
-			this.#client.roQuery(this.#name, 'CALL db.labels()'),
-			this.#client.roQuery(this.#name, 'CALL db.relationshipTypes()'),
-			this.#client.roQuery(this.#name, 'CALL db.propertyKeys()')
+			this.#client.roQuery(this.#name, 'CALL db.labels()', undefined, false),
+			this.#client.roQuery(this.#name, 'CALL db.relationshipTypes()', undefined, false),
+			this.#client.roQuery(this.#name, 'CALL db.propertyKeys()', undefined, false)
 		]);
 
 		this.#metadata = {
@@ -335,6 +337,8 @@ export default class Graph {
 					latitude: parseFloat(value[0]),
 					longitude: parseFloat(value[1])
 				};
+			case GraphValueTypes.VECTORF32:
+				return value.map(x => Number(x));
 
 			default:
 				throw new Error(`unknown scalar type: ${valueType}`);
