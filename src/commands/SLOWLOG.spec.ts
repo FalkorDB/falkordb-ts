@@ -2,6 +2,15 @@ import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from '../test-utils';
 import { transformArguments } from './SLOWLOG';
 
+/**
+ * Executes and tests the SLOWLOG command for a Redis Graph
+ * @param {string} key - The key of the graph to query
+ * @returns {Array} An array containing the slow log entries for the specified graph
+ * 
+ * @example
+ * const reply = await client.graph.slowLog('key');
+ * assert.equal(reply.length, 1);
+ */
 describe('SLOWLOG', () => {
     it('transformArguments', () => {
         assert.deepEqual(
