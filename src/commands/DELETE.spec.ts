@@ -2,6 +2,11 @@ import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from '../test-utils';
 import { transformArguments } from './DELETE';
 
+/**
+ * Deletes a graph from the Redis database.
+ * @param {string} key - The key identifying the graph to be deleted.
+ * @returns {string} A status message indicating the result of the deletion operation.
+ */
 describe('', () => {
     it('transformArguments', () => {
         assert.deepEqual(
