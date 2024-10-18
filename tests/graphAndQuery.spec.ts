@@ -1,10 +1,19 @@
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
 
+/**
+ * Generates a random integer between 0 and 999999 (inclusive).
+ * @returns {number} A random integer between 0 and 999999.
+ */
 function getRandomNumber(): number {
     return Math.floor(Math.random() * 999999);
 }
 
+/**
+ * Executes a suite of tests for FalkorDB query execution and graph operations.
+ * @param {void} No parameters required
+ * @returns {void} This method doesn't return a value, but performs various assertions
+ */
 describe('FalkorDB Execute Query', () => {
     let clientInstance: any;
 
