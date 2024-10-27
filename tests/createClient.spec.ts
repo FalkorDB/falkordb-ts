@@ -10,27 +10,35 @@ describe('FalkorDB Client', () => {
 
     it('Validate getConfig and setConfig methods', async () => {
         const db = await client();
+        const NEW_SIZE = 3;
         const configName = "RESULTSET_SIZE";
-        const prevValue = await db.configGet(configName);
-        const prevValueNumber = Number(prevValue[1]);
-        await db.configSet(configName, 3);
-        const newValue = await db.configGet(configName);
-        expect(Number(newValue[1])).toBe(3);
-        await db.configSet(configName, prevValueNumber);
-        const restoreResponse = await db.configGet(configName);
-        expect(Number(restoreResponse[1])).toBe(10000)
-        await db.close();
+        const [_, originalValue] = await db.configGet(configName);
+        const originalValueNumber = Number(originalValue);
+        try {
+            await db.configSet(configName, NEW_SIZE);
+            const [_, newValue] = await db.configGet(configName);
+            expect(Number(newValue)).toBe(NEW_SIZE);
+        } finally {
+            await db.configSet(configName, originalValueNumber);
+            const [_, restoredValue] = await db.configGet(configName);
+            expect(Number(restoredValue)).toBe(originalValueNumber);
+            await db.close();
+        }
     });
     
     it('Validate handling of invalid configuration settings', async () => {
         const db = await client();
-        await expect(db.configGet("none_existing_conf")).rejects.toThrow();
-        await expect(db.configSet("none_existing_conf", 1)).rejects.toThrow();
-        await expect(db.configSet("RESULTSET_SIZE", "invalid value")).rejects.toThrow();
+        await expect(db.configGet("none_existing_conf")).rejects.toThrow(/Unknown configuration field/);
+        await expect(db.configSet("none_existing_conf", 1)).rejects.toThrow(/Unknown configuration field/);
+        await expect(db.configSet("RESULTSET_SIZE", "invalid value")).rejects.toThrow(/Failed to set config value RESULTSET_SIZE to invalid value/);
         await db.close();
     });
 
-    const roleModificationData = [
+    type ConfigRole = {
+        role: string;
+        input: number | string;
+    }
+    const roleModificationData: ConfigRole[] = [
         {role: "MAX_QUEUED_QUERIES", input: 20},
         {role: "TIMEOUT_MAX", input: 10},
         {role: "TIMEOUT_DEFAULT", input: 10},
