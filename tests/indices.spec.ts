@@ -1,7 +1,7 @@
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
-import Graph, { ConstraintType, EntityType } from '../src/graph';
+import Graph from '../src/graph';
 
 describe('Indices Tests', () => {
     let clientInstance: FalkorDB;
@@ -26,11 +26,21 @@ describe('Indices Tests', () => {
     });
 
     beforeEach(async () => {
-        graphName = clientInstance.selectGraph("graph");
+        try {
+            graphName = clientInstance.selectGraph("graph");
+        } catch (error) {
+            console.error('Failed to select graph:', error);
+            throw error;
+        }
     })
 
     afterEach(async () => {
-        await graphName.delete()
+        try {
+            await graphName.delete()
+        } catch (error) {
+            console.error('Failed to delete graph:', error);
+            throw error;
+        }
     })
 
     it('Create and verify indices on a node label', async () => {
@@ -89,5 +99,26 @@ describe('Indices Tests', () => {
         const result = await graphName.roQuery('CALL db.indexes() YIELD label, properties RETURN *');
         const indices = result.data;
         expect(indices).not.toContainEqual(expect.objectContaining({ label: 'edgeLabel1', properties: ['property1'] }));
+    });
+
+    it('Validate multiple index types on a node property', async () => {
+        await graphName.query('CREATE (:label1)');
+        await graphName.query('CREATE INDEX FOR (n:label1) ON (n.property1)');
+        await graphName.query('CREATE FULLTEXT INDEX FOR (n:label1) ON (n.property1)');
+    
+        const result: any = await graphName.roQuery('CALL db.indexes() YIELD label, properties, types, entitytype, status');
+        const indices = result.data;
+        expect(indices[0].types.property1).toEqual(expect.arrayContaining([ 'RANGE', 'FULLTEXT' ])); 
+    });
+      
+    it('Validate multiple index types on a edge property', async () => {
+        await graphName.query('CREATE (:label1)-[:edgeLabel1 { property1: "value" }]->(:label2)');
+        await graphName.query('CREATE INDEX ON :edgeLabel1(property1)');
+        await graphName.query('CREATE FULLTEXT INDEX FOR ()-[r:edgeLabel1]->() ON (r.property1)');
+
+        const result: any = await graphName.roQuery('CALL db.indexes()');
+        const edgeIndex = result.data[0];
+        expect(edgeIndex.entitytype).toBe('RELATIONSHIP');
+        expect(edgeIndex.types.property1).toEqual(expect.arrayContaining([ 'FULLTEXT' ])); 
     });
 });
