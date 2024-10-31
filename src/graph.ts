@@ -407,4 +407,121 @@ export default class Graph {
 
 		return parsed;
 	}
+
+	async createTypedIndex(
+		idxType: string,
+		entityType: "NODE" | "EDGE",
+		label: string,
+		properties: string[],
+		options?: Record<string, string | number | boolean>
+	  ): Promise<QueryReply> {
+		const pattern = entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
+
+		if(idxType === "RANGE"){
+			idxType = ""
+		}
+
+		let query = `CREATE ${idxType ? idxType + " " : ""}INDEX FOR ${pattern} ON (${properties
+		  .map(prop => `e.${prop}`)
+		  .join(", ")})`;
+	
+		if (options) {
+		  const optionsMap = Object.entries(options)
+			.map(([key, value]) => 
+			  typeof value === "string" ? `${key}:'${value}'` : `${key}:${value}`
+			)
+			.join(", ");
+		  query += ` OPTIONS {${optionsMap}}`;
+		}
+
+		return this.#client.query(this.#name, query);
+	}
+
+	async createNodeRangeIndex(label: string, ...properties: string[]): Promise<QueryReply> {
+		return this.createTypedIndex("RANGE", "NODE", label, properties);
+	}
+	
+	async createNodeFulltextIndex(label: string, ...properties: string[]): Promise<QueryReply> {
+		return this.createTypedIndex("FULLTEXT", "NODE", label, properties);
+	}
+
+	async createNodeVectorIndex(
+		label: string, 
+		dim: number = 0, 
+		similarityFunction: string = "euclidean", 
+		...properties: string[]
+	): Promise<QueryReply> {
+		const options = {
+			dimension: dim,
+			similarityFunction: similarityFunction,
+		};
+	
+		return await this.createTypedIndex("VECTOR", "NODE", label, properties, options);
+	}
+	
+	
+
+	async createEdgeRangeIndex(label: string, ...properties: string[]): Promise<QueryReply> {
+		return this.createTypedIndex("RANGE", "EDGE", label, properties);
+	}
+	
+	async createEdgeFulltextIndex(label: string, ...properties: string[]): Promise<QueryReply> {
+		return this.createTypedIndex("FULLTEXT", "EDGE", label, properties);
+	}
+
+	async createEdgeVectorIndex(
+		label: string, 
+		dim: number = 0, 
+		similarityFunction: string = "euclidean", 
+		...properties: string[]
+	): Promise<QueryReply> {
+		const options = {
+			dimension: dim,
+			similarityFunction: similarityFunction,
+		};
+	
+		return await this.createTypedIndex("VECTOR", "EDGE", label, properties, options);
+	}
+	
+	
+	async dropTypedIndex(
+		idxType: string,
+		entityType: "NODE" | "EDGE",
+		label: string,
+		attribute: string
+	): Promise<QueryReply> {
+		const pattern = entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
+		
+		if(idxType === "RANGE"){
+			idxType = ""
+		}
+
+		let query = `DROP ${idxType ? idxType + " " : ""}INDEX FOR ${pattern} ON (e.${attribute})`;
+
+		return this.#client.query(this.#name, query);
+	}
+	
+	async dropNodeRangeIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("RANGE", "NODE", label, attribute);
+	}
+	
+	async dropNodeFulltextIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("FULLTEXT", "NODE", label, attribute);
+	}
+
+	async dropNodeVectorIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("VECTOR", "NODE", label, attribute);
+	}
+
+	async dropEdgeRangeIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("RANGE", "EDGE", label, attribute);
+	}
+	
+	async dropEdgeFulltextIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("FULLTEXT", "EDGE", label, attribute);
+	}
+
+	async dropEdgeVectorIndex(label: string, attribute: string): Promise<QueryReply> {
+		return this.dropTypedIndex("VECTOR", "EDGE", label, attribute);
+	}
 }
