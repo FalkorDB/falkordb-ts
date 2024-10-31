@@ -1,3 +1,5 @@
+import FalkorDB from '../src/falkordb';
+import { ConstraintType, EntityType } from '../src/graph';
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
 
@@ -6,14 +8,24 @@ function getRandomNumber(): number {
 }
 
 describe('FalkorDB Execute Query', () => {
-    let clientInstance: any;
+    let clientInstance: FalkorDB;
 
     beforeAll(async () => {
-        clientInstance = await client();
+        try {
+            clientInstance = await client();
+        } catch (error) {
+            console.error('Failed to initialize database connection:', error);
+            throw error;
+        }
     });
 
     afterAll(async () => {
-       await clientInstance.close()
+        try {
+            await clientInstance.close()
+        } catch (error){
+            console.error('Failed to close database connection:', error);
+            throw error;
+        }
     });
 
     it('Create a graph and check for its existence', async () => {
@@ -25,13 +37,13 @@ describe('FalkorDB Execute Query', () => {
         await graph.delete()
         expect(exists).toBe(true)
     });
-
+    
     it('Execute a query and return the correct results', async () => {
         const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
-        const result = await graph.query("MATCH (n:Person) RETURN n.name");
+        const result : any = await graph.query("MATCH (n:Person) RETURN n.name");
         await graph.delete()
-        expect(result?.data[0]['n.name']).toBe('Alice');
+        expect(result.data?.[0]?.['n.name']).toBe('Alice');
     });
     
     it('Copy an existing graph and validate the existence of the new graph', async () => {
@@ -49,9 +61,9 @@ describe('FalkorDB Execute Query', () => {
     it('Execute a roQuery and return the correct results', async () => {
         const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         await graph.query("CREATE (:Person {name:'Alice'})");
-        const result = await graph.query("MATCH (n:Person) RETURN n.name");
+        const result:any = await graph.query("MATCH (n:Person) RETURN n.name");
         await graph.delete()
-        expect(result?.data[0]['n.name']).toBe('Alice');
+        expect(result.data?.[0]?.['n.name']).toBe('Alice');
     });
 
     it('fail test: when trying to execute a write query with roQuery', async () => {
@@ -76,7 +88,7 @@ describe('FalkorDB Execute Query', () => {
 
         expect(result.data).toHaveLength(1);
         
-        const [row] = result.data;
+        const [row] : any = result.data;
         const { n1, n2, r } = row;
         
         // Check node n1 properties
@@ -106,7 +118,7 @@ describe('FalkorDB Execute Query', () => {
 
         // Verify returned node
         expect(result.data).toHaveLength(1);
-        const [row] = result.data;
+        const [row] : any = result.data;
         const { n } = row;
 
         // Check node properties
@@ -130,7 +142,7 @@ describe('FalkorDB Execute Query', () => {
 
         // Check the structure of the returned path
         expect(result.data).toHaveLength(1);
-        const [row] = result.data;
+        const [row] : any = result.data;
         const { p } = row;
 
         // Validate nodes and relationship in the path
@@ -158,11 +170,12 @@ describe('FalkorDB Execute Query', () => {
     it('runs a query and validates the returned map structure', async () => {
         const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `RETURN {name: 'John', age: 29, isEmployed: True, skills: ['Python', 'JavaScript'], salary: null, address: {city: 'New York', zip: 10001}}`;
-        const result = await graph.query(query);
+        const result:any = await graph.query(query);
     
-        expect(result.data).toHaveLength(1);
-        const mapKey = Object.keys(result.data[0])[0];
-        const map = result.data[0][mapKey];
+        expect(result.data ?? []).toHaveLength(1);
+        const mapKey = Object.keys(result.data?.[0] ?? {})[0];
+        const map = result.data?.[0]?.[mapKey];
+
         
         expect(map.name).toBe('John');
         expect(map.age).toBe(29);
@@ -178,8 +191,8 @@ describe('FalkorDB Execute Query', () => {
     it('tests geographic points with latitude and longitude values', async () => {
         const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
         const query = `RETURN point({latitude: 40.7128, longitude: -74.0060}) AS point`;
-        const result = await graph.query(query);
-        const createdPoint = result.data[0].point;
+        const result: any = await graph.query(query);
+        const createdPoint = result.data?.[0].point;
         const fixedLat = parseFloat((createdPoint.latitude).toFixed(4))
         const fixedLong = parseFloat((createdPoint.longitude).toFixed(4))
         expect(fixedLat).toBe(40.7128);
@@ -191,7 +204,7 @@ describe('FalkorDB Execute Query', () => {
       const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
       await graph.query("CREATE (:Person {name: 'Alice', age: 30}), (:Person {name: 'Bob', age: 25})");
       await graph.query("CREATE INDEX ON :Person(name)");
-      const indexResult = await graph.query("CALL db.indexes");
+      const indexResult: any = await graph.query("CALL db.indexes");
       expect(indexResult.data[0].label).toBe('Person');
       expect(indexResult.data[0].properties).toEqual(['name']);
       await expect(graph.query("CREATE INDEX ON :Person(name)")).rejects.toThrow();
@@ -205,12 +218,11 @@ describe('FalkorDB Execute Query', () => {
       const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
       await graph.query("CREATE (n1:Person {name: 'Alice'})-[:KNOWS]->(n2:Person {name: 'Bob'})");
       const query = 'MATCH (n1)-[r]->(n2) RETURN n1, r, n2';
-      const result = await graph.query(query);
-      expect(result.data).not.toBeNull();
-    
-      const node1 = result.data[0].n1;
-      const edge = result.data[0].r;
-      const node2 = result.data[0].n2;
+      const result: any = await graph.query(query);
+      expect(result.data).not.toBeNull(); 
+      const node1 = result.data?.[0].n1;
+      const edge = result.data?.[0].r;
+      const node2 = result.data?.[0].n2;
         
       expect(typeof node1.toString()).toBe('string');
       expect(typeof edge.toString()).toBe('string');
@@ -224,7 +236,7 @@ describe('FalkorDB Execute Query', () => {
       const query = 'MATCH (n:Person) OPTIONAL MATCH (n)-[r]->(m) RETURN n, r, m';
       const result = await graph.query(query);
       expect(result.data).not.toBeNull();
-      const matchResult = result.data[0];
+      const matchResult: any = result.data![0];
       expect(matchResult.r).toBeNull();
       expect(matchResult.m).toBeNull();
       await graph.delete();
@@ -269,11 +281,11 @@ describe('FalkorDB Execute Query', () => {
       const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
       await graph.query("CREATE (a:Person:Employee {name: 'Alice', age: 30})");
       await graph.query("CREATE (b:Person:Manager {name: 'Bob', age: 45})");
-      const resultA = await graph.roQuery("MATCH (n:Person:Employee {name: 'Alice'}) RETURN n");
-      const resultB = await graph.roQuery("MATCH (n:Person:Manager {name: 'Bob'}) RETURN n");
-      expect(resultA.data.length).toBe(1);
-      expect(resultA.data[0].n.properties.name).toBe('Alice');
-      expect(resultB.data.length).toBe(1);
+      const resultA: any = await graph.roQuery("MATCH (n:Person:Employee {name: 'Alice'}) RETURN n");
+      const resultB: any = await graph.roQuery("MATCH (n:Person:Manager {name: 'Bob'}) RETURN n");
+      expect(resultA.data?.length).toBe(1);
+      expect(resultA.data![0].n.properties.name).toBe('Alice');
+      expect(resultB.data!.length).toBe(1);
       expect(resultB.data[0].n.properties.name).toBe('Bob');
       await graph.delete();
     });
@@ -285,11 +297,11 @@ describe('FalkorDB Execute Query', () => {
       await graphB.query("CREATE (:LabelB)");
     
       const resultA = await graphA.query("MATCH (n) RETURN n");
-      expect(resultA.data.length).toBe(2);
+      expect(resultA.data?.length).toBe(2);
       await graphB.delete();
       await graphA.query("CREATE (:LabelC)");
       const resultB = await graphA.query("MATCH (n) RETURN n");
-      expect(resultB.data.length).toBe(1);
+      expect(resultB.data?.length).toBe(1);
       await graphA.delete();
     });
     
@@ -317,7 +329,6 @@ describe('FalkorDB Execute Query', () => {
             `MATCH (r:Rider)-[:rides]->(t:Team)
             WHERE t.name = $name
             RETURN r.name, t.name`, 
-            { name: "Yehuda" }
         );
       
         const expectedParts = [
@@ -351,7 +362,6 @@ describe('FalkorDB Execute Query', () => {
             MATCH (r:Rider)-[:rides]->(t:Team)
             WHERE t.name = $name
             RETURN r.name, t.name`,
-            { name: "Yamaha" },
         );
         
         const expectedParts = [
@@ -373,5 +383,4 @@ describe('FalkorDB Execute Query', () => {
         });
         await graph.delete();
     });
-   
 });
