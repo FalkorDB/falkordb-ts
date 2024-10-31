@@ -92,11 +92,13 @@ describe('Indices Tests', () => {
     
     it('verify that an index on a edge label is dropped successfully', async () => {
         await graphName.query('CREATE (:label1)-[:edgeLabel1 { property1: "value" }]->(:label2)');
-        await graphName.createEdgeRangeIndex('label1', 'property1')
-        await graphName.dropEdgeRangeIndex('label1', 'property1')
+        await graphName.createEdgeRangeIndex('edgeLabel1', 'property1')
+        await graphName.dropEdgeRangeIndex('edgeLabel1', 'property1')
 
         const result = await graphName.roQuery('CALL db.indexes() YIELD label, properties RETURN *');
         const indices = result.data;
+        console.log(indices);
+        
         expect(indices).not.toContainEqual(expect.objectContaining({ label: 'edgeLabel1', properties: ['property1'] }));
     });
 
