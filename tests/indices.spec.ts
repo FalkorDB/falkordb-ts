@@ -97,7 +97,6 @@ describe('Indices Tests', () => {
 
         const result = await graphName.roQuery('CALL db.indexes() YIELD label, properties RETURN *');
         const indices = result.data;
-        console.log(indices);
         
         expect(indices).not.toContainEqual(expect.objectContaining({ label: 'edgeLabel1', properties: ['property1'] }));
     });
