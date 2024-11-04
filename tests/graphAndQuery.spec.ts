@@ -383,4 +383,43 @@ describe('FalkorDB Execute Query', () => {
         });
         await graph.delete();
     });
+
+    it('validate creating a graph, copy it, and validate the entities, schema, indices, and constraints', async () => {
+        const graphName = `copy_src_${getRandomNumber()}`;
+        const copyGraphName = `copy_dest_${getRandomNumber()}`;
+        const srcGraph = clientInstance.selectGraph(graphName);
+        await srcGraph.query(`CREATE (:User {name: 'Alice'})-[:FRIEND]->(:User {name: 'Bob'})`);
+        await srcGraph.query("CREATE INDEX ON :User(name)");
+        await srcGraph.constraintCreate('UNIQUE' as ConstraintType, 'NODE' as EntityType, 'User', 'name');
+        await srcGraph.copy(copyGraphName);
+        const destGraph = clientInstance.selectGraph(copyGraphName);
+    
+        // Validate entities
+        const entityQuery = "MATCH (n) RETURN n ORDER BY ID(n)";
+        const srcRes = await srcGraph.roQuery(entityQuery);
+        const destRes = await destGraph.roQuery(entityQuery);
+        expect(srcRes.data).toEqual(destRes.data);
+    
+        const edgeQuery = "MATCH ()-[r]->() RETURN r ORDER BY ID(r)";
+        const srcEdgesRes = await srcGraph.roQuery(edgeQuery);
+        const destEdgesRes = await destGraph.roQuery(edgeQuery);
+        expect(srcEdgesRes.data).toEqual(destEdgesRes.data);
+    
+        // Validate schema
+        const srcLabels = await srcGraph.roQuery("CALL db.labels()");
+        const destLabels = await destGraph.roQuery("CALL db.labels()");
+        expect(srcLabels.data).toEqual(destLabels.data);
+    
+        const srcPropertyKeys = await srcGraph.roQuery("CALL db.propertyKeys()");
+        const destPropertyKeys = await destGraph.roQuery("CALL db.propertyKeys()");
+        expect(srcPropertyKeys.data).toEqual(destPropertyKeys.data);
+    
+        // // Validate indices
+        const srcIndicesRes = await srcGraph.explain("CALL DB.INDEXES() YIELD label, properties, types, language, stopwords, entitytype, status RETURN *");
+        const destIndicesRes = await destGraph.explain("CALL DB.INDEXES() YIELD label, properties, types, language, stopwords, entitytype, status RETURN *");
+        expect(srcIndicesRes.data).toEqual(destIndicesRes.data);
+
+        await srcGraph.delete();
+        await destGraph.delete();
+    });
 });
