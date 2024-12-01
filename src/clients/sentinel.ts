@@ -52,7 +52,7 @@ export class Sentinel extends Single {
         };
         const realClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
 
-        // Save sentinel client to quite on quit()
+        // Save sentinel client to quit on quit()
         this.sentinelClient = client;
 
         // Set original client as sentinel and server client as client
