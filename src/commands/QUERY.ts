@@ -3,6 +3,14 @@ import { pushQueryArguments, QueryOptionsBackwardCompatible } from '.';
 
 export const FIRST_KEY_INDEX = 1;
 
+/**
+ * Transforms arguments for a Redis Graph query command.
+ * @param {RedisCommandArgument} graph - The name of the graph to query.
+ * @param {RedisCommandArgument} query - The Cypher query to execute.
+ * @param {QueryOptionsBackwardCompatible} [options] - Optional query parameters.
+ * @param {boolean} [compact] - Optional flag to enable compact output.
+ * @returns {RedisCommandArguments} An array of arguments ready for the Redis GRAPH.QUERY command.
+ */
 export function transformArguments(
     graph: RedisCommandArgument,
     query: RedisCommandArgument,
@@ -42,6 +50,11 @@ export type QueryReply = {
     metadata: Metadata;
 };
 
+/**
+ * Transforms a QueryRawReply into a QueryReply object.
+ * @param {QueryRawReply} reply - The raw reply to be transformed. It can be either an array with one or three elements.
+ * @returns {QueryReply} The transformed reply object with headers, data, and metadata properties.
+ */
 export function transformReply(reply: QueryRawReply): QueryReply {
     return reply.length === 1 ? {
         headers: undefined,

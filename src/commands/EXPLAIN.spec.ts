@@ -2,6 +2,12 @@ import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from '../test-utils';
 import { transformArguments } from './EXPLAIN';
 
+/**
+ * Explains the execution plan of a graph query
+ * @param {string} key - The key of the graph
+ * @param {string} query - The graph query to explain
+ * @returns {string[]} An array of strings describing the execution plan
+ */
 describe('EXPLAIN', () => {
     it('transformArguments', () => {
         assert.deepEqual(

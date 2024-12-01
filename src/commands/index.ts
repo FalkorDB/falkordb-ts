@@ -62,7 +62,15 @@ export interface QueryOptions {
 
 export type QueryOptionsBackwardCompatible = QueryOptions | number;
 
-export function pushQueryArguments(
+/**
+ * Pushes query arguments to a Redis command argument array for graph operations.
+ * @param {RedisCommandArguments} args - The array of Redis command arguments to modify.
+ * @param {RedisCommandArgument} graph - The graph name or identifier.
+ * @param {RedisCommandArgument} query - The Cypher query to execute.
+ * @param {QueryOptionsBackwardCompatible} [options] - Optional query parameters or timeout value.
+ * @param {boolean} [compact] - Optional flag to enable compact output format.
+ * @returns {RedisCommandArguments} The modified array of Redis command arguments.
+ */export function pushQueryArguments(
     args: RedisCommandArguments,
     graph: RedisCommandArgument,
     query: RedisCommandArgument,
@@ -93,10 +101,21 @@ export function pushQueryArguments(
     return args;
 }
 
+/**
+ * Adds a timeout argument to the Redis command arguments.
+ * @param {RedisCommandArguments} args - The array of Redis command arguments.
+ * @param {number} timeout - The timeout value in seconds.
+ * @returns {void} This method does not return a value.
+ */
 function pushTimeout(args: RedisCommandArguments, timeout: number): void {
     args.push('TIMEOUT', timeout.toString());
 }
 
+/**
+ * Converts a QueryParams object to a string representation.
+ * @param {QueryParams} params - The query parameters to be converted.
+ * @returns {string} A string representation of the query parameters, with key-value pairs joined by spaces.
+ */
 function queryParamsToString(params: QueryParams): string {
     const parts: string[] = [];
     for (const [key, value] of Object.entries(params)) {
@@ -105,6 +124,12 @@ function queryParamsToString(params: QueryParams): string {
     return parts.join(' ');
 }
 
+/**
+ * Converts a query parameter to a string representation.
+ * @param {QueryParam} param - The query parameter to convert.
+ * @returns {string} A string representation of the query parameter.
+ * @throws {TypeError} If the parameter type is unexpected.
+ */
 function queryParamToString(param: QueryParam): string {
     if (param === null) {
         return 'null';
