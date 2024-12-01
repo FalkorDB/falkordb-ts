@@ -188,6 +188,6 @@ export default class FalkorDB extends EventEmitter {
      * Closes the client.
      */
     async close() {
-        return this.#client.quit();
+        return this.#client.disconnect();
     }
 }
