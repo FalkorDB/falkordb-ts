@@ -85,11 +85,14 @@ export class Sentinel extends Single {
     }
 
     async quit() {
-        await super.quit();
+        const promises = [
+            super.quit()
+        ];
         if (this.sentinelClient) {
             const reply = this.sentinelClient.quit();
-            return reply.then(() => {})
+            promises.push(reply.then(() => {}))
         }
+        return Promise.all(promises).then(() => {});
     }
 }
 
