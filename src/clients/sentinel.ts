@@ -19,6 +19,8 @@ function extractDetails(masters: Array<Array<string>>) {
 
 export class Sentinel extends Single {
 
+    private sentinelClient: SingleGraphConnection;
+
     init(falkordb: FalkorDB): Promise<void> {
         const redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
 		return this.tryConnectSentinelServer(this.client, redisOption, falkordb);
@@ -50,6 +52,9 @@ export class Sentinel extends Single {
         };
         const realClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(serverOptions)
 
+        // Save sentinel client to quite on quit()
+        this.sentinelClient = client;
+
         // Set original client as sentinel and server client as client
         this.client = realClient;
 
@@ -77,6 +82,14 @@ export class Sentinel extends Single {
                 }
             })
             .connect();
+    }
+
+    async quit() {
+        await super.quit();
+        if (this.sentinelClient) {
+            const reply = this.sentinelClient.quit();
+            return reply.then(() => {})
+        }
     }
 }
 
