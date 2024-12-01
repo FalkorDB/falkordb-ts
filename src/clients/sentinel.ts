@@ -19,7 +19,7 @@ function extractDetails(masters: Array<Array<string>>) {
 
 export class Sentinel extends Single {
 
-    private sentinelClient: SingleGraphConnection;
+    private sentinelClient: SingleGraphConnection | undefined;
 
     init(falkordb: FalkorDB): Promise<void> {
         const redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
