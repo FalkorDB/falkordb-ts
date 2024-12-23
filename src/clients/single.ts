@@ -24,11 +24,11 @@ export class Single implements Client {
     this.#usePool = !!this.client.options?.isolationPoolOptions;
   }
 
-  init(falkordb: FalkorDB) {
+  init(_falkordb: FalkorDB) {
     return Promise.resolve();
   }
 
-  async query<T>(
+  async query<_T>(
     graph: string,
     query: RedisCommandArgument,
     options?: QueryOptions,
@@ -43,7 +43,7 @@ export class Single implements Client {
     return reply;
   }
 
-  async roQuery<T>(
+  async roQuery<_T>(
     graph: string,
     query: RedisCommandArgument,
     options?: QueryOptions,
@@ -83,7 +83,7 @@ export class Single implements Client {
     return this.client.falkordb.explain(graph, query);
   }
 
-  async profile<T>(graph: string, query: string) {
+  async profile<_T>(graph: string, query: string) {
     if (this.#usePool) {
       return this.client.executeIsolated(async (isolatedClient) => {
         return isolatedClient.falkordb.profile(graph, query);
@@ -152,7 +152,7 @@ export class Single implements Client {
     return reply.then(() => {});
   }
 
-  async copy<T>(srcGraph: string, destGraph: string) {
+  async copy<_T>(srcGraph: string, destGraph: string) {
     return this.client.falkordb.copy(srcGraph, destGraph);
   }
 

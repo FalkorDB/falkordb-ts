@@ -1,6 +1,6 @@
 import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
 import { QueryOptions } from "../commands";
-import { ConstraintType, EntityType, GraphReply } from "../graph";
+import { ConstraintType, EntityType } from "../graph";
 import FalkorDB from "../falkordb";
 import { SingleGraphConnection } from "./single";
 
@@ -18,6 +18,7 @@ export interface Client {
 
   info(section?: string): Promise<(string | string[])[]>;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   query<T>(
     graph: string,
     query: RedisCommandArgument,
@@ -25,8 +26,10 @@ export interface Client {
     compact?: boolean
   ): Promise<any>;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   profile<T>(graph: string, query: RedisCommandArgument): Promise<any>;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
     graph: string,
     query: RedisCommandArgument,
@@ -34,6 +37,7 @@ export interface Client {
     compact?: boolean
   ): Promise<any>;
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   copy<T>(srcGraph: string, destGraph: string): Promise<any>;
 
   delete(graph: string): Promise<void>;
