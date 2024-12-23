@@ -66,4 +66,7 @@ export class NullClient implements Client {
     quit(): Promise<void> {
         throw new Error("Method not implemented.");
     }
+    disconnect(): Promise<void> {
+        throw new Error("Method not implemented.");
+    }
 }

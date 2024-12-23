@@ -1,116 +1,154 @@
 import { Client } from "./client";
 import { ConstraintType, EntityType } from "../graph";
-import { RedisCommandArgument, RedisFunctions, RedisScripts } from "@redis/client/dist/lib/commands";
+import {
+  RedisCommandArgument,
+  RedisFunctions,
+  RedisScripts,
+} from "@redis/client/dist/lib/commands";
 import commands, { QueryOptions } from "../commands";
 import { createCluster, RedisClusterType } from "@redis/client";
 import FalkorDB, { TypedRedisClusterClientOptions } from "../falkordb";
 import { SingleGraphConnection } from "./single";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
-import * as lodash from 'lodash'
-export type ClusterGraphConnection = RedisClusterType<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+import * as lodash from "lodash";
+export type ClusterGraphConnection = RedisClusterType<
+  { falkordb: typeof commands },
+  RedisFunctions,
+  RedisScripts
+>;
 
 /**
  * A client that connects to a Redis Cluster.
  */
 export class Cluster implements Client {
+  #client: ClusterGraphConnection;
 
-    #client: ClusterGraphConnection;
+  constructor(client: SingleGraphConnection) {
+    // Convert the single client options to a cluster client options
+    const redisClusterOption = client.options as TypedRedisClusterClientOptions;
+    redisClusterOption.rootNodes = [
+      client.options as RedisClusterClientOptions,
+    ];
 
-    constructor(client: SingleGraphConnection) {
+    // Remove the URL from the defaults so it won't override the dynamic cluster URLs
+    const defaults = lodash.cloneDeep(client.options);
+    defaults?.url && delete defaults.url;
 
-        // Convert the single client options to a cluster client options
-        const redisClusterOption = client.options as TypedRedisClusterClientOptions;
-        redisClusterOption.rootNodes = [client.options as RedisClusterClientOptions];
+    redisClusterOption.defaults = defaults;
+    redisClusterOption.maxCommandRedirections = 100000;
+    client.disconnect();
+    this.#client = createCluster<
+      { falkordb: typeof commands },
+      RedisFunctions,
+      RedisScripts
+    >(redisClusterOption);
+  }
 
-        // Remove the URL from the defaults so it won't override the dynamic cluster URLs
-        const defaults = lodash.cloneDeep(client.options);
-        defaults?.url && delete defaults.url;
+  async getConnection() {
+    const connection = this.#client.nodeClient(this.#client.getRandomNode());
+    return connection instanceof Promise ? await connection : connection;
+  }
 
-        redisClusterOption.defaults = defaults;
-        redisClusterOption.maxCommandRedirections = 100000;
-        client.disconnect();
-        this.#client = createCluster<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisClusterOption)
-    }
+  async init(falkordb: FalkorDB) {
+    await this.#client
+      .on("error", (err) => falkordb.emit("error", err)) // Forward errors
+      .connect();
+  }
 
-    async getConnection() {
-        const connection = this.#client.nodeClient(this.#client.getRandomNode());
-        return connection instanceof Promise ? await connection : connection;
-    }
+  async query<T>(
+    graph: string,
+    query: RedisCommandArgument,
+    options?: QueryOptions,
+    compact = true
+  ) {
+    return this.#client.falkordb.query(graph, query, options, compact);
+  }
+  async roQuery<T>(
+    graph: string,
+    query: RedisCommandArgument,
+    options?: QueryOptions,
+    compact = true
+  ) {
+    return this.#client.falkordb.roQuery(graph, query, options, compact);
+  }
 
-    async init(falkordb: FalkorDB) {
-        await this.#client
-            .on('error', err => falkordb.emit('error', err)) // Forward errors
-            .connect();
-    }
+  async delete(graph: string) {
+    const reply = this.#client.falkordb.delete(graph);
+    return reply.then(() => {});
+  }
 
-    async query<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
-        return this.#client.falkordb.query(graph, query, options, compact)
-    }
-    async roQuery<T>(graph: string, query: RedisCommandArgument, options?: QueryOptions, compact=true) {
-        return this.#client.falkordb.roQuery(graph, query, options, compact)
-    }
+  async explain(graph: string, query: string) {
+    return this.#client.falkordb.explain(graph, query);
+  }
 
-    async delete(graph: string) {
-        const reply = this.#client.falkordb.delete(graph)
-        return reply.then(() => { })
-    }
+  async list(): Promise<Array<string>> {
+    return this.#client.falkordb.list();
+  }
 
-    async explain(graph: string, query: string) {
-        return this.#client.falkordb.explain(graph, query)
-    }
+  async configGet(configKey: string) {
+    return this.#client.falkordb.configGet(configKey);
+  }
 
-    async list(): Promise<Array<string>> {
-        return this.#client.falkordb.list()
-    }
+  async configSet(configKey: string, value: number | string) {
+    const reply = this.#client.falkordb.configSet(configKey, value);
+    return reply.then(() => {});
+  }
 
-    async configGet(configKey: string) {
-        return this.#client.falkordb.configGet(configKey)
-    }
+  async info(section?: string) {
+    return this.#client.falkordb.info(section);
+  }
 
-    async configSet(configKey: string, value: number | string) {
-        const reply = this.#client.falkordb.configSet(configKey, value)
-        return reply.then(() => { })
-    }
+  async copy<T>(srcGraph: string, destGraph: string) {
+    return this.#client.falkordb.copy(srcGraph, destGraph);
+  }
 
-    async info(section?: string) {
-        return this.#client.falkordb.info(section)
-    }
+  slowLog(graph: string) {
+    return this.#client.falkordb.slowLog(graph);
+  }
+  async constraintCreate(
+    graph: string,
+    constraintType: ConstraintType,
+    entityType: EntityType,
+    label: string,
+    ...properties: string[]
+  ) {
+    const reply = this.#client.falkordb.constraintCreate(
+      graph,
+      constraintType,
+      entityType,
+      label,
+      ...properties
+    );
+    return reply.then(() => {});
+  }
 
-    async copy<T>(srcGraph: string, destGraph: string) {
-        return this.#client.falkordb.copy(srcGraph, destGraph)
-    }
+  async constraintDrop(
+    graph: string,
+    constraintType: ConstraintType,
+    entityType: EntityType,
+    label: string,
+    ...properties: string[]
+  ) {
+    const reply = this.#client.falkordb.constraintDrop(
+      graph,
+      constraintType,
+      entityType,
+      label,
+      ...properties
+    );
+    return reply.then(() => {});
+  }
 
-    slowLog(graph: string) {
-        return this.#client.falkordb.slowLog(graph)
-    }
-    async constraintCreate(graph: string, constraintType: ConstraintType, entityType: EntityType, label: string, ...properties: string[]) {
-        const reply = this.#client.falkordb.constraintCreate(
-            graph,
-            constraintType,
-            entityType,
-            label,
-            ...properties
-        )
-        return reply.then(() => { })
-    }
+  async profile<T>(graph: string, query: string) {
+    return this.#client.falkordb.profile(graph, query);
+  }
 
-    async constraintDrop(graph: string, constraintType: ConstraintType, entityType: EntityType, label: string, ...properties: string[]) {
-        const reply = this.#client.falkordb.constraintDrop(
-            graph,
-            constraintType,
-            entityType,
-            label,
-            ...properties
-        )
-        return reply.then(() => { })
-    }
+  async quit() {
+    return this.disconnect();
+  }
 
-    async profile<T>(graph: string, query: string) {
-		return this.#client.falkordb.profile( graph, query)
-    }
-
-    async quit() {
-        const reply = this.#client.quit();
-		return reply.then(() => {})    
-    }
+  async disconnect(): Promise<void> {
+    const reply = this.#client.disconnect();
+    return reply.then(() => {});
+  }
 }
