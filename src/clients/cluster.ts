@@ -55,6 +55,7 @@ export class Cluster implements Client {
       .connect();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async query<T>(
     graph: string,
     query: RedisCommandArgument,
@@ -63,6 +64,8 @@ export class Cluster implements Client {
   ) {
     return this.#client.falkordb.query(graph, query, options, compact);
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async roQuery<T>(
     graph: string,
     query: RedisCommandArgument,
@@ -98,7 +101,7 @@ export class Cluster implements Client {
     return this.#client.falkordb.info(section);
   }
 
-  async copy<T>(srcGraph: string, destGraph: string) {
+  async copy<_T>(srcGraph: string, destGraph: string) {
     return this.#client.falkordb.copy(srcGraph, destGraph);
   }
 
@@ -139,7 +142,7 @@ export class Cluster implements Client {
     return reply.then(() => {});
   }
 
-  async profile<T>(graph: string, query: string) {
+  async profile<_T>(graph: string, query: string) {
     return this.#client.falkordb.profile(graph, query);
   }
 

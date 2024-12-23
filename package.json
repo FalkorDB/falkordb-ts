@@ -16,7 +16,7 @@
     "build:test-utils": "npm run build -w ./packages/test-utils",
     "build:tests-tools": "npm run build:client && npm run build:test-utils",
     "build": "tsc",
-    "lint": "eslint . --ext .ts",
+    "lint": "eslint .",
     "build-all": "npm run build:test-utils && npm run build",
     "documentation": "npm run documentation -ws --if-present",
     "gh-pages": "gh-pages -d ./documentation -e ./documentation -u 'documentation-bot <documentation@bot>'"
