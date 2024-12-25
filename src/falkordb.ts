@@ -3,7 +3,7 @@ import * as tls from 'tls';
 import * as net from 'net';
 import { EventEmitter } from 'events';
 
-import { RedisClientOptions, RedisFunctions, RedisScripts, createClient, createCluster } from 'redis';
+import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
 
 import Graph from './graph';
 import commands from './commands';
@@ -188,6 +188,6 @@ export default class FalkorDB extends EventEmitter {
      * Closes the client.
      */
     async close() {
-        return this.#client.quit();
+        return this.#client.disconnect();
     }
 }
