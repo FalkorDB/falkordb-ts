@@ -36,7 +36,7 @@ jobs:
     - run: npm run build --if-present
     
     - name: Run tests
-      run: npx jest
+      run: npm run test
       env:
         FALKORDB_HOST: localhost
         FALKORDB_PORT: 6379
