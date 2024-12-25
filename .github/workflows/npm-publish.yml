@@ -10,13 +10,22 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    services:
+      falkordb:
+        image: falkordb/falkordb:latest
+        ports:
+          - 6379:6379
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 20
       - run: npm ci
-      - run: npm test
+      - name: Run tests
+        run: npm test
+        env:
+          FALKORDB_HOST: localhost
+          FALKORDB_PORT: 6379
 
   publish-npm:
     needs: build
