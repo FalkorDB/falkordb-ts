@@ -10,7 +10,7 @@ services:
     healthcheck:
           test: |
             redis-cli --cluster create node0:5000 node1:6000 \
-              node2:7000 node3:8000 node4:9000 node5:10000 --cluster-replicas 1 --cluster-yes || echo failed && exit 1
+              node2:7000 node3:8000 node4:9000 node5:10000 --cluster-replicas 1 --cluster-yes || { echo failed; exit 1; }
           interval: 3s
           timeout: 10s
           retries: 10
