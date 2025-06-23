@@ -8,6 +8,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node0 -p 5000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
@@ -30,6 +36,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node1 -p 6000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
@@ -52,6 +64,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node2 -p 7000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
@@ -74,6 +92,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node3 -p 8000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
@@ -96,6 +120,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node4 -p 9000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
@@ -119,6 +149,12 @@ services:
     networks:
       - falkordb-cluster
     entrypoint: /bin/bash
+    healthcheck:
+      test: |
+        redis-cli -h node5 -p 10000 ping || {echo "Redis is not ready"; exit 1}
+      interval: 30s
+      timeout: 10s
+      retries: 5
     command:
       - -c
       - |
