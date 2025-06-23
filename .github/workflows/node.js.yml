@@ -20,17 +20,17 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    - name: Run docker-compose for redis standalone instance
+    - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@v2.0.1
       with:
         compose-file: ./docker/standalone-compose.yml
 
-    - name: Run docker-compose for redis replication instance
+    - name: Run docker-compose for FalkorDB replication instance
       uses: hoverkraft-tech/compose-action@v2.0.1
       with:
         compose-file: ./docker/sentinel-compose.yml
 
-    - name: Run docker-compose for redis cluster instance
+    - name: Run docker-compose for FalkorDB cluster instance
       uses: hoverkraft-tech/compose-action@v2.0.1
       with:
         compose-file: ./docker/cluster-compose.yml

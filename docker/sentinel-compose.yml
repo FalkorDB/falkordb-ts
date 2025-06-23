@@ -81,7 +81,7 @@ services:
         echo "port 6380" >> /data/node.conf 
         echo "replica-announce-ip redis-server-1"       >> /data/node.conf
         echo "replica-announce-port 6380"               >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so" >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so" >> /data/node.conf
         redis-server /data/node.conf
   
   redis-server-2:
@@ -100,7 +100,7 @@ services:
         echo "port 6381" >> /data/node.conf 
         echo "replica-announce-ip redis-server-2"       >> /data/node.conf
         echo "replica-announce-port 6381"               >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so" >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so" >> /data/node.conf
         echo "replicaof redis-server-1 6380"            >> /data/node.conf
         redis-server /data/node.conf
 

@@ -21,7 +21,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 5000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"             >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"             >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"             >> /data/node.conf
         echo "cluster-port 16379"                                   >> /data/node.conf
         echo "cluster-enabled yes"                                  >> /data/node.conf
@@ -43,7 +43,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 6000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"             >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"             >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"             >> /data/node.conf
         echo "cluster-port 16379"                                   >> /data/node.conf
         echo "cluster-enabled yes"                                  >> /data/node.conf
@@ -65,7 +65,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 7000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"            >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"            >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"            >> /data/node.conf
         echo "cluster-port 16379"                                  >> /data/node.conf
         echo "cluster-enabled yes"                                 >> /data/node.conf
@@ -87,7 +87,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 8000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"           >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"           >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"           >> /data/node.conf
         echo "cluster-port 16379"                                 >> /data/node.conf
         echo "cluster-enabled yes"                                >> /data/node.conf
@@ -109,7 +109,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 9000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"         >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"         >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"         >> /data/node.conf
         echo "cluster-port 16379"                               >> /data/node.conf
         echo "cluster-enabled yes"                              >> /data/node.conf
@@ -132,7 +132,7 @@ services:
       - |
         touch /data/node.conf
         echo "port 10000" >> /data/node.conf
-        echo "loadmodule /FalkorDB/bin/src/falkordb.so"       >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"       >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"       >> /data/node.conf
         echo "cluster-port 16379"                             >> /data/node.conf
         echo "cluster-enabled yes"                            >> /data/node.conf
