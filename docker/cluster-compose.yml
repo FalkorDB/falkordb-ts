@@ -6,22 +6,14 @@ services:
     ports:
       - 5000:5000
     networks:
-      - redis-cluster
-    healthcheck:
-          test: |
-            redis-cli --cluster create node0:5000 node1:6000 \
-              node2:7000 node3:8000 node4:9000 node5:10000 --cluster-replicas 1 --cluster-yes || echo failed && exit 1
-          interval: 3s
-          timeout: 10s
-          retries: 10
-          start_period: 2s
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 5000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"             >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"         >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"             >> /data/node.conf
         echo "cluster-port 16379"                                   >> /data/node.conf
         echo "cluster-enabled yes"                                  >> /data/node.conf
@@ -36,14 +28,14 @@ services:
     ports:
       - 6000:6000
     networks:
-      - redis-cluster
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 6000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"             >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"         >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"             >> /data/node.conf
         echo "cluster-port 16379"                                   >> /data/node.conf
         echo "cluster-enabled yes"                                  >> /data/node.conf
@@ -58,14 +50,14 @@ services:
     ports:
       - 7000:7000
     networks:
-      - redis-cluster
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 7000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"            >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"        >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"            >> /data/node.conf
         echo "cluster-port 16379"                                  >> /data/node.conf
         echo "cluster-enabled yes"                                 >> /data/node.conf
@@ -80,14 +72,14 @@ services:
     ports:
       - 8000:8000
     networks:
-      - redis-cluster
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 8000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"           >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"       >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"           >> /data/node.conf
         echo "cluster-port 16379"                                 >> /data/node.conf
         echo "cluster-enabled yes"                                >> /data/node.conf
@@ -102,14 +94,14 @@ services:
     ports:
       - 9000:9000
     networks:
-      - redis-cluster
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 9000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"         >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"     >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"         >> /data/node.conf
         echo "cluster-port 16379"                               >> /data/node.conf
         echo "cluster-enabled yes"                              >> /data/node.conf
@@ -125,14 +117,14 @@ services:
     ports:
       - 10000:10000
     networks:
-      - redis-cluster
+      - falkordb-cluster
     entrypoint: /bin/bash
     command:
       - -c
       - |
         touch /data/node.conf
         echo "port 10000" >> /data/node.conf
-        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"       >> /data/node.conf
+        echo "loadmodule /var/lib/falkordb/bin/falkordb.so"   >> /data/node.conf
         echo "cluster-preferred-endpoint-type hostname"       >> /data/node.conf
         echo "cluster-port 16379"                             >> /data/node.conf
         echo "cluster-enabled yes"                            >> /data/node.conf
@@ -140,7 +132,27 @@ services:
         echo "cluster-node-timeout 5000"                      >> /data/node.conf
         echo "cluster-announce-hostname node5"                >> /data/node.conf
         redis-server /data/node.conf
+  cluster-creator:
+    image: falkordb/falkordb:edge
+    container_name: cluster-creator
+    hostname: cluster-creator
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
+    networks:
+      - falkordb-cluster
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        sleep 10 # wait for nodes to be ready
+        redis-cli --cluster create node0:5000 node1:6000 \
+          node2:7000 node3:8000 node4:9000 node5:10000 --cluster-replicas 1 --cluster-yes || { echo failed;exit 1}
 
 
 networks:
-  redis-cluster:
+  falkordb-cluster:

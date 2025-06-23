@@ -37,12 +37,12 @@ jobs:
     
     - name: Add entries to the host file to correctly resolve service names
       run: |
-        sudo echo "127.0.0.1 redis-standalone" | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 falkordb-standalone" | sudo tee -a /etc/hosts
         sudo echo "127.0.0.1 sentinel-1"       | sudo tee -a /etc/hosts
         sudo echo "127.0.0.1 sentinel-2"       | sudo tee -a /etc/hosts
         sudo echo "127.0.0.1 sentinel-3"       | sudo tee -a /etc/hosts
-        sudo echo "127.0.0.1 redis-server-1"   | sudo tee -a /etc/hosts
-        sudo echo "127.0.0.1 redis-server-2"   | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 falkordb-server-1"   | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 falkordb-server-2"   | sudo tee -a /etc/hosts
         for i in node{0..5};do
           echo "127.0.0.1 $i" | sudo tee -a /etc/hosts
         done
