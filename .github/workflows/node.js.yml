@@ -53,10 +53,8 @@ jobs:
     - name: Test if FalkorDB cluster instance is running
       run: |
         docker ps -a
-        docker logs falkordb-server-1
-        docker logs falkordb-server-2
         for i in {0..5};do
-          docker logs $i
+          docker logs node$i
           docker exec node$i redis-cli ping -p $((6379 + $i )) || { echo "FalkorDB cluster instance is not running"; exit 1; }
         done
     
