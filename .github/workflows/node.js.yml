@@ -17,20 +17,68 @@ jobs:
     strategy:
       matrix:
         node-version: [18.x, 20.x]
-    
-    services:
-      falkordb:
-        image: falkordb/falkordb:latest
-        ports:
-          - 6379:6379
 
     steps:
     - uses: actions/checkout@v4
+    - name: Run docker-compose for FalkorDB standalone instance
+      uses: hoverkraft-tech/compose-action@v2.2.0
+      with:
+        compose-file: ./docker/standalone-compose.yml
+    - name: Test if FalkorDB standalone instance is running
+      run: |
+        docker ps -a
+        docker logs falkordb-standalone
+        docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
+
+    - name: Run docker-compose for FalkorDB replication instance
+      uses: hoverkraft-tech/compose-action@v2.2.0
+      with:
+        compose-file: ./docker/sentinel-compose.yml
+
+    - name: Test if FalkorDB replication instance is running
+      run: |
+        docker ps -a
+        docker logs sentinel-1
+        docker exec sentinel-1 redis-cli -p 26379 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
+        docker logs sentinel-2
+        docker exec sentinel-2 redis-cli -p 26380 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
+        docker logs sentinel-3
+        docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
+
+    - name: Run docker-compose for FalkorDB cluster instance
+      uses: hoverkraft-tech/compose-action@v2.2.0
+      with:
+        compose-file: ./docker/cluster-compose.yml
+    
+    - name: Test if FalkorDB cluster instance is running
+      run: |
+        docker ps -a
+        for i in {0..5};do
+          docker logs node$i
+          docker exec node$i redis-cli -p $((5000 + 1000 * $i )) ping || { echo "FalkorDB cluster instance is not running"; exit 1; }
+        done
+    
+    - name: Add entries to the host file to correctly resolve service names
+      run: |
+        sudo echo "127.0.0.1 falkordb-standalone" | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 sentinel-1"       | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 sentinel-2"       | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 sentinel-3"       | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 falkordb-server-1"   | sudo tee -a /etc/hosts
+        sudo echo "127.0.0.1 falkordb-server-2"   | sudo tee -a /etc/hosts
+        for i in node{0..5};do
+          echo "127.0.0.1 $i" | sudo tee -a /etc/hosts
+        done
+    
+    - name: install docker-compose client
+      run: sudo apt update && sudo apt install docker-compose -y
+
     - name: Use Node.js ${{ matrix.node-version }}
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
+    
     - run: npm ci
     - run: npm run lint
     - run: npm run build --if-present
