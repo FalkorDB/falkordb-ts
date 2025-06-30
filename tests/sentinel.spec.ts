@@ -2,7 +2,6 @@ import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
 import { expect } from '@jest/globals';
 import { Sentinel } from '../src/clients/sentinel';
-import { Single } from '../src/clients/single';
 
 describe('Sentinel Integration Tests', () => {
     let sentinelClient: FalkorDB;
