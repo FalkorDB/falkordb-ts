@@ -33,26 +33,17 @@ describe('Sentinel Integration Tests', () => {
       (console.debug as jest.Mock).mockRestore();
     });
 
-    function skipIfNoClient(testFn: () => void | Promise<void>) {
-        return async () => {
-            if (!sentinelClient) {
-                console.log('Skipping sentinel tests - no sentinel available');
-                return;
-            }
-            await testFn();
-        };
-    }
+    beforeEach(() => {
+        if (!sentinelClient) {
+            pending('Skipping sentinel tests - no sentinel available');
+        }
+    });
     
-    it('should create sentinel client instance', skipIfNoClient(() => {
+    it('should create sentinel client instance', () => {
         expect(sentinelClient).toBeDefined();
-    }));
+    });
 
     it('should execute query through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-graph');
             const result = await graph.query('RETURN 1 as num');
@@ -63,11 +54,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should list graphs through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graphs = await sentinelClient.list();
             expect(Array.isArray(graphs)).toBe(true);
@@ -77,11 +63,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should get config through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const config = await sentinelClient.configGet('RESULTSET_SIZE');
             expect(config).toBeDefined();
@@ -91,11 +72,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should get info through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const info = await sentinelClient.info();
             expect(info).toBeDefined();
@@ -105,11 +81,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle sentinel failover gracefully', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             await sentinelClient.info();
             expect(true).toBe(true);
@@ -119,11 +90,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle graph operations through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-sentinel-ops');
             await graph.query('CREATE (n:Person {name: "test"})');
@@ -137,11 +103,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should execute read-only query through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-graph-ro');
             const result = await graph.roQuery('RETURN 1 as num');
@@ -152,11 +113,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should explain query through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-graph-explain');
             const result = await graph.explain('RETURN 1');
@@ -167,11 +123,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should profile query through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-graph-profile');
             const result = await graph.profile('RETURN 1');
@@ -182,11 +133,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should set config through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const originalConfig = await sentinelClient.configGet('RESULTSET_SIZE');
             await sentinelClient.configSet('RESULTSET_SIZE', 1000);
@@ -200,11 +146,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should get info with section through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const info = await sentinelClient.info('server');
             expect(info).toBeDefined();
@@ -214,11 +155,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should create constraints through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-constraint-graph');
             await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'id');
@@ -230,11 +166,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should drop constraints through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('test-constraint-drop-graph');
             await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'email');
@@ -246,11 +177,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should copy graphs through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const sourceGraph = sentinelClient.selectGraph('source-graph');
             await sourceGraph.query('CREATE (n:Test {value: 1})');
@@ -270,11 +196,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle multiple graph operations through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph1 = sentinelClient.selectGraph('multi-graph-1');
             const graph2 = sentinelClient.selectGraph('multi-graph-2');
@@ -296,11 +217,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle connection stability and errors gracefully', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-    
         try {
             const operations = [
                 sentinelClient.info(),
@@ -321,20 +237,10 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle invalid operations through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         await expect(sentinelClient.configGet('INVALID_CONFIG')).rejects.toThrow();
     });
 
     it('should handle concurrent operations through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const promises = [
                 sentinelClient.info(),
@@ -350,11 +256,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle large query results through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('large-result-graph');
             await graph.query('UNWIND range(1, 100) AS i CREATE (n:Number {value: i})');
@@ -372,11 +273,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle query parameters through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('param-graph');
             
@@ -393,11 +289,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle timeout parameters through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('timeout-graph');
             
@@ -414,11 +305,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle complex queries through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('complex-graph');
             await graph.query(`
@@ -448,11 +334,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle graph statistics through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('stats-graph');
             
@@ -468,11 +349,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle cleanup operations through sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graphs = await sentinelClient.list();
             expect(Array.isArray(graphs)).toBe(true);
@@ -516,17 +392,14 @@ describe('Sentinel Integration Tests', () => {
             client.on('error', errorHandler);
             await client.info();
             
-        } catch (error: any) {
-            expect(error.constructor.name).toBe('RangeError');
+        } catch (error) {
+            expect(error).toBeInstanceOf(Error);
+            expect(error.message).toMatch(/port.*range|connection.*failed/i);
         }
     });
 
 
     it('recovers from connection errors and emits error events during Sentinel failover', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel error/failover test - no sentinel available');
-            return;
-        }
         try {
             for (let i = 0; i < 5; i++) {
                 try {
@@ -543,11 +416,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should test multiple sentinels connectivity', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         // Test connecting to different sentinel instances
         const sentinelConfigs = [
             { host: 'sentinel-1', port: 26379 },
@@ -571,11 +439,6 @@ describe('Sentinel Integration Tests', () => {
 
 
     it('should test constraint drop error handling on real sentinel', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('constraint-error-test-graph');
             
@@ -593,11 +456,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should test sentinel disconnect and quit methods', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const tempClient = await FalkorDB.connect({
                 socket: {
@@ -617,11 +475,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should test sentinel configuration edge cases', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         // Test getting invalid configuration
         await expect(sentinelClient.configGet('TOTALLY_INVALID_CONFIG_KEY')).rejects.toThrow();
 
@@ -630,11 +483,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should test graph operations with transaction-like behavior', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('transaction-test-graph');
             
@@ -656,11 +504,6 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should test error boundaries in sentinel operations', async () => {
-        if (!sentinelClient) {
-            console.log('Skipping sentinel tests - no sentinel available');
-            return;
-        }
-
         try {
             const graph = sentinelClient.selectGraph('error-boundary-test');
             
