@@ -10,6 +10,7 @@ function getRandomNumber(): number {
 
 describe('Single Client Tests', () => {
     let singleClient: FalkorDB;
+    let pooledClient: FalkorDB;
 
     beforeAll(async () => {
         try {
@@ -17,18 +18,45 @@ describe('Single Client Tests', () => {
         } catch (error) {
             console.error('Failed to connect to FalkorDB:', error);
         }
+
+        // Pooled client to test pool execution paths
+        try {
+            pooledClient = await FalkorDB.connect({
+                socket: {
+                    host: process.env.FALKORDB_HOST || 'localhost',
+                    port: parseInt(process.env.FALKORDB_PORT || '6379', 10)
+                },
+                poolOptions: {
+                    min: 1,
+                    max: 10
+                }
+            });
+        } catch (error) {
+            console.error('Failed to connect to FalkorDB with pooled client:', error);
+        }
     });
 
     afterAll(async () => {
         if (singleClient) {
             await singleClient.close();
         }
-
+        if (pooledClient) {
+            await pooledClient.close();
+        }
     });
 
     function skipIfNoClient(testFn: () => void | Promise<void>) {
         return async () => {
             if (!singleClient) {
+                return;
+            }
+            await testFn();
+        };
+    }
+
+    function skipIfNoPooledClient(testFn: () => void | Promise<void>) {
+        return async () => {
+            if (!pooledClient) {
                 return;
             }
             await testFn();
@@ -187,6 +215,97 @@ describe('Single Client Tests', () => {
             const connection = await singleClient.connection;
             expect(connection).toBeDefined();
             expect(connection.falkordb).toBeDefined();
+        }));
+    });
+
+    describe('Pooled Single Client Operations', () => {
+        it('should execute query through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-query-${getRandomNumber()}`);
+            const result = await graph.query('RETURN 1 as num');
+            expect(result).toBeDefined();
+            await graph.delete();
+        }));
+
+        it('should execute read-only query through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-ro-query-${getRandomNumber()}`);
+            // First create some data
+            await graph.query('CREATE (n:Test {value: 1})');
+            // Then use roQuery to read it
+            const result = await graph.roQuery('MATCH (n:Test) RETURN n.value');
+            expect(result).toBeDefined();
+            expect(result.data).toBeDefined();
+            await graph.delete();
+        }));
+
+        it('should delete graph through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-delete-${getRandomNumber()}`);
+            await graph.query('CREATE (n:PoolTest {value: 1})');
+            await graph.delete();
+        }));
+
+        it('should explain query through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-explain-${getRandomNumber()}`);
+            // Create some data first for a meaningful explain
+            await graph.query('CREATE (n:Person {name: "Alice"})');
+            const result = await graph.explain('MATCH (n:Person) RETURN n');
+            expect(result).toBeDefined();
+            expect(Array.isArray(result)).toBe(true);
+            expect(result.length).toBeGreaterThan(0);
+            await graph.delete();
+        }));
+
+        it('should profile query through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-profile-${getRandomNumber()}`);
+            // Create some data first for a meaningful profile
+            await graph.query('CREATE (n:Person {name: "Alice"})');
+            const result = await graph.profile('MATCH (n:Person) RETURN n');
+            expect(result).toBeDefined();
+            expect(Array.isArray(result)).toBe(true);
+            expect(result.length).toBeGreaterThan(0);
+            await graph.delete();
+        }));
+
+        it('should get slow log through pooled single client', skipIfNoPooledClient(async () => {
+            const graph = pooledClient.selectGraph(`test-pooled-slowlog-${getRandomNumber()}`);
+            await graph.query('CREATE (n:PoolSlowTest {value: 1})');
+            const slowLog = await graph.slowLog();
+            expect(Array.isArray(slowLog)).toBe(true);
+            await graph.delete();
+        }));
+
+        it('should test pooled client with multiple concurrent operations', skipIfNoPooledClient(async () => {
+            const operations = [
+                pooledClient.info(),
+                pooledClient.list(),
+                pooledClient.configGet('RESULTSET_SIZE')
+            ];
+            
+            const results = await Promise.all(operations);
+            expect(results).toHaveLength(3);
+            results.forEach(result => expect(result).toBeDefined());
+        }));
+
+        it('should test pooled client with graph operations', skipIfNoPooledClient(async () => {
+            const graph1 = pooledClient.selectGraph(`pool-test-1-${getRandomNumber()}`);
+            const graph2 = pooledClient.selectGraph(`pool-test-2-${getRandomNumber()}`);
+            
+            const operations = [
+                graph1.query('CREATE (n:PoolNode1 {id: 1})'),
+                graph2.query('CREATE (n:PoolNode2 {id: 2})')
+            ];
+            
+            await Promise.all(operations);
+            
+            const results = await Promise.all([
+                graph1.query('MATCH (n:PoolNode1) RETURN n.id'),
+                graph2.query('MATCH (n:PoolNode2) RETURN n.id')
+            ]);
+            
+            expect(results[0].data).toBeDefined();
+            expect(results[1].data).toBeDefined();
+            
+            await graph1.delete();
+            await graph2.delete();
         }));
     });
 });
