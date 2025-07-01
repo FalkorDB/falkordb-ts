@@ -158,19 +158,8 @@ describe('Single Client Tests', () => {
             await graph.delete();
         }));
 
-        it('should create constraints through single client', skipIfNoClient(async () => {
+        it('should create and drop constraints through single client', skipIfNoClient(async () => {
             const graph = singleClient.selectGraph(`test-single-constraint-create-${getRandomNumber()}`);
-            try {
-                await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'id');
-                await graph.constraintDrop(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'id');
-            } catch (error) {
-                expect(error).toBeDefined();
-            }
-            await graph.delete();
-        }));
-
-        it('should drop constraints through single client', skipIfNoClient(async () => {
-            const graph = singleClient.selectGraph(`test-single-constraint-drop-${getRandomNumber()}`);
             try {
                 await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'email');
                 await graph.constraintDrop(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'email');
