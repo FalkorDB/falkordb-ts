@@ -505,7 +505,6 @@ describe('Sentinel Integration Tests', () => {
 
     it('should emit error events when sentinel connection fails during operations', async () => {
         const errorHandler = jest.fn();
-        
         try {
             const client = await FalkorDB.connect({
                 socket: {
@@ -515,13 +514,10 @@ describe('Sentinel Integration Tests', () => {
             });
             
             client.on('error', errorHandler);
-            
-            // Try to perform operations that would trigger the error path
             await client.info();
             
-        } catch (error) {
-            expect(error).toBeInstanceOf(Error);
-            // The error should be handled gracefully at the public API level
+        } catch (error: any) {
+            expect(error.constructor.name).toBe('RangeError');
         }
     });
 
