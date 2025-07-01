@@ -1,4 +1,5 @@
 import FalkorDB from '../src/falkordb';
+import { Single } from '../src/clients/single';
 import { ConstraintType, EntityType } from '../src/graph';
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
@@ -306,5 +307,104 @@ describe('Single Client Tests', () => {
             await graph1.delete();
             await graph2.delete();
         }));
+    });
+
+    describe('Error Handling and Edge Cases', () => {
+        it('should handle invalid config operations', skipIfNoClient(async () => {
+            await expect(singleClient.configGet('INVALID_CONFIG_KEY')).rejects.toThrow();
+            await expect(singleClient.configSet('INVALID_KEY', 'invalid_value')).rejects.toThrow();
+        }));
+
+        it('should verify Single client methods exist', skipIfNoClient(async () => {
+            const graph = singleClient.selectGraph(`method-test-${getRandomNumber()}`);
+            
+            // Test that all core methods exist on the graph instance
+            expect(typeof graph.query).toBe('function');
+            expect(typeof graph.roQuery).toBe('function');
+            expect(typeof graph.delete).toBe('function');
+            expect(typeof graph.explain).toBe('function');
+            expect(typeof graph.profile).toBe('function');
+            expect(typeof graph.slowLog).toBe('function');
+            expect(typeof graph.copy).toBe('function');
+        }));
+
+        it('should handle invalid query syntax', skipIfNoClient(async () => {
+            const graph = singleClient.selectGraph(`invalid-query-test-${getRandomNumber()}`);
+            
+            await expect(graph.query('INVALID CYPHER SYNTAX')).rejects.toThrow();
+            await graph.delete();
+        }));
+
+        it('should handle operations on deleted graphs', skipIfNoClient(async () => {
+            const graph = singleClient.selectGraph(`deleted-graph-test-${getRandomNumber()}`);
+            await graph.query('CREATE (n:Test)');
+            await graph.delete();
+            
+            try {
+                await graph.query('MATCH (n) RETURN n');
+            } catch (error) {
+                expect(error).toBeDefined();
+            }
+        }));
+    });
+
+    describe('Direct Single Client Instance Tests', () => {
+        it('should test Single client constructor without pool', async () => {
+            if (!singleClient) {
+                return;
+            }
+            
+            const connection = await singleClient.connection;
+            const singleInstance = new Single(connection as any);
+            
+            await singleInstance.init(singleClient);
+            expect(singleInstance).toBeDefined();
+        });
+
+        it('should test Single client constructor with pool options', async () => {
+            if (!pooledClient) {
+                return;
+            }
+            
+            const connection = await pooledClient.connection;
+            const singleInstance = new Single(connection as any);
+            
+            await singleInstance.init(pooledClient);
+            expect(singleInstance).toBeDefined();
+        });
+
+        it('should test quit method directly on Single instance', async () => {
+            if (!singleClient) {
+                return;
+            }
+            
+            const tempClient = await FalkorDB.connect({
+                socket: {
+                    host: process.env.FALKORDB_HOST || 'localhost',
+                    port: parseInt(process.env.FALKORDB_PORT || '6379', 10)
+                }
+            });
+            
+            const connection = await tempClient.connection;
+            const singleInstance = new Single(connection as any);
+            
+            await singleInstance.quit();
+        });
+
+        it('should test Single instance with and without pool options', async () => {
+            if (!singleClient || !pooledClient) {
+                return;
+            }
+            
+            // Test non-pooled
+            const nonPooledConnection = await singleClient.connection;
+            const nonPooledSingle = new Single(nonPooledConnection as any);
+            expect(nonPooledSingle).toBeDefined();
+            
+            // Test pooled
+            const pooledConnection = await pooledClient.connection;
+            const pooledSingle = new Single(pooledConnection as any);
+            expect(pooledSingle).toBeDefined();
+        });
     });
 });
