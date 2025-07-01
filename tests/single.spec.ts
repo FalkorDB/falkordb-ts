@@ -1,5 +1,4 @@
 import FalkorDB from '../src/falkordb';
-import { Single } from '../src/clients/single';
 import { ConstraintType, EntityType } from '../src/graph';
 import { client } from './dbConnection';
 import { expect } from '@jest/globals';
