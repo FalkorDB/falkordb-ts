@@ -63,7 +63,7 @@ describe('Cluster Client Tests', () => {
                         port: port
                     }
                 });
-            } catch (_) {
+            } catch {
                 continue;
             }
         }
