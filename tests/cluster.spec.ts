@@ -9,44 +9,60 @@ function getRandomNumber(): number {
 
 describe('Cluster Client Tests', () => {
     let clusterClient: FalkorDB | null = null;
-    const CLUSTER_PORTS = [6000, 7000, 8000, 9000];
+    
+    const CLUSTER_PORTS = [5000, 6000, 7000, 8000, 9000, 10000];
     const CLUSTER_HOST = 'localhost';
 
     beforeAll(async () => {
+        console.log(`🎯 CLUSTER-ONLY TESTS: Using exact CI ports`);
+        console.log(`🔍 Trying cluster ports: ${CLUSTER_PORTS.join(', ')} on host: ${CLUSTER_HOST}`);
+        
         let connected = false;
         let errors: string[] = [];
         
         for (const port of CLUSTER_PORTS) {
             try {
-                console.log(`   Attempting cluster connection to ${CLUSTER_HOST}:${port}...`);
+                console.log(`Attempting cluster connection to ${CLUSTER_HOST}:${port}...`);
                 clusterClient = await FalkorDB.connect({
                     socket: {
                         host: CLUSTER_HOST,
-                        port: port
+                        port: port,
+                        connectTimeout: 5000  // Give more time for cluster nodes
                     }
                 });
                 
-                await clusterClient.info();
-                console.log(`Connected to cluster node at ${CLUSTER_HOST}:${port}`);
+                const info = await clusterClient.info();
+                console.log(`connection successful to ${CLUSTER_HOST}:${port}`);
+                
+                const infoString = Array.isArray(info) ? info.join('\n') : info;
+                if (infoString.includes('cluster_enabled:1')) {
+                    console.log(`Cluster mode confirmed on ${CLUSTER_HOST}:${port}`);
+                } else {
+                    console.log(`Node ${CLUSTER_HOST}:${port} is not in cluster mode, but can use for testing`);
+                }
+                
                 connected = true;
                 break;
                 
             } catch (error) {
-                errors.push(`${CLUSTER_HOST}:${port} - ${error}`);
+                const errorMsg = error instanceof Error ? error.message : String(error);
+                errors.push(`${CLUSTER_HOST}:${port} - ${errorMsg}`);
                 if (clusterClient) {
                     try { await clusterClient.close(); } catch {}
                     clusterClient = null;
                 }
+                console.log(`❌ Failed to connect to ${CLUSTER_HOST}:${port}: ${errorMsg}`);
             }
         }
         
         if (!connected) {
-            console.error('CLUSTER TESTS FAILED: No cluster nodes available');
-            console.error('Tried ports:', CLUSTER_PORTS.join(', '));
-            console.error('Errors:', errors);
-            throw new Error('Cluster tests require real cluster nodes - none found');
+            console.error('❌ CLUSTER TESTS FAILED: No cluster nodes available');
+            console.error('Tried CI ports:', CLUSTER_PORTS.join(', '));
+            console.error('Connection errors:');
+            errors.forEach(error => console.error(`  - ${error}`));
+            throw new Error('Cluster tests require real cluster nodes - none found. Cluster may still be initializing.');
         }
-    });
+    }, 30000); // Increase timeout to 30 seconds for cluster initialization
 
     afterAll(async () => {
         if (clusterClient) {
