@@ -26,6 +26,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"                 >> /data/node.conf
         echo "cluster-node-timeout 5000"                            >> /data/node.conf
         echo "cluster-announce-hostname node0"                      >> /data/node.conf
+        echo "cluster-announce-ip node0"                            >> /data/node.conf
+        echo "cluster-announce-port 5000"                           >> /data/node.conf
         redis-server /data/node.conf
   node1:
     image: falkordb/falkordb:edge
@@ -54,6 +56,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"                 >> /data/node.conf
         echo "cluster-node-timeout 5000"                            >> /data/node.conf
         echo "cluster-announce-hostname node1"                      >> /data/node.conf
+        echo "cluster-announce-ip node1"                            >> /data/node.conf
+        echo "cluster-announce-port 6000"                           >> /data/node.conf
         redis-server /data/node.conf
   node2:
     image: falkordb/falkordb:edge
@@ -82,6 +86,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"                >> /data/node.conf
         echo "cluster-node-timeout 5000"                           >> /data/node.conf
         echo "cluster-announce-hostname node2"                     >> /data/node.conf
+        echo "cluster-announce-ip node2"                           >> /data/node.conf
+        echo "cluster-announce-port 7000"                          >> /data/node.conf
         redis-server /data/node.conf
   node3:
     image: falkordb/falkordb:edge
@@ -110,6 +116,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"               >> /data/node.conf
         echo "cluster-node-timeout 5000"                          >> /data/node.conf
         echo "cluster-announce-hostname node3"                    >> /data/node.conf
+        echo "cluster-announce-ip node3"                          >> /data/node.conf
+        echo "cluster-announce-port 8000"                         >> /data/node.conf
         redis-server /data/node.conf
   node4:
     image: falkordb/falkordb:edge
@@ -138,6 +146,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"             >> /data/node.conf
         echo "cluster-node-timeout 5000"                        >> /data/node.conf
         echo "cluster-announce-hostname node4"                  >> /data/node.conf
+        echo "cluster-announce-ip node4"                        >> /data/node.conf
+        echo "cluster-announce-port 9000"                       >> /data/node.conf
         redis-server /data/node.conf
 
   node5:
@@ -167,6 +177,8 @@ services:
         echo "cluster-config-file /data/nodes.conf"           >> /data/node.conf
         echo "cluster-node-timeout 5000"                      >> /data/node.conf
         echo "cluster-announce-hostname node5"                >> /data/node.conf
+        echo "cluster-announce-ip node5"                      >> /data/node.conf
+        echo "cluster-announce-port 10000"                     >> /data/node.conf
         redis-server /data/node.conf
   cluster-creator:
     image: falkordb/falkordb:edge
