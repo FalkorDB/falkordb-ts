@@ -200,6 +200,30 @@ services:
         sleep 10 # wait for nodes to be ready
         redis-cli --cluster create node0:5000 node1:6000 \
           node2:7000 node3:8000 node4:9000 node5:10000 --cluster-replicas 1 --cluster-yes || { echo failed;exit 1}
+  healthcheck-all:
+    image: falkordb/falkordb:edge
+    container_name: healthcheck-all
+    depends_on:
+      - node0
+      - node1
+      - node2
+      - node3
+      - node4
+      - node5
+    networks:
+      - falkordb-cluster
+    entrypoint: /bin/bash
+    command:
+      - -c
+      - |
+        for port in 5000 6000 7000 8000 9000 10000; do
+          echo "Waiting for node on port $port to be ready..."
+          until redis-cli -h 127.0.0.1 -p $port ping | grep -q PONG; do
+            sleep 1
+          done
+          echo "Node on port $port is ready."
+        done
+        echo "All cluster nodes are healthy."
 
 
 networks:

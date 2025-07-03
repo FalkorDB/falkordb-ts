@@ -20,7 +20,7 @@ describe('Cluster Client Tests', () => {
                     connectTimeout: 5000
                 }
             });
-            await clusterClient.info(); // call for side effects only
+            await clusterClient.info();
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             throw new Error(`Cluster tests require cluster node at ${CLUSTER_HOST}:${CLUSTER_PORT} - ${errorMsg}`);
