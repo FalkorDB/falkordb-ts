@@ -9,23 +9,44 @@ function getRandomNumber(): number {
 describe('Cluster Client Tests', () => {
     let clusterClient: FalkorDB | null = null;
     const CLUSTER_HOST = 'localhost';
-    const CLUSTER_PORT = 8000;
+    const CLUSTER_PORT = 17003;
 
     beforeAll(async () => {
-        try {
-            clusterClient = await FalkorDB.connect({
-                socket: {
-                    host: CLUSTER_HOST,
-                    port: CLUSTER_PORT,
-                    connectTimeout: 5000
+        console.log('Waiting for cluster to be ready...');
+        
+        for (let attempt = 1; attempt <= 10; attempt++) {
+            try {
+                clusterClient = await FalkorDB.connect({
+                    socket: {
+                        host: CLUSTER_HOST,
+                        port: CLUSTER_PORT,
+                        connectTimeout: 10000
+                    }
+                });
+                
+                await clusterClient.info();
+                console.log(` Cluster connection successful on attempt ${attempt}`);
+                break;
+                
+            } catch (error) {
+                console.log(`Attempt ${attempt}/10: Connection failed, retrying in 3s...`);
+                if (clusterClient) {
+                    try {
+                        await clusterClient.close();
+                    } catch (e) {
+                        // Ignore close errors
+                    }
+                    clusterClient = null;
                 }
-            });
-            await clusterClient.info();
-        } catch (error) {
-            const errorMsg = error instanceof Error ? error.message : String(error);
-            throw new Error(`Cluster tests require cluster node at ${CLUSTER_HOST}:${CLUSTER_PORT} - ${errorMsg}`);
+                
+                if (attempt === 10) {
+                    const errorMsg = error instanceof Error ? error.message : String(error);
+                    throw new Error(`Cluster tests require cluster node at ${CLUSTER_HOST}:${CLUSTER_PORT} - ${errorMsg}`);
+                }
+                await new Promise(resolve => setTimeout(resolve, 3000));
+            }
         }
-    }, 10000);
+    }, 60000);
 
     afterAll(async () => {
         if (clusterClient) {
