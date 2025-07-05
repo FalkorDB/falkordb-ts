@@ -82,16 +82,8 @@ jobs:
     - run: npm ci
     - run: npm run lint
     - run: npm run build --if-present
-    - name: Wait for all cluster nodes to be healthy
-      run: |
-        for i in {0..5}; do
-          port=$((5000 + 1000 * $i))
-          echo "Waiting for node$i on port $port to be ready..."
-          until docker exec node$i redis-cli -p $port ping | grep -q PONG; do
-            sleep 1
-          done
-          echo "node$i on port $port is ready."
-        done
+    - name: Show running Docker containers
+      run: docker ps -a
 
     - name: Run tests
       run: npx jest --coverage
