@@ -54,8 +54,9 @@ jobs:
       run: |
         docker ps -a
         for i in {0..5};do
+          port=$((17000 + $i))
           docker logs node$i
-          docker exec node$i redis-cli -p $((5000 + 1000 * $i )) ping || { echo "FalkorDB cluster instance is not running"; exit 1; }
+          docker exec node$i redis-cli -p $port ping || { echo "FalkorDB cluster instance is not running"; exit 1; }
         done
     
     - name: Add entries to the host file to correctly resolve service names
@@ -89,7 +90,7 @@ jobs:
       run: |
         echo "Waiting for cluster formation to complete..."
         for i in {1..30}; do
-          if docker exec node0 redis-cli -p 5000 cluster info | grep -q "cluster_state:ok"; then
+          if docker exec node0 redis-cli -p 17000 cluster info | grep -q "cluster_state:ok"; then
             echo "Cluster state is OK after $i attempts"
             break
           fi
@@ -103,7 +104,7 @@ jobs:
         done
         
         # Verify cluster is actually working
-        docker exec node0 redis-cli -p 5000 --cluster check node0:5000 || { echo "Cluster check failed"; exit 1; }
+        docker exec node0 redis-cli -p 17000 --cluster check node0:17000 || { echo "Cluster check failed"; exit 1; }
         echo "Cluster is fully ready and operational!"
 
     - name: Run tests
