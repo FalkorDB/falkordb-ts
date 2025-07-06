@@ -198,8 +198,7 @@ services:
       - -c
       - |
         sleep 15
-        redis-cli --cluster create node0:17000 node1:17001 \
-          node2:17002 node3:17003 node4:17004 node5:17005 --cluster-replicas 1 --cluster-yes || { echo failed;exit 1}
+        redis-cli --cluster create node0:17000 node1:17001 node2:17002 node3:17003 node4:17004 node5:17005 --cluster-replicas 1 --cluster-yes || { echo failed; exit 1; }
         echo "Cluster creation completed successfully"
 
 networks:
