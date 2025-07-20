@@ -85,7 +85,13 @@ export class Cluster implements Client {
   }
 
   async list(): Promise<Array<string>> {
-    return this.#client.falkordb.list();
+    return (
+      await Promise.all(
+        this.#client.masters.map(async (master) => {
+          return (await this.#client.nodeClient(master)).falkordb.list();
+        })
+      )
+    ).flat();
   }
 
   async configGet(configKey: string) {
