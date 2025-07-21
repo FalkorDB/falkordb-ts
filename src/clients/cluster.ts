@@ -85,7 +85,13 @@ export class Cluster implements Client {
   }
 
   async list(): Promise<Array<string>> {
-    return this.#client.falkordb.list();
+    return (
+      await Promise.all(
+        this.#client.masters.map(async (master) => {
+          return (await this.#client.nodeClient(master)).falkordb.list();
+        })
+      )
+    ).flat();
   }
 
   async configGet(configKey: string) {
@@ -93,8 +99,14 @@ export class Cluster implements Client {
   }
 
   async configSet(configKey: string, value: number | string) {
-    const reply = this.#client.falkordb.configSet(configKey, value);
-    return reply.then(() => {});
+    return Promise.all(
+      this.#client.masters.map(async (master) => {
+        return (await this.#client.nodeClient(master)).falkordb.configSet(
+          configKey,
+          value
+        );
+      })
+    ).then(() => {});
   }
 
   async info(section?: string) {
