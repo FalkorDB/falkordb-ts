@@ -99,14 +99,8 @@ export class Cluster implements Client {
   }
 
   async configSet(configKey: string, value: number | string) {
-    return Promise.all(
-      this.#client.masters.map(async (master) => {
-        return (await this.#client.nodeClient(master)).falkordb.configSet(
-          configKey,
-          value
-        );
-      })
-    ).then(() => {});
+    const reply = this.#client.falkordb.configSet(configKey, value);
+    return reply.then(() => {});
   }
 
   async info(section?: string) {
