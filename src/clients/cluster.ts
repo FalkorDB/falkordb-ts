@@ -85,7 +85,21 @@ export class Cluster implements Client {
   }
 
   async list(): Promise<Array<string>> {
-    return this.#client.falkordb.list();
+    const reply = await Promise.all(
+      this.#client.masters.map(async (master) => {
+        return (await this.#client.nodeClient(master)).falkordb.list();
+      })
+    );
+    const [result, errors] = [
+      reply.filter((r) => !(r instanceof Error)).flat(),
+      reply.filter((r) => r instanceof Error),
+    ];
+
+    if (errors.length > 0) {
+      console.error("Some nodes failed to respond:", errors);
+    }
+
+    return result;
   }
 
   async configGet(configKey: string) {
