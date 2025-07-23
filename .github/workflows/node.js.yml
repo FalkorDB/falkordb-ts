@@ -133,7 +133,8 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
 
   publish-npm:
-    if: ${{ github.event.workflow_run.event == 'release' }}
+    # Run only when a new release is created
+    if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
     needs: build
     runs-on: ubuntu-latest
     permissions:
