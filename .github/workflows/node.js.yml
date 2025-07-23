@@ -3,6 +3,9 @@
 
 name: CI
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ "main" ]
@@ -134,6 +137,9 @@ jobs:
     if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
