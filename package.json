@@ -47,7 +47,7 @@
     "typescript": "^5.7.2"
   },
   "dependencies": {
-    "@redis/client": "^1.6.0",
+    "@redis/client": "^5.8.2",
     "cluster-key-slot": "1.1.2",
     "generic-pool": "^3.9.0",
     "lodash": "^4.17.21",
