@@ -13,6 +13,7 @@ import * as CONSTRAINT_DROP from './CONSTRAINT_DROP';
 import * as COPY from './COPY';
 import * as SENTINEL_MASTER from './SENTINEL_MASTER';
 import * as SENTINEL_MASTERS from './SENTINEL_MASTERS';
+import * as MEMORY_USAGE from './MEMORY_USAGE';
 
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
 
@@ -46,7 +47,9 @@ export default {
     SENTINEL_MASTER,
     sentinelMaster: SENTINEL_MASTER,
     SENTINEL_MASTERS,
-    sentinelMasters: SENTINEL_MASTERS
+    sentinelMasters: SENTINEL_MASTERS,
+    MEMORY_USAGE,
+    memoryUsage: MEMORY_USAGE,
 };
 
 type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;

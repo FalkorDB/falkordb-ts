@@ -8,6 +8,7 @@ import {
 import commands, { QueryOptions } from "../commands";
 import { RedisClientType } from "@redis/client";
 import FalkorDB from "../falkordb";
+import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
 
 export type SingleGraphConnection = RedisClientType<
   { falkordb: typeof commands },
@@ -116,6 +117,10 @@ export class Single implements Client {
       });
     }
     return this.client.falkordb.slowLog(graph);
+  }
+
+  async memoryUsage(graph: string, options?: MemoryUsageOptions): Promise<MemoryUsageReply> {
+    return this.client.falkordb.memoryUsage(graph, options)
   }
 
   async constraintCreate(

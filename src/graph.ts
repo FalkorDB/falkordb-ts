@@ -3,6 +3,7 @@ import { QueryOptions } from "./commands";
 import { QueryReply } from "./commands/QUERY";
 import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
 import { Client } from "./clients/client";
+import { MemoryUsageOptions } from "./commands/MEMORY_USAGE";
 
 export { ConstraintType, EntityType };
 
@@ -186,6 +187,10 @@ export default class Graph {
 		query: string,
 	) {
 		return this.#client.profile( this.#name, query)
+	}
+
+	async memoryUsage(options?: MemoryUsageOptions) {
+		return this.#client.memoryUsage(this.#name, options)
 	}
 
 	async slowLog() {
