@@ -151,19 +151,6 @@ describe("Cluster Client Tests", () => {
         const graph = clusterClient!.selectGraph(
           `cluster-test-${getRandomNumber()}`
         );
-        await graph.query("CREATE (:Person {id: 1})");
-        const result = await graph.memoryUsage();
-        expect(result).toBeDefined();
-      } catch (err) {
-        console.error("memoryUsage method error:", err);
-        throw err;
-      }
-    });
-    it("should test slowLog method", async () => {
-      try {
-        const graph = clusterClient!.selectGraph(
-          `cluster-test-${getRandomNumber()}`
-        );
         await graph.query("UNWIND range(1, 10) AS x CREATE (n:n)-[e:e]->(m:m)");
         const memoryProps = [
           "total_graph_sz_mb",
@@ -208,6 +195,19 @@ describe("Cluster Client Tests", () => {
         expect(memoryList.length % 2).toBe(0);
       } catch (err) {
         console.error("slowLog method error:", err);
+        throw err;
+      }
+    });
+    it("should test slowLog method", async () => {
+      try {
+        const graph = clusterClient!.selectGraph(
+          `cluster-test-${getRandomNumber()}`
+        );
+        await graph.query("CREATE (:Person {id: 1})");
+        const result = await graph.memoryUsage();
+        expect(result).toBeDefined();
+      } catch (err) {
+        console.error("memoryUsage method error:", err);
         throw err;
       }
     });
