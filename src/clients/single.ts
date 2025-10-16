@@ -119,8 +119,8 @@ export class Single implements Client {
     return this.client.falkordb.slowLog(graph);
   }
 
-  async memoryUsage(graph: string, samples?: MemoryUsageOptions): Promise<MemoryUsageReply> {
-    return this.client.falkordb.memoryUsage(graph, samples)
+  async memoryUsage(graph: string, options?: MemoryUsageOptions): Promise<MemoryUsageReply> {
+    return this.client.falkordb.memoryUsage(graph, options)
   }
 
   async constraintCreate(

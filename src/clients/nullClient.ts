@@ -4,7 +4,7 @@ import FalkorDB from "../falkordb";
 import { ConstraintType, EntityType } from "../graph";
 import { Client } from "./client";
 import { SingleGraphConnection } from "./single";
-import { MemoryUsageOptions } from "../commands/MEMORY_USAGE";
+import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
 
 /**
  * The `NullClient` class is a placeholder implementation of the `Client` interface.
@@ -74,7 +74,7 @@ export class NullClient implements Client {
   memoryUsage(
     _graph: string,
     _options?: MemoryUsageOptions
-  ): Promise<Array<string>> {
+  ): Promise<MemoryUsageReply> {
     throw new Error("Method not implemented.");
   }
   constraintCreate(
