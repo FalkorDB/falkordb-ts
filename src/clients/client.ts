@@ -3,6 +3,7 @@ import { QueryOptions } from "../commands";
 import { ConstraintType, EntityType } from "../graph";
 import FalkorDB from "../falkordb";
 import { SingleGraphConnection } from "./single";
+import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
 
 // A generic client interface for Redis clients
 export interface Client {
@@ -43,6 +44,11 @@ export interface Client {
   delete(graph: string): Promise<void>;
 
   explain(graph: string, query: string): Promise<any>;
+
+  memoryUsage(
+    graph: string,
+    options?: MemoryUsageOptions
+  ): Promise<MemoryUsageReply>;
 
   slowLog(graph: string): Promise<
     {

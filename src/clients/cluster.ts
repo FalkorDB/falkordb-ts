@@ -11,6 +11,7 @@ import FalkorDB, { TypedRedisClusterClientOptions } from "../falkordb";
 import { SingleGraphConnection } from "./single";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
 import * as lodash from "lodash";
+import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
 export type ClusterGraphConnection = RedisClusterType<
   { falkordb: typeof commands },
   RedisFunctions,
@@ -122,6 +123,14 @@ export class Cluster implements Client {
   slowLog(graph: string) {
     return this.#client.falkordb.slowLog(graph);
   }
+
+  async memoryUsage(
+    graph: string,
+    options?: MemoryUsageOptions
+  ): Promise<MemoryUsageReply> {
+    return this.#client.falkordb.memoryUsage(graph, options);
+  }
+
   async constraintCreate(
     graph: string,
     constraintType: ConstraintType,
