@@ -32,8 +32,11 @@
   "keywords": [
     "falkordb"
   ],
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "devDependencies": {
-    "@tsconfig/node14": "^14.1.2",
+    "@tsconfig/node20": "^20.1.4",
     "@types/jest": "^29.5.14",
     "@types/lodash": "^4.17.13",
     "@types/node": "^24.0.3",
