@@ -4,6 +4,7 @@ import { QueryReply } from "./commands/QUERY";
 import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
 import { Client } from "./clients/client";
 import { Temporal } from "@js-temporal/polyfill";
+import { MemoryUsageOptions } from "./commands/MEMORY_USAGE";
 
 export { ConstraintType, EntityType };
 
@@ -162,9 +163,15 @@ export default class Graph {
     return this.#client.profile(this.#name, query);
   }
 
-  async slowLog() {
-    return this.#client.slowLog(this.#name);
-  }
+	async memoryUsage(options?: MemoryUsageOptions) {
+		return this.#client.memoryUsage(this.#name, options)
+	}
+
+	async slowLog() {
+		return this.#client.slowLog(
+			this.#name,
+		)
+	}
 
   async constraintCreate(
     constraintType: ConstraintType,
