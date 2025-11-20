@@ -47,7 +47,7 @@
     "jest": "^29.7.0",
     "release-it": "^19.0.3",
     "ts-jest": "^29.2.5",
-    "typescript": "^5.7.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "@redis/client": "^1.6.0",
