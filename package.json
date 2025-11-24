@@ -50,6 +50,7 @@
     "typescript": "^5.9.3"
   },
   "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
     "@redis/client": "^1.6.0",
     "cluster-key-slot": "1.1.2",
     "generic-pool": "^3.9.0",
