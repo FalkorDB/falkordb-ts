@@ -5,11 +5,11 @@ import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
 import Graph from './graph';
 import { Client } from './clients/client';
-import { Single, SingleGraphConnection } from './clients/single';
+import { Single } from './clients/single';
 import { Sentinel } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
-import { FalkorDBOptions, TypedRedisClientOptions } from './types'
+import { FalkorDBOptions, SingleGraphConnection, TypedRedisClientOptions } from './types'
 import commands from './commands';
 
 async function clientFactory(client: SingleGraphConnection) {

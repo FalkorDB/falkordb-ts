@@ -1,7 +1,7 @@
-import { QueryReply } from "../commands/QUERY";
 import { GraphValueTypes } from "../enums";
 import { GraphEntityRawProperties } from "./graph-entity-raw-properties";
 import { Temporal } from "@js-temporal/polyfill";
+import { QueryReply } from "./query-reply";
 
 export type GraphMapRawValue = [
   GraphValueTypes.MAP,
