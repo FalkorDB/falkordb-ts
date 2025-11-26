@@ -1,22 +1,24 @@
 import { Client } from "./client";
-import { ConstraintType, EntityType } from "../graph";
+
 import {
   RedisCommandArgument,
   RedisFunctions,
   RedisScripts,
 } from "@redis/client/dist/lib/commands";
-import commands, { QueryOptions } from "../commands";
-import { createCluster, RedisClusterType } from "@redis/client";
-import FalkorDB, { TypedRedisClusterClientOptions } from "../falkordb";
-import { SingleGraphConnection } from "./single";
+import commands from "../commands";
+import { createCluster } from "@redis/client";
+import FalkorDB, {  } from "../falkordb";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
 import * as lodash from "lodash";
-import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
-export type ClusterGraphConnection = RedisClusterType<
-  { falkordb: typeof commands },
-  RedisFunctions,
-  RedisScripts
->;
+import {
+  ClusterGraphConnection,
+  MemoryUsageOptions,
+  MemoryUsageReply,
+  QueryOptions,
+  SingleGraphConnection,
+  TypedRedisClusterClientOptions
+} from "../types";
+import { ConstraintType, EntityType } from "../enums";
 
 /**
  * A client that connects to a Redis Cluster.
