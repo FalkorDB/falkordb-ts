@@ -7,7 +7,7 @@ import {
 } from "@redis/client/dist/lib/commands";
 import commands from "../commands";
 import { createCluster } from "@redis/client";
-import FalkorDB, {  } from "../falkordb";
+import FalkorDB from "../falkordb";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
 import * as lodash from "lodash";
 import {
