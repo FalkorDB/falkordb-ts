@@ -8,7 +8,43 @@ permissions:
   contents: read
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run docker-compose for FalkorDB standalone instance
+        uses: hoverkraft-tech/compose-action@v2.4.1
+        with:
+          compose-file: ./docker/standalone-compose.yml
+
+      - name: Test if FalkorDB standalone instance is running
+        run: |
+          docker ps -a
+          docker logs falkordb-standalone
+          docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
+
+      - name: Add entries to the host file to correctly resolve service names
+        run: |
+          sudo echo "127.0.0.1 falkordb-standalone" | sudo tee -a /etc/hosts
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build --if-present
+
+      - name: Run tests
+        run: npx jest
+        env:
+          FALKORDB_HOST: localhost
+          FALKORDB_PORT: 6379
+
   publish:
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
