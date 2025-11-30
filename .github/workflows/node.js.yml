@@ -131,24 +131,3 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-
-  publish-npm:
-    # Run only when a new release is created
-    if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org/
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-
