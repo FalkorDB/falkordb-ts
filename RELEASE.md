@@ -2,6 +2,8 @@
 
 This document explains how to release a new version of `falkordb` to npm.
 
+> **Quick Answer**: To trigger npm publish after merging a version bump PR, you need to **create a GitHub Release**. Merging to main alone is not enough. See [How to Trigger npm Publish](#how-to-trigger-npm-publish) below.
+
 ## Understanding the Publish Workflow
 
 The npm publish process is automated via GitHub Actions but requires a **GitHub Release** to be created. Simply merging code to the `main` branch **will NOT** trigger a publish to npm.
@@ -77,11 +79,15 @@ The repository includes `release-it` configuration (`.release-it.json`). To use 
 
 **Symptom**: The git tag shows `6.3.2` but `package.json` shows `6.4.0`.
 
+**Example**: PR #446 merged with version bump to 6.4.0, but publish was skipped.
+
 **Cause**: The version was updated in package.json but the corresponding GitHub Release/tag wasn't created with the matching version.
 
 **Solution**: 
 1. Create a new GitHub Release with the correct tag matching `package.json` version
-2. Ensure future releases follow the proper process
+   - For example, create a release with tag `falkordb@6.4.0` targeting the main branch
+2. This will trigger the CI workflow with the `publish-npm` job
+3. Ensure future releases follow the proper process to avoid version mismatches
 
 ### npm publish fails with authentication error
 
