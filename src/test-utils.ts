@@ -1,5 +1,5 @@
-import TestUtils from '@redis/test-utils';
-import Graph from '.';
+import TestUtils from './test-utils/lib';
+import Graph from './graph';
 
 export default new TestUtils({
     dockerImageName: 'falkordb/falkordb',

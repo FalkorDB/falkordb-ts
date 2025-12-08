@@ -1,13 +1,4 @@
-
-export enum ConstraintType {
-    MANDATORY = "MANDATORY",
-    UNIQUE = "UNIQUE" 
-}
-
-export enum EntityType {
-    NODE = "NODE",
-    RELATIONSHIP = "RELATIONSHIP"
-}
+import { ConstraintType, EntityType } from "../enums";
 
 // GRAPH.CONSTRAINT CREATE key constraintType {NODE label | RELATIONSHIP reltype} PROPERTIES propCount prop [prop...]
 export function transformArguments(
