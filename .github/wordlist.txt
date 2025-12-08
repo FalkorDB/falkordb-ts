@@ -13,6 +13,7 @@ faq
 npm
 json
 npmjs
+GitHub
 github
 config
 CHANGELOG
