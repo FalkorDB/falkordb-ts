@@ -24,7 +24,7 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@v2.4.1
       with:
@@ -131,3 +131,4 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
