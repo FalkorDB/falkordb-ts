@@ -10,3 +10,11 @@ sexualized
 html
 www
 faq
+npm
+json
+npmjs
+GitHub
+github
+config
+CHANGELOG
+md

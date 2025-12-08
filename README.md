@@ -69,6 +69,11 @@ Forcibly close a client's connection to FalkorDB immediately. Calling `close` wi
 ```typescript
 await client.close();
 ```
+
+## Contributing
+
+For information on how to release a new version to npm, see [RELEASE.md](RELEASE.md).
+
 ## License
 
 This repository is licensed under the "MIT" license. See [LICENSE](LICENSE).
