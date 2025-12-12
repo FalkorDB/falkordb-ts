@@ -195,7 +195,8 @@ describe('Cluster Client Tests', () => {
                 await graph.query(longQuery);
                 const result = await graph.slowLog();
                 expect(Array.isArray(result)).toBe(true);
-                expect(result[0].command).toBe(longQuery);
+                expect(result[0].command).toBe("GRAPH.QUERY");
+                expect(result[1].command).toBe(longQuery);
             } catch (err) {
                 console.error('slowLog method error:', err);
                 throw err;
