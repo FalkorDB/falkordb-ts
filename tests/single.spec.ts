@@ -254,8 +254,8 @@ describe("Single Client Tests", () => {
         await graph.query(longQuery);
         const slowLog = await graph.slowLog();
         expect(Array.isArray(slowLog)).toBe(true);
-        expect(result[0].command).toBe("GRAPH.QUERY");
-        expect(result[0].query).toBe(longQuery);
+        expect(slowLog[0].command).toBe("GRAPH.QUERY");
+        expect(slowLog[0].query).toBe(longQuery);
         await graph.delete();
       })
     );
