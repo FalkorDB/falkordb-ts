@@ -271,17 +271,16 @@ describe("FalkorDB Execute Query", () => {
     expect(secondResult.metadata[0]).toContain("Cached execution: 1");
     await graph.delete();
   });
-
+  
   it("Verify slow query logging", async () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
-    const createQuery = `CREATE (:Director {name:'Christopher Nolan'})-[:DIRECTED]->(:Movie {title:'Inception'}),
-                            (:Director {name:'Steven Spielberg'})-[:DIRECTED]->(:Movie {title:'Jurassic Park'}),
-                            (:Director {name:'Quentin Tarantino'})-[:DIRECTED]->(:Movie {title:'Pulp Fiction'})`;
-    await graph.query(createQuery);
+    const longQuery = "UNWIND range (0, 200000) AS x RETURN max(x)";
+    
+    await graph.query(longQuery);
     const slowLogResults = await graph.slowLog();
     expect(slowLogResults).toBeDefined();
     expect(slowLogResults[0].command).toBe("GRAPH.QUERY");
-    expect(slowLogResults[0].query).toBe(createQuery);
+    expect(slowLogResults[0].query).toBe(longQuery);
     expect(slowLogResults[0].took).toBeGreaterThan(0);
     await graph.delete();
   });

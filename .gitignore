@@ -135,3 +135,6 @@ dist
 
 # Redis dump file
 dump.rdb
+
+# Spellcheck generated dictionary
+wordlist.dic

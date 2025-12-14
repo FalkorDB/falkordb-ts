@@ -24,9 +24,9 @@ jobs:
         node-version: [20.x, 22.x]
 
     steps:
-    - uses: actions/checkout@v5
+    - uses: actions/checkout@v6
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@v2.4.1
+      uses: hoverkraft-tech/compose-action@v2.4.2
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -36,7 +36,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@v2.4.1
+      uses: hoverkraft-tech/compose-action@v2.4.2
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -51,7 +51,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@v2.4.1
+      uses: hoverkraft-tech/compose-action@v2.4.2
       with:
         compose-file: ./docker/cluster-compose.yml
     
@@ -133,7 +133,13 @@ jobs:
         token: ${{ secrets.CODECOV_TOKEN }}
 
   publish-npm:
-    # Run only when a new release is created
+    # This job publishes the package to npm.
+    # IMPORTANT: This job ONLY runs when a GitHub Release is created (not on regular merges to main).
+    # To trigger npm publish:
+    # 1. Update version in package.json and package-lock.json
+    # 2. Merge changes to main
+    # 3. Create a GitHub Release at https://github.com/FalkorDB/falkordb-ts/releases/new
+    # See RELEASE.md for detailed instructions.
     if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
     needs: build
     runs-on: ubuntu-latest
@@ -141,7 +147,7 @@ jobs:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - uses: actions/setup-node@v6
         with:
           node-version: 20
