@@ -250,9 +250,12 @@ describe("Single Client Tests", () => {
         const graph = singleClient.selectGraph(
           `test-single-slowlog-${getRandomNumber()}`
         );
-        await graph.query("CREATE (n:SlowTest {value: 1})");
+        const longQuery = "UNWIND range (0, 200000) AS x RETURN max(x)"
+        await graph.query(longQuery);
         const slowLog = await graph.slowLog();
         expect(Array.isArray(slowLog)).toBe(true);
+        expect(slowLog[0].command).toBe("GRAPH.QUERY");
+        expect(slowLog[0].query).toBe(longQuery);
         await graph.delete();
       })
     );

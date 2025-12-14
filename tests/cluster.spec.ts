@@ -191,9 +191,12 @@ describe('Cluster Client Tests', () => {
         it('should test slowLog method', async () => {
             try {
                 const graph = clusterClient!.selectGraph(`cluster-test-${getRandomNumber()}`);
-                await graph.query('CREATE (:Person {id: 1})');
+                const longQuery = 'UNWIND range (0, 200000) AS x RETURN max(x)';
+                await graph.query(longQuery);
                 const result = await graph.slowLog();
-                expect(result).toBeDefined();
+                expect(Array.isArray(result)).toBe(true);
+                expect(result[0].command).toBe("GRAPH.QUERY");
+                expect(result[0].query).toBe(longQuery);
             } catch (err) {
                 console.error('slowLog method error:', err);
                 throw err;
