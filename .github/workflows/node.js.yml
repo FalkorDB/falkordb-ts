@@ -131,30 +131,3 @@ jobs:
       uses: codecov/codecov-action@v5
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-
-  publish-npm:
-    # This job publishes the package to npm.
-    # IMPORTANT: This job ONLY runs when a GitHub Release is created (not on regular merges to main).
-    # To trigger npm publish:
-    # 1. Update version in package.json and package-lock.json
-    # 2. Merge changes to main
-    # 3. Create a GitHub Release at https://github.com/FalkorDB/falkordb-ts/releases/new
-    # See RELEASE.md for detailed instructions.
-    if: ${{ github.event_name == 'release' && github.event.action == 'created' }}
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-    steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
-        with:
-          node-version: 20
-          registry-url: https://registry.npmjs.org/
-      - run: npm ci
-      - run: npm run build
-      - run: npm publish
-        env:
-          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
-
