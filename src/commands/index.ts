@@ -16,6 +16,7 @@ import * as SENTINEL_MASTERS from './SENTINEL_MASTERS';
 import * as MEMORY_USAGE from './MEMORY_USAGE';
 
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
+import { QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
 
 export default {
     CONFIG_GET,
@@ -51,19 +52,6 @@ export default {
     MEMORY_USAGE,
     memoryUsage: MEMORY_USAGE,
 };
-
-type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
-
-type QueryParams = {
-    [key: string]: QueryParam;
-};
-
-export interface QueryOptions {
-    params?: QueryParams;
-    TIMEOUT?: number;
-}
-
-export type QueryOptionsBackwardCompatible = QueryOptions | number;
 
 export function pushQueryArguments(
     args: RedisCommandArguments,
