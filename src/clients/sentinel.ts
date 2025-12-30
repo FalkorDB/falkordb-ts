@@ -1,8 +1,9 @@
 import * as tls from "tls";
-import { Single, SingleGraphConnection } from "./single";
-import FalkorDB, { TypedRedisClientOptions } from "../falkordb";
+import { Single } from "./single";
+import FalkorDB from "../falkordb";
 import { createClient, RedisFunctions, RedisScripts } from "@redis/client";
 import commands from "../commands";
+import { SingleGraphConnection, TypedRedisClientOptions } from "../types";
 
 function extractDetails(masters: Array<Array<string>>) {
   const allDetails: Record<string, string>[] = [];

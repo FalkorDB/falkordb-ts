@@ -1,4 +1,4 @@
-import { ConstraintType, EntityType } from "./CONSTRAINT_CREATE";
+import { ConstraintType, EntityType } from "../enums";
 
 // GRAPH.CONSTRAINT DROP key constraintType {NODE label | RELATIONSHIP reltype} PROPERTIES propCount prop [prop...]
 export function transformArguments(

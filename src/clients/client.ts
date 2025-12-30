@@ -1,9 +1,7 @@
 import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
-import { QueryOptions } from "../commands";
-import { ConstraintType, EntityType } from "../graph";
 import FalkorDB from "../falkordb";
-import { SingleGraphConnection } from "./single";
-import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
+import { ConstraintType, EntityType } from "../enums";
+import { MemoryUsageOptions, MemoryUsageReply, QueryOptions, SingleGraphConnection } from "../types";
 
 // A generic client interface for Redis clients
 export interface Client {

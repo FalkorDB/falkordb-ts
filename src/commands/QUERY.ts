@@ -1,5 +1,6 @@
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
-import { pushQueryArguments, QueryOptionsBackwardCompatible } from '.';
+import { pushQueryArguments } from '.';
+import { QueryOptionsBackwardCompatible, QueryRawReply, QueryReply } from '../types';
 
 export const FIRST_KEY_INDEX = 1;
 
@@ -17,30 +18,6 @@ export function transformArguments(
         compact
     );
 }
-
-type Headers = Array<string>;
-
-type Data = Array<string | number | null | Data>;
-
-type Metadata = Array<string>;
-
-type QueryRawReply = [
-    headers: Headers,
-    data: Data,
-    metadata: Metadata
-] | [
-    metadata: Metadata
-];
-
-export type QueryReply = {
-    headers: undefined;
-    data: undefined;
-    metadata: Metadata;
-} | {
-    headers: Headers;
-    data: Data;
-    metadata: Metadata;
-};
 
 export function transformReply(reply: QueryRawReply): QueryReply {
     return reply.length === 1 ? {

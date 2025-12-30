@@ -1,133 +1,24 @@
 import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
-import { QueryOptions } from "./commands";
-import { QueryReply } from "./commands/QUERY";
-import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
 import { Client } from "./clients/client";
+import { GraphValueTypes, ConstraintType, EntityType  } from "./enums";
+import {
+  GraphEdge,
+  GraphEdgeRawValue,
+  GraphEntityProperties,
+  GraphEntityRawProperties,
+  GraphMap,
+  GraphMetadata,
+  GraphNode,
+  GraphNodeRawValue,
+  GraphRawValue,
+  GraphReply,
+  GraphValue,
+  MemoryUsageOptions,
+  QueryOptions,
+  QueryReply
+} from "./types";
 import { Temporal } from "@js-temporal/polyfill";
-import { MemoryUsageOptions } from "./commands/MEMORY_USAGE";
 
-export { ConstraintType, EntityType };
-
-interface GraphMetadata {
-  labels: Array<string>;
-  relationshipTypes: Array<string>;
-  propertyKeys: Array<string>;
-}
-
-// https://github.com/FalkorDB/FalkorDB/blob/master/src/resultset/formatters/resultset_formatter.h#L20
-enum GraphValueTypes {
-  UNKNOWN = 0,
-  NULL = 1,
-  STRING = 2,
-  INTEGER = 3,
-  BOOLEAN = 4,
-  DOUBLE = 5,
-  ARRAY = 6,
-  EDGE = 7,
-  NODE = 8,
-  PATH = 9,
-  MAP = 10,
-  POINT = 11,
-  VECTORF32 = 12,
-  DATETIME = 13,
-  DATE = 14,
-  TIME = 15,
-  DURATION = 16,
-}
-
-type GraphEntityRawProperties = Array<[id: number, ...value: GraphRawValue]>;
-
-type GraphEdgeRawValue = [
-  GraphValueTypes.EDGE,
-  [
-    id: number,
-    relationshipTypeId: number,
-    sourceId: number,
-    destinationId: number,
-    properties: GraphEntityRawProperties
-  ]
-];
-
-type GraphNodeRawValue = [
-  GraphValueTypes.NODE,
-  [id: number, labelIds: Array<number>, properties: GraphEntityRawProperties]
-];
-
-type GraphPathRawValue = [
-  GraphValueTypes.PATH,
-  [
-    nodes: [GraphValueTypes.ARRAY, Array<GraphNodeRawValue>],
-    edges: [GraphValueTypes.ARRAY, Array<GraphEdgeRawValue>]
-  ]
-];
-
-type GraphMapRawValue = [GraphValueTypes.MAP, Array<string | GraphRawValue>];
-
-type GraphRawValue =
-  | [GraphValueTypes.NULL, null]
-  | [GraphValueTypes.STRING, string]
-  | [GraphValueTypes.INTEGER, number]
-  | [GraphValueTypes.BOOLEAN, string]
-  | [GraphValueTypes.DOUBLE, string]
-  | [GraphValueTypes.ARRAY, Array<GraphRawValue>]
-  | GraphEdgeRawValue
-  | GraphNodeRawValue
-  | GraphPathRawValue
-  | GraphMapRawValue
-  | [GraphValueTypes.POINT, [latitude: string, longitude: string]]
-  | [GraphValueTypes.VECTORF32, number[]]
-  | [GraphValueTypes.DATETIME, number]
-  | [GraphValueTypes.DATE, number]
-  | [GraphValueTypes.TIME, number]
-  | [GraphValueTypes.DURATION, number];
-type GraphEntityProperties = Record<string, GraphValue>;
-
-interface GraphEdge {
-  id: number;
-  relationshipType: string;
-  sourceId: number;
-  destinationId: number;
-  properties: GraphEntityProperties;
-}
-
-interface GraphNode {
-  id: number;
-  labels: Array<string>;
-  properties: GraphEntityProperties;
-}
-
-interface GraphPath {
-  nodes: Array<GraphNode>;
-  edges: Array<GraphEdge>;
-}
-
-type GraphMap = {
-  [key: string]: GraphValue;
-};
-
-type GraphValue =
-  | null
-  | string
-  | number
-  | boolean
-  | Array<GraphValue>
-  | GraphEdge
-  | GraphNode
-  | GraphPath
-  | GraphMap
-  | {
-      latitude: string;
-      longitude: string;
-    }
-  | number[]
-  | Temporal.PlainDateTime
-  | Temporal.PlainDate
-  | Temporal.PlainTime
-  | Temporal.Duration;
-
-export type GraphReply<T> = Omit<QueryReply, "headers" | "data"> & {
-  data?: Array<T>;
-};
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 

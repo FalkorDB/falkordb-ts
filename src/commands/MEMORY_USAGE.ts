@@ -1,6 +1,4 @@
-export interface MemoryUsageOptions {
-  SAMPLES?: number 
-}
+import { MemoryUsageOptions, MemoryUsageReply } from "../types";
 
 export function transformArguments(
   key: string,
@@ -9,7 +7,5 @@ export function transformArguments(
   const args = ["GRAPH.MEMORY", "USAGE", key];
   return options?.SAMPLES ? [...args, String(options.SAMPLES)] : [...args];
 }
-
-export type MemoryUsageReply = Array<string | number | MemoryUsageReply>;
 
 export declare function transformReply(): MemoryUsageReply;
