@@ -93,12 +93,12 @@ falkor.register("hello", hello);`;
       "should load a UDF passing function which gets converted to string",
       skipIfNoClient(async () => {
         // Test that the client correctly converts a function to a string
-        const fn = function testFn() {
-          return "ok";
-        };
         // The function will be stringified and sent - note that it won't work as-is
         // because it needs falkor.register, but this tests the conversion mechanism
-        const script = `${fn.toString()}\nfalkor.register("test", testFn);`;
+        const testFn = function testFn() {
+          return "ok";
+        };
+        const script = `${testFn.toString()}\nfalkor.register("test", testFn);`;
         const result = await falkorClient.udfLoad("funclib", script);
         expect(result).toBeDefined();
         expect(typeof result).toBe("string");

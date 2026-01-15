@@ -12,6 +12,7 @@ import { SingleGraphConnection } from "./single";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
 import * as lodash from "lodash";
 import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
+import { UdfListReply } from "../commands/UDF_LIST";
 export type ClusterGraphConnection = RedisClusterType<
   { falkordb: typeof commands },
   RedisFunctions,
@@ -169,8 +170,8 @@ export class Cluster implements Client {
     return this.#client.falkordb.udfLoad(name, script, replace);
   }
 
-  async udfList(lib?: string, withCode: boolean = false) {
-    return this.#client.falkordb.udfList(lib, withCode);
+  async udfList(lib?: string, withCode: boolean = false): Promise<UdfListReply> {
+    return this.#client.falkordb.udfList(lib, withCode) as Promise<UdfListReply>;
   }
 
   async udfFlush() {

@@ -9,6 +9,7 @@ import commands, { QueryOptions } from "../commands";
 import { RedisClientType } from "@redis/client";
 import FalkorDB from "../falkordb";
 import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
+import { UdfListReply } from "../commands/UDF_LIST";
 
 export type SingleGraphConnection = RedisClientType<
   { falkordb: typeof commands },
@@ -169,8 +170,8 @@ export class Single implements Client {
     return this.client.falkordb.udfLoad(name, script, replace);
   }
 
-  async udfList(lib?: string, withCode: boolean = false) {
-    return this.client.falkordb.udfList(lib, withCode);
+  async udfList(lib?: string, withCode: boolean = false): Promise<UdfListReply> {
+    return this.client.falkordb.udfList(lib, withCode) as Promise<UdfListReply>;
   }
 
   async udfFlush() {

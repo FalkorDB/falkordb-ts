@@ -146,3 +146,6 @@ function queryParamToString(param: QueryParam): string {
         throw new TypeError(`Unexpected param type ${typeof param} ${param}`)
     }
 }
+
+// Export UDF types for external use
+export { UdfListReply, UdfLibraryEntry } from './UDF_LIST';

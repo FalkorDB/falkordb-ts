@@ -5,6 +5,7 @@ import { ConstraintType, EntityType } from "../graph";
 import { Client } from "./client";
 import { SingleGraphConnection } from "./single";
 import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
+import { UdfListReply } from "../commands/UDF_LIST";
 
 /**
  * The `NullClient` class is a placeholder implementation of the `Client` interface.
@@ -89,7 +90,7 @@ export class NullClient implements Client {
   udfLoad(_name: string, _script: string | Function, _replace?: boolean): Promise<string> {
     throw new Error("Method not implemented.");
   }
-  udfList(_lib?: string, _withCode?: boolean): Promise<Array<any>> {
+  udfList(_lib?: string, _withCode?: boolean): Promise<UdfListReply> {
     throw new Error("Method not implemented.");
   }
   udfFlush(): Promise<string> {
