@@ -130,6 +130,7 @@ falkor.register("test", test);`;
         // Verify list is empty after flush
         const listResult = await falkorClient.udfList();
         expect(Array.isArray(listResult)).toBe(true);
+        expect(listResult.length).toBe(0);
       })
     );
   });
