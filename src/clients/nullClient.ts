@@ -86,6 +86,18 @@ export class NullClient implements Client {
   ): Promise<void> {
     throw new Error("Method not implemented.");
   }
+  udfLoad(_name: string, _script: string | Function, _replace?: boolean): Promise<string> {
+    throw new Error("Method not implemented.");
+  }
+  udfList(_lib?: string, _withCode?: boolean): Promise<Array<any>> {
+    throw new Error("Method not implemented.");
+  }
+  udfFlush(): Promise<string> {
+    throw new Error("Method not implemented.");
+  }
+  udfDelete(_lib: string): Promise<string> {
+    throw new Error("Method not implemented.");
+  }
   quit(): Promise<void> {
     throw new Error("Method not implemented.");
   }

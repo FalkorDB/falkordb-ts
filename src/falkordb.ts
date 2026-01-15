@@ -184,6 +184,22 @@ export default class FalkorDB extends EventEmitter {
         return this.#client.info(section)
     }
 
+    async udfLoad(name: string, script: string | Function, replace: boolean = false) {
+        return this.#client.udfLoad(name, script, replace);
+    }
+
+    async udfList(lib?: string, withCode: boolean = false) {
+        return this.#client.udfList(lib, withCode);
+    }
+
+    async udfFlush() {
+        return this.#client.udfFlush();
+    }
+
+    async udfDelete(lib: string) {
+        return this.#client.udfDelete(lib);
+    }
+
     /**
      * Closes the client.
      */

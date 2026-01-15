@@ -165,6 +165,22 @@ export class Cluster implements Client {
     return reply.then(() => {});
   }
 
+  async udfLoad(name: string, script: string | Function, replace: boolean = false) {
+    return this.#client.falkordb.udfLoad(name, script, replace);
+  }
+
+  async udfList(lib?: string, withCode: boolean = false) {
+    return this.#client.falkordb.udfList(lib, withCode);
+  }
+
+  async udfFlush() {
+    return this.#client.falkordb.udfFlush();
+  }
+
+  async udfDelete(lib: string) {
+    return this.#client.falkordb.udfDelete(lib);
+  }
+
   async profile<_T>(graph: string, query: string) {
     return this.#client.falkordb.profile(graph, query);
   }

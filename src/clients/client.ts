@@ -75,6 +75,21 @@ export interface Client {
     ...properties: string[]
   ): Promise<void>;
 
+  udfLoad(
+    name: string,
+    script: string | Function,
+    replace?: boolean
+  ): Promise<string>;
+
+  udfList(
+    lib?: string,
+    withCode?: boolean
+  ): Promise<Array<any>>;
+
+  udfFlush(): Promise<string>;
+
+  udfDelete(lib: string): Promise<string>;
+
   /**
    * @deprecated Use `disconnect` instead
    */
