@@ -134,4 +134,143 @@ falkor.register("test", test);`;
       })
     );
   });
+
+  describe("UDF Query Execution", () => {
+    it(
+      "should execute a query with a simple string UDF",
+      skipIfNoClient(async () => {
+        // Load a string manipulation UDF
+        const script = `function greet(name) { return "Hello, " + name + "!"; }
+falkor.register("greet", greet);`;
+        await falkorClient.udfLoad("stringlib", script);
+
+        // Create a test graph and execute a query using the UDF
+        const graph = falkorClient.selectGraph("udf_test_graph");
+        const result: any = await graph.query(
+          "RETURN stringlib.greet('World') AS greeting"
+        );
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBe(1);
+        expect(result.data[0].greeting).toBe("Hello, World!");
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("stringlib");
+      })
+    );
+
+    it(
+      "should execute a query with a mathematical UDF",
+      skipIfNoClient(async () => {
+        // Load a mathematical UDF
+        const script = `function add(a, b) { return a + b; }
+function multiply(a, b) { return a * b; }
+falkor.register("add", add);
+falkor.register("multiply", multiply);`;
+        await falkorClient.udfLoad("mathlib", script);
+
+        // Execute queries using the mathematical UDFs
+        const graph = falkorClient.selectGraph("udf_math_graph");
+        const addResult: any = await graph.query(
+          "RETURN mathlib.add(5, 3) AS sum"
+        );
+        const multiplyResult: any = await graph.query(
+          "RETURN mathlib.multiply(4, 7) AS product"
+        );
+
+        expect(addResult.data[0].sum).toBe(8);
+        expect(multiplyResult.data[0].product).toBe(28);
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("mathlib");
+      })
+    );
+
+    it(
+      "should execute a query with a UDF that processes node properties",
+      skipIfNoClient(async () => {
+        // Load a UDF that transforms strings
+        const script = `function uppercase(str) { return str.toUpperCase(); }
+falkor.register("uppercase", uppercase);`;
+        await falkorClient.udfLoad("transformlib", script);
+
+        // Create a graph with nodes
+        const graph = falkorClient.selectGraph("udf_node_graph");
+        await graph.query("CREATE (:Person {name: 'alice'})");
+        await graph.query("CREATE (:Person {name: 'bob'})");
+
+        // Query using UDF on node properties
+        const result: any = await graph.query(
+          "MATCH (p:Person) RETURN transformlib.uppercase(p.name) AS upperName ORDER BY upperName"
+        );
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBe(2);
+        expect(result.data[0].upperName).toBe("ALICE");
+        expect(result.data[1].upperName).toBe("BOB");
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("transformlib");
+      })
+    );
+
+    it(
+      "should execute a query with a UDF in WHERE clause",
+      skipIfNoClient(async () => {
+        // Load a UDF for string length
+        const script = `function strLength(str) { return str.length; }
+falkor.register("strLength", strLength);`;
+        await falkorClient.udfLoad("utillib", script);
+
+        // Create a graph with nodes
+        const graph = falkorClient.selectGraph("udf_where_graph");
+        await graph.query("CREATE (:City {name: 'NY'})");
+        await graph.query("CREATE (:City {name: 'London'})");
+        await graph.query("CREATE (:City {name: 'Paris'})");
+
+        // Query using UDF in WHERE clause to filter by name length
+        const result: any = await graph.query(
+          "MATCH (c:City) WHERE utillib.strLength(c.name) > 3 RETURN c.name AS city ORDER BY city"
+        );
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBe(2);
+        expect(result.data[0].city).toBe("London");
+        expect(result.data[1].city).toBe("Paris");
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("utillib");
+      })
+    );
+
+    it(
+      "should execute a query with a complex UDF that manipulates arrays",
+      skipIfNoClient(async () => {
+        // Load a UDF that reverses a string
+        const script = `function reverseString(str) { 
+  return str.split('').reverse().join(''); 
+}
+falkor.register("reverseString", reverseString);`;
+        await falkorClient.udfLoad("arraylib", script);
+
+        // Execute query using the array manipulation UDF
+        const graph = falkorClient.selectGraph("udf_array_graph");
+        const result: any = await graph.query(
+          "RETURN arraylib.reverseString('FalkorDB') AS reversed"
+        );
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBe(1);
+        expect(result.data[0].reversed).toBe("BDroklaF");
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("arraylib");
+      })
+    );
+  });
 });
