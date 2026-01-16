@@ -21,6 +21,12 @@ export function transformArguments(
             throw new Error('Function must have a name to be registered as a UDF');
         }
         
+        // Validate function name is a valid JavaScript identifier to prevent injection
+        const validIdentifierRegex = /^[a-zA-Z_$][a-zA-Z0-9_$]*$/;
+        if (!validIdentifierRegex.test(functionName)) {
+            throw new Error(`Invalid function name: "${functionName}". Function name must be a valid JavaScript identifier.`);
+        }
+        
         // Add the function definition and register call
         scriptStr = `${functionStr}\nfalkor.register("${functionName}", ${functionName});`;
     } else {
