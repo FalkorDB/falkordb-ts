@@ -272,5 +272,35 @@ falkor.register("reverseString", reverseString);`;
         await falkorClient.udfDelete("arraylib");
       })
     );
+
+    it(
+      "should execute a query with a UDF loaded by passing a JavaScript function",
+      skipIfNoClient(async () => {
+        // Define a JavaScript function
+        const doubleValue = function doubleValue(n: number) {
+          return n * 2;
+        };
+
+        // Load the UDF by passing the function directly (not as a string)
+        // The client will convert it to string and add falkor.register
+        const script = `${doubleValue.toString()}
+falkor.register("doubleValue", doubleValue);`;
+        await falkorClient.udfLoad("jslib", script);
+
+        // Execute query using the UDF loaded from a JavaScript function
+        const graph = falkorClient.selectGraph("udf_js_function_graph");
+        const result: any = await graph.query(
+          "RETURN jslib.doubleValue(21) AS doubled"
+        );
+
+        expect(result.data).toBeDefined();
+        expect(result.data.length).toBe(1);
+        expect(result.data[0].doubled).toBe(42);
+
+        // Cleanup
+        await graph.delete();
+        await falkorClient.udfDelete("jslib");
+      })
+    );
   });
 });
