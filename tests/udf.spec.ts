@@ -276,8 +276,8 @@ falkor.register("reverseString", reverseString);`;
     it(
       "should execute a query with a UDF loaded by passing a JavaScript function",
       skipIfNoClient(async () => {
-        // Define a JavaScript function
-        const doubleValue = function doubleValue(n: number) {
+        // Define a JavaScript function (using any type as TypeScript types are stripped in toString())
+        const doubleValue = function doubleValue(n: any) {
           return n * 2;
         };
 
