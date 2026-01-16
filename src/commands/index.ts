@@ -14,6 +14,10 @@ import * as COPY from './COPY';
 import * as SENTINEL_MASTER from './SENTINEL_MASTER';
 import * as SENTINEL_MASTERS from './SENTINEL_MASTERS';
 import * as MEMORY_USAGE from './MEMORY_USAGE';
+import * as UDF_LOAD from './UDF_LOAD';
+import * as UDF_LIST from './UDF_LIST';
+import * as UDF_FLUSH from './UDF_FLUSH';
+import * as UDF_DELETE from './UDF_DELETE';
 
 import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
 
@@ -50,6 +54,14 @@ export default {
     sentinelMasters: SENTINEL_MASTERS,
     MEMORY_USAGE,
     memoryUsage: MEMORY_USAGE,
+    UDF_LOAD,
+    udfLoad: UDF_LOAD,
+    UDF_LIST,
+    udfList: UDF_LIST,
+    UDF_FLUSH,
+    udfFlush: UDF_FLUSH,
+    UDF_DELETE,
+    udfDelete: UDF_DELETE,
 };
 
 type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
@@ -134,3 +146,6 @@ function queryParamToString(param: QueryParam): string {
         throw new TypeError(`Unexpected param type ${typeof param} ${param}`)
     }
 }
+
+// Export UDF types for external use
+export { UdfListReply, UdfLibraryEntry } from './UDF_LIST';
