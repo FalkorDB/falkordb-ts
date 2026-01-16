@@ -24,6 +24,7 @@ describe('UDF_LOAD', () => {
         assert.equal(args[1], 'LOAD');
         assert.equal(args[2], 'mylib');
         assert.ok(args[3].includes('function add'));
+        assert.ok(args[3].includes('falkor.register("add", add)'));
     });
 
     it('transformArguments with function and replace', () => {
@@ -34,6 +35,7 @@ describe('UDF_LOAD', () => {
         assert.equal(args[2], 'REPLACE');
         assert.equal(args[3], 'mylib');
         assert.ok(args[4].includes('function add'));
+        assert.ok(args[4].includes('falkor.register("add", add)'));
     });
 
     testUtils.testWithClient('client.graph.udfLoad', async client => {

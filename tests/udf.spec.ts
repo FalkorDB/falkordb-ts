@@ -276,22 +276,15 @@ falkor.register("reverseString", reverseString);`;
     it(
       "should execute a query with a UDF loaded by passing a JavaScript function",
       skipIfNoClient(async () => {
-        // Create a function object that will be passed to udfLoad
-        // When the API calls toString() on this function, it will get the function body
-        // Note: This demonstrates the API accepting a Function type parameter
-        const udfFunction = function() {
-          // Define the UDF
-          // @ts-ignore - Parameter type doesn't matter in FalkorDB runtime
-          function doubleValue(n) {
-            return n * 2;
-          }
-          // Register it with FalkorDB
-          // @ts-ignore - falkor is available in FalkorDB's JS runtime
-          falkor.register("doubleValue", doubleValue);
+        // Define just the UDF function with its logic
+        // The API will automatically add falkor.register() when converting to string
+        const doubleValue = function doubleValue(n: number) {
+          return n * 2;
         };
 
-        // Load the UDF by passing the function object (not a string)
-        await falkorClient.udfLoad("jslib", udfFunction);
+        // Load the UDF by passing the function object directly
+        // The udfLoad method will automatically append falkor.register()
+        await falkorClient.udfLoad("jslib", doubleValue);
 
         // Execute query using the UDF
         const graph = falkorClient.selectGraph("udf_js_function_graph");
