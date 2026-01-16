@@ -148,4 +148,4 @@ function queryParamToString(param: QueryParam): string {
 }
 
 // Export UDF types for external use
-export { UdfListReply, UdfLibraryEntry } from './UDF_LIST';
+export type { UdfListReply, UdfLibraryEntry } from './UDF_LIST';
