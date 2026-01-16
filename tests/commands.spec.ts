@@ -17,6 +17,8 @@ import * as QUERY from '../src/commands/QUERY';
 import * as RO_QUERY from '../src/commands/RO_QUERY';
 import * as CONSTRAINT_CREATE from '../src/commands/CONSTRAINT_CREATE';
 import * as CONSTRAINT_DROP from '../src/commands/CONSTRAINT_DROP';
+import * as SENTINEL_MASTER from '../src/commands/SENTINEL_MASTER';
+import * as SENTINEL_MASTERS from '../src/commands/SENTINEL_MASTERS';
 import { ConstraintType, EntityType } from '../src/commands/CONSTRAINT_CREATE';
 
 describe('Command Transformation Functions', () => {
@@ -401,6 +403,25 @@ describe('Command Transformation Functions', () => {
         'testgraph', 'UNIQUE', 'NODE', 'Product',
         'PROPERTIES', '2', 'sku', 'barcode'
       ]);
+    });
+  });
+
+  describe('SENTINEL_MASTER', () => {
+    it('should transform arguments with database name', () => {
+      const result = SENTINEL_MASTER.transformArguments('mymaster');
+      expect(result).toEqual(['SENTINEL', 'MASTER', 'mymaster']);
+    });
+
+    it('should transform arguments with different database name', () => {
+      const result = SENTINEL_MASTER.transformArguments('testdb');
+      expect(result).toEqual(['SENTINEL', 'MASTER', 'testdb']);
+    });
+  });
+
+  describe('SENTINEL_MASTERS', () => {
+    it('should transform arguments', () => {
+      const result = SENTINEL_MASTERS.transformArguments();
+      expect(result).toEqual(['SENTINEL', 'MASTERS']);
     });
   });
 });
