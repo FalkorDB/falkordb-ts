@@ -1,14 +1,31 @@
-import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
+import { RedisArgument, CommandParser } from '@redis/client';
 import { pushQueryArguments, QueryOptionsBackwardCompatible } from '.';
 
 export const FIRST_KEY_INDEX = 1;
 
-export function transformArguments(
-    graph: RedisCommandArgument,
-    query: RedisCommandArgument,
+export function parseCommand(
+    parser: CommandParser,
+    graph: RedisArgument,
+    query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
     compact?: boolean
-): RedisCommandArguments {
+): void {
+    const args = pushQueryArguments(
+        ['GRAPH.QUERY'],
+        graph,
+        query,
+        options,
+        compact
+    );
+    parser.push(...args);
+}
+
+export function transformArguments(
+    graph: RedisArgument,
+    query: RedisArgument,
+    options?: QueryOptionsBackwardCompatible,
+    compact?: boolean
+): Array<RedisArgument> {
     return pushQueryArguments(
         ['GRAPH.QUERY'],
         graph,

@@ -8,7 +8,6 @@ import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from '
 import Graph from './graph';
 import commands from './commands';
 import { RedisClusterOptions } from '@redis/client';
-import { Options as PoolOptions } from 'generic-pool';
 import { Client } from './clients/client';
 import { Single, SingleGraphConnection } from './clients/single';
 import { Sentinel } from './clients/sentinel';
@@ -20,8 +19,8 @@ type NetSocketOptions = Partial<net.SocketConnectOpts> & {
     tls?: false;
 };
 
-export type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
-export type TypedRedisClusterClientOptions = RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>;
+export type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2>;
+export type TypedRedisClusterClientOptions = RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2>;
 
 interface TlsSocketOptions extends tls.ConnectionOptions {
     tls: true;
@@ -100,11 +99,6 @@ export interface FalkorDBOptions {
      * Tag to append to library name that is sent to the Redis server
      */
     clientInfoTag?: string;
-
-    /**
-     * Connection pool options 
-     */
-    poolOptions?: PoolOptions;
 }
 
 async function clientFactory(client: SingleGraphConnection) {
@@ -132,11 +126,6 @@ export default class FalkorDB extends EventEmitter {
             redisOption.url = redisOption.url.replace('falkor', 'redis');
         }
 
-        // Just copy the pool options to the isolation pool options as expected by the redis client
-        if (options?.poolOptions) {
-            redisOption.isolationPoolOptions = options.poolOptions;
-        }
-
         redisOption.modules = {
             falkordb: commands
         }
@@ -145,7 +134,7 @@ export default class FalkorDB extends EventEmitter {
         const falkordb = new FalkorDB();
 
         // Create initial redis single client
-        const redisClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts>(redisOption)
+        const redisClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2, {}>(redisOption)
         await redisClient
             .on('error', err => falkordb.emit('error', err)) // Forward errors
             .connect();

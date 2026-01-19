@@ -54,7 +54,9 @@ export class Sentinel extends Single {
     const realClient = createClient<
       { falkordb: typeof commands },
       RedisFunctions,
-      RedisScripts
+      RedisScripts,
+      2,
+      {}
     >(serverOptions);
 
     // Save sentinel client to quit on quit()

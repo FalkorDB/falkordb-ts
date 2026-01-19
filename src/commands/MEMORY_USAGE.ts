@@ -1,5 +1,18 @@
+import { CommandParser } from '@redis/client';
+
 export interface MemoryUsageOptions {
   SAMPLES?: number 
+}
+
+export function parseCommand(
+  parser: CommandParser,
+  key: string,
+  options?: MemoryUsageOptions
+): void {
+  parser.push("GRAPH.MEMORY", "USAGE", key);
+  if (options?.SAMPLES) {
+    parser.push(String(options.SAMPLES));
+  }
 }
 
 export function transformArguments(
@@ -12,4 +25,6 @@ export function transformArguments(
 
 export type MemoryUsageReply = Array<string | number | MemoryUsageReply>;
 
-export declare function transformReply(): MemoryUsageReply;
+export function transformReply(reply: unknown): MemoryUsageReply {
+    return reply as MemoryUsageReply;
+}
