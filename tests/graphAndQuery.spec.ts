@@ -225,7 +225,7 @@ describe("FalkorDB Execute Query", () => {
     ).rejects.toThrow();
     await graph.query("DROP INDEX ON :Person(name)");
     const updatedIndexResult = await graph.query("CALL db.indexes");
-    expect(updatedIndexResult).not.toContainEqual(
+    expect(updatedIndexResult.data).not.toContainEqual(
       expect.objectContaining({ label: "Person", properties: ["name"] })
     );
     await graph.delete();
