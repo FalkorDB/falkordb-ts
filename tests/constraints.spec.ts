@@ -72,7 +72,7 @@ describe('Constraint Tests', () => {
         await graphName.constraintDrop("MANDATORY" as ConstraintType, "NODE" as EntityType, "Person", "name");
         await graphName.constraintDrop("UNIQUE" as ConstraintType, "NODE" as EntityType, "Person", "v1", "v2");
         const remainingConstraints = await graphName.query("CALL db.constraints()");
-        expect(remainingConstraints.data?.length).toBe(0)
+        expect(remainingConstraints.data?.length).toBe(0);
     });
 
     it('Validate creation and deletion mandatory constraints on edges', async () => {
