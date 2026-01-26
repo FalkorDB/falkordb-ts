@@ -1,4 +1,4 @@
-import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
+import { RedisArgument } from "@redis/client";
 import { QueryOptions } from "../commands";
 import FalkorDB from "../falkordb";
 import { ConstraintType, EntityType } from "../graph";
@@ -38,13 +38,13 @@ export class NullClient implements Client {
   info(_section?: string): Promise<(string | string[])[]> {
       throw new Error("Method not implemented.");
   }
-  query<_T>(_graph: string, _query: RedisCommandArgument, _options?: QueryOptions): Promise<any> {
+  query<_T>(_graph: string, _query: RedisArgument, _options?: QueryOptions): Promise<any> {
       throw new Error("Method not implemented.");
   }
-  profile<_T>(_graph: string, _query: RedisCommandArgument): Promise<any> {
+  profile<_T>(_graph: string, _query: RedisArgument): Promise<any> {
       throw new Error("Method not implemented.");
   }
-  roQuery<_T>(_graph: string, _query: RedisCommandArgument, _options?: QueryOptions): Promise<any> {
+  roQuery<_T>(_graph: string, _query: RedisArgument, _options?: QueryOptions): Promise<any> {
       throw new Error("Method not implemented.");
   }
   copy<_T>(_srcGraph: string, _destGraph: string): Promise<any> {
