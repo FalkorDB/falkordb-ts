@@ -1,3 +1,5 @@
+import { CommandParser } from '@redis/client';
+
 export const IS_READ_ONLY = true;
 
 // UDF library entry: [library_name, [function_names...]]
@@ -5,6 +7,22 @@ export const IS_READ_ONLY = true;
 export type UdfLibraryEntry = [string, string[]] | [string, string[], string];
 
 export type UdfListReply = UdfLibraryEntry[];
+
+export function parseCommand(
+    parser: CommandParser,
+    lib?: string,
+    withCode: boolean = false
+): void {
+    parser.push('GRAPH.UDF', 'LIST');
+    
+    if (lib !== undefined) {
+        parser.push(lib);
+    }
+    
+    if (withCode) {
+        parser.push('WITHCODE');
+    }
+}
 
 export function transformArguments(
     lib?: string,
@@ -23,4 +41,6 @@ export function transformArguments(
     return args;
 }
 
-export declare function transformReply(): UdfListReply;
+export function transformReply(reply: unknown): UdfListReply {
+    return reply as UdfListReply;
+}

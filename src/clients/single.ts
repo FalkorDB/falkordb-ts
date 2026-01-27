@@ -1,10 +1,10 @@
 import { Client } from "./client";
 import { ConstraintType, EntityType } from "../graph";
 import {
-  RedisCommandArgument,
+  RedisArgument,
   RedisFunctions,
   RedisScripts,
-} from "@redis/client/dist/lib/commands";
+} from "@redis/client";
 import commands, { QueryOptions } from "../commands";
 import { RedisClientType } from "@redis/client";
 import FalkorDB from "../falkordb";
@@ -14,16 +14,15 @@ import { UdfListReply } from "../commands/UDF_LIST";
 export type SingleGraphConnection = RedisClientType<
   { falkordb: typeof commands },
   RedisFunctions,
-  RedisScripts
+  RedisScripts,
+  2
 >;
 
 export class Single implements Client {
   protected client: SingleGraphConnection;
-  #usePool: boolean;
 
   constructor(client: SingleGraphConnection) {
     this.client = client;
-    this.#usePool = !!this.client.options?.isolationPoolOptions;
   }
 
   init(_falkordb: FalkorDB) {
@@ -32,65 +31,32 @@ export class Single implements Client {
 
   async query<_T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact = true
   ) {
-    const reply = this.#usePool
-      ? await this.client.executeIsolated(async (isolatedClient) => {
-          return isolatedClient.falkordb.query(graph, query, options, compact);
-        })
-      : await this.client.falkordb.query(graph, query, options, compact);
-
-    return reply;
+    return await this.client.falkordb.query(graph, query, options, compact);
   }
 
   async roQuery<_T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact = true
   ) {
-    const reply = this.#usePool
-      ? await this.client.executeIsolated(async (isolatedClient) => {
-          return isolatedClient.falkordb.roQuery(
-            graph,
-            query,
-            options,
-            compact
-          );
-        })
-      : await this.client.falkordb.roQuery(graph, query, options, compact);
-
-    return reply;
+    return await this.client.falkordb.roQuery(graph, query, options, compact);
   }
 
   async delete(graph: string) {
-    if (this.#usePool) {
-      return this.client.executeIsolated(async (isolatedClient) => {
-        const reply = isolatedClient.falkordb.delete(graph);
-        return reply.then(() => {});
-      });
-    }
     const reply = this.client.falkordb.delete(graph);
     return reply.then(() => {});
   }
 
   async explain(graph: string, query: string) {
-    if (this.#usePool) {
-      return this.client.executeIsolated(async (isolatedClient) => {
-        return isolatedClient.falkordb.explain(graph, query);
-      });
-    }
     return this.client.falkordb.explain(graph, query);
   }
 
   async profile<_T>(graph: string, query: string) {
-    if (this.#usePool) {
-      return this.client.executeIsolated(async (isolatedClient) => {
-        return isolatedClient.falkordb.profile(graph, query);
-      });
-    }
     return this.client.falkordb.profile(graph, query);
   }
 
@@ -112,11 +78,6 @@ export class Single implements Client {
   }
 
   async slowLog(graph: string) {
-    if (this.#usePool) {
-      return this.client.executeIsolated(async (isolatedClient) => {
-        return isolatedClient.falkordb.slowLog(graph);
-      });
-    }
     return this.client.falkordb.slowLog(graph);
   }
 
@@ -124,11 +85,6 @@ export class Single implements Client {
     graph: string,
     options?: MemoryUsageOptions
   ): Promise<MemoryUsageReply> {
-    if (this.#usePool) {
-      return this.client.executeIsolated(async (isolatedClient) => {
-        return isolatedClient.falkordb.memoryUsage(graph, options);
-      });
-    }
     return this.client.falkordb.memoryUsage(graph, options);
   }
 

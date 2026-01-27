@@ -1,6 +1,6 @@
 {
   "name": "falkordb",
-  "version": "6.5.1",
+  "version": "6.6.0",
   "description": "A FalkorDB javascript library",
   "license": "MIT",
   "main": "./dist/index.js",
@@ -51,10 +51,10 @@
   },
   "dependencies": {
     "@js-temporal/polyfill": "^0.5.1",
-    "@redis/client": "^1.6.0",
+    "@redis/client": "^5.10.0",
     "cluster-key-slot": "1.1.2",
     "generic-pool": "^3.9.0",
     "lodash": "^4.17.21",
-    "redis": "^4.7.0"
+    "redis": "^5.10.0"
   }
 }

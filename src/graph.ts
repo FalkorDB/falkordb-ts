@@ -1,4 +1,4 @@
-import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
+import { RedisArgument } from "@redis/client";
 import { QueryOptions } from "./commands";
 import { QueryReply } from "./commands/QUERY";
 import { ConstraintType, EntityType } from "./commands/CONSTRAINT_CREATE";
@@ -141,12 +141,12 @@ export default class Graph {
     this.#name = name;
   }
 
-  async query<T>(query: RedisCommandArgument, options?: QueryOptions) {
+  async query<T>(query: RedisArgument, options?: QueryOptions) {
     const reply = await this.#client.query(this.#name, query, options);
     return this.#parseReply<T>(reply);
   }
 
-  async roQuery<T>(query: RedisCommandArgument, options?: QueryOptions) {
+  async roQuery<T>(query: RedisArgument, options?: QueryOptions) {
     const reply = await this.#client.roQuery(this.#name, query, options);
     return this.#parseReply<T>(reply);
   }

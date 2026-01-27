@@ -88,6 +88,84 @@ describe('Command Transformation Functions', () => {
       expect(result).toHaveLength(4);
       expect(result[3]).toContain('arrowFunc');
     });
+
+    it('should test parseCommand with string script and no replace flag', () => {
+      const mockParser = {
+        push: jest.fn(),
+        redisArgs: [],
+        keys: [],
+        firstKey: undefined,
+        preserve: undefined,
+        pushVariadic: jest.fn(),
+        pushVariadicWithLength: jest.fn(),
+        pushVariadicNumber: jest.fn(),
+        pushKey: jest.fn(),
+        pushKeys: jest.fn(),
+        pushKeysLength: jest.fn()
+      };
+      
+      UDF_LOAD.parseCommand(mockParser as any, 'mylib', 'function test() {}', false);
+      
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.UDF', 'LOAD');
+      expect(mockParser.push).toHaveBeenCalledWith('mylib');
+      expect(mockParser.push).toHaveBeenCalledWith('function test() {}');
+    });
+
+    it('should test parseCommand with string script and replace flag', () => {
+      const mockParser = {
+        push: jest.fn(),
+        redisArgs: [],
+        keys: [],
+        firstKey: undefined,
+        preserve: undefined,
+        pushVariadic: jest.fn(),
+        pushVariadicWithLength: jest.fn(),
+        pushVariadicNumber: jest.fn(),
+        pushKey: jest.fn(),
+        pushKeys: jest.fn(),
+        pushKeysLength: jest.fn()
+      };
+      
+      UDF_LOAD.parseCommand(mockParser as any, 'mylib', 'function test() {}', true);
+      
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.UDF', 'LOAD');
+      expect(mockParser.push).toHaveBeenCalledWith('REPLACE');
+      expect(mockParser.push).toHaveBeenCalledWith('mylib');
+      expect(mockParser.push).toHaveBeenCalledWith('function test() {}');
+    });
+
+    it('should test parseCommand with function script', () => {
+      const mockParser = {
+        push: jest.fn(),
+        redisArgs: [],
+        keys: [],
+        firstKey: undefined,
+        preserve: undefined,
+        pushVariadic: jest.fn(),
+        pushVariadicWithLength: jest.fn(),
+        pushVariadicNumber: jest.fn(),
+        pushKey: jest.fn(),
+        pushKeys: jest.fn(),
+        pushKeysLength: jest.fn()
+      };
+      
+      function testFunc() {
+        return 42;
+      }
+      
+      UDF_LOAD.parseCommand(mockParser as any, 'mylib', testFunc, false);
+      
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.UDF', 'LOAD');
+      expect(mockParser.push).toHaveBeenCalledWith('mylib');
+      const lastCall = (mockParser.push as jest.Mock).mock.calls[2][0];
+      expect(lastCall).toContain('function testFunc()');
+      expect(lastCall).toContain('falkor.register("testFunc", testFunc)');
+    });
+
+    it('should test transformReply', () => {
+      const result = UDF_LOAD.transformReply('OK');
+      expect(result).toBe('OK');
+    });
   });
 
   describe('UDF_DELETE', () => {
@@ -167,6 +245,55 @@ describe('Command Transformation Functions', () => {
     it('should transform arguments without SAMPLES option', () => {
       const result = MEMORY_USAGE.transformArguments('mygraph', {});
       expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph']);
+    });
+
+    it('should test parseCommand with no options', () => {
+      const mockParser = {
+        push: jest.fn(),
+        redisArgs: [],
+        keys: [],
+        firstKey: undefined,
+        preserve: undefined,
+        pushVariadic: jest.fn(),
+        pushVariadicWithLength: jest.fn(),
+        pushVariadicNumber: jest.fn(),
+        pushKey: jest.fn(),
+        pushKeys: jest.fn(),
+        pushKeysLength: jest.fn()
+      };
+      
+      MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph');
+      
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledTimes(1);
+    });
+
+    it('should test parseCommand with SAMPLES option', () => {
+      const mockParser = {
+        push: jest.fn(),
+        redisArgs: [],
+        keys: [],
+        firstKey: undefined,
+        preserve: undefined,
+        pushVariadic: jest.fn(),
+        pushVariadicWithLength: jest.fn(),
+        pushVariadicNumber: jest.fn(),
+        pushKey: jest.fn(),
+        pushKeys: jest.fn(),
+        pushKeysLength: jest.fn()
+      };
+      
+      MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph', { SAMPLES: 10 });
+      
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledWith('10');
+      expect(mockParser.push).toHaveBeenCalledTimes(2);
+    });
+
+    it('should test transformReply', () => {
+      const mockReply = ['key1', 100, ['nested', 'data']];
+      const result = MEMORY_USAGE.transformReply(mockReply);
+      expect(result).toEqual(mockReply);
     });
   });
 
