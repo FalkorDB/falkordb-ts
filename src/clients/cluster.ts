@@ -1,10 +1,10 @@
 import { Client } from "./client";
 import { ConstraintType, EntityType } from "../graph";
 import {
-  RedisCommandArgument,
+  RedisArgument,
   RedisFunctions,
   RedisScripts,
-} from "@redis/client/dist/lib/commands";
+} from "@redis/client";
 import commands, { QueryOptions } from "../commands";
 import { createCluster, RedisClusterType } from "@redis/client";
 import FalkorDB, { TypedRedisClusterClientOptions } from "../falkordb";
@@ -16,7 +16,8 @@ import { UdfListReply } from "../commands/UDF_LIST";
 export type ClusterGraphConnection = RedisClusterType<
   { falkordb: typeof commands },
   RedisFunctions,
-  RedisScripts
+  RedisScripts,
+  2
 >;
 
 /**
@@ -42,7 +43,8 @@ export class Cluster implements Client {
     this.#client = createCluster<
       { falkordb: typeof commands },
       RedisFunctions,
-      RedisScripts
+      RedisScripts,
+      2
     >(redisClusterOption);
   }
 
@@ -60,7 +62,7 @@ export class Cluster implements Client {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async query<T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact = true
   ) {
@@ -70,7 +72,7 @@ export class Cluster implements Client {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async roQuery<T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact = true
   ) {

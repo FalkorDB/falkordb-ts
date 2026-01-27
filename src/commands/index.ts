@@ -19,7 +19,7 @@ import * as UDF_LIST from './UDF_LIST';
 import * as UDF_FLUSH from './UDF_FLUSH';
 import * as UDF_DELETE from './UDF_DELETE';
 
-import { RedisCommandArgument, RedisCommandArguments } from '@redis/client/dist/lib/commands';
+import { RedisArgument } from '@redis/client';
 
 export default {
     CONFIG_GET,
@@ -78,12 +78,12 @@ export interface QueryOptions {
 export type QueryOptionsBackwardCompatible = QueryOptions | number;
 
 export function pushQueryArguments(
-    args: RedisCommandArguments,
-    graph: RedisCommandArgument,
-    query: RedisCommandArgument,
+    args: Array<RedisArgument>,
+    graph: RedisArgument,
+    query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
     compact?: boolean
-): RedisCommandArguments {
+): Array<RedisArgument> {
     args.push(graph);
 
     if (typeof options === 'number') {
@@ -108,7 +108,7 @@ export function pushQueryArguments(
     return args;
 }
 
-function pushTimeout(args: RedisCommandArguments, timeout: number): void {
+function pushTimeout(args: Array<RedisArgument>, timeout: number): void {
     args.push('TIMEOUT', timeout.toString());
 }
 

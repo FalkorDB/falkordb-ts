@@ -1,4 +1,4 @@
-import { RedisCommandArgument } from "@redis/client/dist/lib/commands";
+import { RedisArgument } from "@redis/client";
 import { QueryOptions } from "../commands";
 import { ConstraintType, EntityType } from "../graph";
 import FalkorDB from "../falkordb";
@@ -23,18 +23,18 @@ export interface Client {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   query<T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact?: boolean
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  profile<T>(graph: string, query: RedisCommandArgument): Promise<any>;
+  profile<T>(graph: string, query: RedisArgument): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
     graph: string,
-    query: RedisCommandArgument,
+    query: RedisArgument,
     options?: QueryOptions,
     compact?: boolean
   ): Promise<any>;
