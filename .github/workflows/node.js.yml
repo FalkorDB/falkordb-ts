@@ -119,7 +119,7 @@ jobs:
     - name: Run tests
       run: npx jest --coverage
       env:
-        FALKORDB_HOST: localhost
+        FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
     - name: Notify Google Chat
