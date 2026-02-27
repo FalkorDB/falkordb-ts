@@ -9,6 +9,10 @@ updates:
     directory: "/"
     schedule:
       interval: "daily"
+    groups:
+      npm-minor-patch:
+        update-types:
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
