@@ -118,17 +118,40 @@ jobs:
 
     - name: Debug standalone connectivity
       run: |
-        echo "=== Testing from host to standalone on 127.0.0.1:6379 ==="
-        redis-cli -h 127.0.0.1 -p 6379 PING || echo "PING failed"
-        redis-cli -h 127.0.0.1 -p 6379 INFO server | head -20 || echo "INFO failed"
-        redis-cli -h 127.0.0.1 -p 6379 HELLO 2 || echo "HELLO failed"
-        echo "=== Testing from inside container ==="
-        docker exec falkordb-standalone redis-cli HELLO 2 || echo "HELLO inside container failed"
-        echo "=== ACL/Auth check ==="
-        docker exec falkordb-standalone redis-cli ACL LIST || echo "ACL LIST failed"
-        docker exec falkordb-standalone redis-cli CONFIG GET requirepass || echo "CONFIG GET requirepass failed"
-        docker exec falkordb-standalone redis-cli CONFIG GET bind || echo "CONFIG GET bind failed"
-        docker exec falkordb-standalone redis-cli CONFIG GET protected-mode || echo "CONFIG GET protected-mode failed"
+        echo "=== Node.js version ==="
+        node --version
+        echo "=== DNS lookup 127.0.0.1 ==="
+        node -e "
+        const dns = require('dns');
+        const net = require('net');
+        dns.lookup('127.0.0.1', {all: true}, (err, addrs) => {
+          console.log('DNS lookup 127.0.0.1:', err, addrs);
+        });
+        dns.lookup('localhost', {all: true}, (err, addrs) => {
+          console.log('DNS lookup localhost:', err, addrs);
+        });
+        "
+        echo "=== Raw TCP connect to 127.0.0.1:6379 ==="
+        node -e "
+        const net = require('net');
+        const sock = net.createConnection({host: '127.0.0.1', port: 6379}, () => {
+          console.log('TCP connected');
+          sock.write('PING\r\n');
+        });
+        sock.on('data', d => { console.log('Response:', d.toString()); sock.destroy(); });
+        sock.on('error', e => { console.log('Error:', e.message); });
+        setTimeout(() => { console.log('TCP timeout after 5s'); sock.destroy(); process.exit(1); }, 5000);
+        "
+        echo "=== Redis client connect test ==="
+        node -e "
+        const {createClient} = require('redis');
+        const c = createClient({socket: {host: '127.0.0.1', port: 6379}});
+        c.on('error', e => console.log('Redis error:', e.message));
+        const t = setTimeout(() => { console.log('Redis connect timeout after 10s'); process.exit(1); }, 10000);
+        c.connect().then(() => { console.log('Redis connected OK'); clearTimeout(t); return c.ping(); })
+        .then(r => { console.log('PING:', r); return c.disconnect(); })
+        .catch(e => { console.log('Redis connect failed:', e.message); process.exit(1); });
+        "
 
     - name: Run tests
       run: npx jest --coverage
