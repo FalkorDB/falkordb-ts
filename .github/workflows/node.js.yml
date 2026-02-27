@@ -120,29 +120,31 @@ jobs:
       run: |
         echo "=== Node.js version ==="
         node --version
-        echo "=== DNS lookup 127.0.0.1 ==="
+        echo "=== DNS lookup ==="
         node -e "
         const dns = require('dns');
-        const net = require('net');
+        let done = 0;
         dns.lookup('127.0.0.1', {all: true}, (err, addrs) => {
           console.log('DNS lookup 127.0.0.1:', err, addrs);
+          if (++done === 2) process.exit(0);
         });
         dns.lookup('localhost', {all: true}, (err, addrs) => {
           console.log('DNS lookup localhost:', err, addrs);
+          if (++done === 2) process.exit(0);
         });
         "
         echo "=== Raw TCP connect to 127.0.0.1:6379 ==="
         node -e "
         const net = require('net');
+        const t = setTimeout(() => { console.log('TCP timeout after 5s'); process.exit(1); }, 5000);
         const sock = net.createConnection({host: '127.0.0.1', port: 6379}, () => {
           console.log('TCP connected');
           sock.write('PING\r\n');
         });
-        sock.on('data', d => { console.log('Response:', d.toString()); sock.destroy(); });
-        sock.on('error', e => { console.log('Error:', e.message); });
-        setTimeout(() => { console.log('TCP timeout after 5s'); sock.destroy(); process.exit(1); }, 5000);
+        sock.on('data', d => { console.log('Response:', d.toString().trim()); clearTimeout(t); sock.destroy(); });
+        sock.on('error', e => { console.log('Error:', e.message); clearTimeout(t); process.exit(1); });
         "
-        echo "=== Redis client connect test ==="
+        echo "=== Redis client connect test (no modules) ==="
         node -e "
         const {createClient} = require('redis');
         const c = createClient({socket: {host: '127.0.0.1', port: 6379}});
@@ -150,7 +152,19 @@ jobs:
         const t = setTimeout(() => { console.log('Redis connect timeout after 10s'); process.exit(1); }, 10000);
         c.connect().then(() => { console.log('Redis connected OK'); clearTimeout(t); return c.ping(); })
         .then(r => { console.log('PING:', r); return c.disconnect(); })
-        .catch(e => { console.log('Redis connect failed:', e.message); process.exit(1); });
+        .catch(e => { console.log('Redis connect failed:', e.message); clearTimeout(t); process.exit(1); });
+        "
+        echo "=== FalkorDB connect test (with modules) ==="
+        node -e "
+        const {createClient} = require('redis');
+        const commands = require('./dist/commands').default;
+        console.log('Commands module loaded:', Object.keys(commands));
+        const c = createClient({socket: {host: '127.0.0.1', port: 6379}, modules: {falkordb: commands}});
+        c.on('error', e => console.log('FalkorDB error:', e.message));
+        const t = setTimeout(() => { console.log('FalkorDB connect timeout after 10s'); process.exit(1); }, 10000);
+        c.connect().then(() => { console.log('FalkorDB connected OK'); clearTimeout(t); return c.ping(); })
+        .then(r => { console.log('PING:', r); return c.disconnect(); })
+        .catch(e => { console.log('FalkorDB connect failed:', e.message); clearTimeout(t); process.exit(1); });
         "
 
     - name: Run tests
