@@ -11,7 +11,7 @@ describe("UDF API Tests", () => {
     } catch (error) {
       console.error("Failed to connect to FalkorDB:", error);
     }
-  });
+  }, 30000);
 
   afterAll(async () => {
     if (falkorClient) {
