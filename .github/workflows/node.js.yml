@@ -157,7 +157,7 @@ jobs:
         echo "=== FalkorDB connect test (with modules) ==="
         node -e "
         const {createClient} = require('redis');
-        const commands = require('./dist/commands').default;
+        const commands = require('./dist/src/commands').default;
         console.log('Commands module loaded:', Object.keys(commands));
         const c = createClient({socket: {host: '127.0.0.1', port: 6379}, modules: {falkordb: commands}});
         c.on('error', e => console.log('FalkorDB error:', e.message));
