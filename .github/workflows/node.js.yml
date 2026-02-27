@@ -30,7 +30,7 @@ jobs:
     steps:
     - uses: actions/checkout@v6
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@v2.4.3
+      uses: hoverkraft-tech/compose-action@v2.5.0
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -40,7 +40,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@v2.4.3
+      uses: hoverkraft-tech/compose-action@v2.5.0
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -55,7 +55,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@v2.4.3
+      uses: hoverkraft-tech/compose-action@v2.5.0
       with:
         compose-file: ./docker/cluster-compose.yml
     
@@ -119,7 +119,7 @@ jobs:
     - name: Run tests
       run: npx jest --coverage
       env:
-        FALKORDB_HOST: localhost
+        FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
     - name: Notify Google Chat

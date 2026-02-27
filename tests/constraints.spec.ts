@@ -3,6 +3,21 @@ import { expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import Graph, { ConstraintType, EntityType } from '../src/graph';
 
+async function waitForConstraints(graph: Graph, expectedCount: number, timeoutMs = 10000): Promise<any[]> {
+    const start = Date.now();
+    while (Date.now() - start < timeoutMs) {
+        const result = await graph.query("CALL db.constraints()");
+        const constraints = result.data ?? [];
+        if (constraints.length === expectedCount &&
+            constraints.every((c: any) => c.status === 'OPERATIONAL')) {
+            return constraints;
+        }
+        await new Promise(r => setTimeout(r, 100));
+    }
+    const result = await graph.query("CALL db.constraints()");
+    return result.data ?? [];
+}
+
 describe('Constraint Tests', () => {
     let clientInstance: FalkorDB;
     let graphName: Graph;
@@ -40,9 +55,9 @@ describe('Constraint Tests', () => {
         await graphName.constraintCreate("MANDATORY" as ConstraintType, "NODE" as EntityType, "Person", "name");
         await graphName.query("CREATE INDEX ON :Person(v1, v2)");
         await graphName.constraintCreate("UNIQUE" as ConstraintType, "NODE" as EntityType, "Person", "v1", "v2");
-        const nodeConstraints = await graphName.query("CALL db.constraints()");
-        expect(nodeConstraints.data?.length).toBe(3);
-        expect(nodeConstraints.data).toEqual(
+        const constraints = await waitForConstraints(graphName, 3);
+        expect(constraints.length).toBe(3);
+        expect(constraints).toEqual(
             expect.arrayContaining([
                 expect.objectContaining({
                     type: 'UNIQUE',
@@ -85,9 +100,9 @@ describe('Constraint Tests', () => {
         `);
         await graphName.query("CREATE INDEX ON :KNOWS(since)");
         await graphName.constraintCreate("MANDATORY" as ConstraintType, "RELATIONSHIP" as EntityType, "KNOWS", "since");
-        const nodeConstraints = await graphName.query("CALL db.constraints()");
-        expect(nodeConstraints.data?.length).toBe(1);
-        expect(nodeConstraints.data?.[0]).toEqual(
+        const constraints = await waitForConstraints(graphName, 1);
+        expect(constraints.length).toBe(1);
+        expect(constraints[0]).toEqual(
             expect.objectContaining({
                 type: 'MANDATORY',
                 label: 'KNOWS',
