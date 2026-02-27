@@ -5,3 +5,8 @@ services:
     image: falkordb/falkordb:edge
     ports:
     - 6379:6379
+    healthcheck:
+      test: redis-cli ping || exit 1
+      interval: 10s
+      timeout: 5s
+      retries: 5
