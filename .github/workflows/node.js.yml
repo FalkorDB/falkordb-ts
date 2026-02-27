@@ -116,6 +116,20 @@ jobs:
         docker exec node0 redis-cli -p 17000 --cluster check node0:17000 || { echo "Cluster check failed"; exit 1; }
         echo "Cluster is fully ready and operational!"
 
+    - name: Debug standalone connectivity
+      run: |
+        echo "=== Testing from host to standalone on 127.0.0.1:6379 ==="
+        redis-cli -h 127.0.0.1 -p 6379 PING || echo "PING failed"
+        redis-cli -h 127.0.0.1 -p 6379 INFO server | head -20 || echo "INFO failed"
+        redis-cli -h 127.0.0.1 -p 6379 HELLO 2 || echo "HELLO failed"
+        echo "=== Testing from inside container ==="
+        docker exec falkordb-standalone redis-cli HELLO 2 || echo "HELLO inside container failed"
+        echo "=== ACL/Auth check ==="
+        docker exec falkordb-standalone redis-cli ACL LIST || echo "ACL LIST failed"
+        docker exec falkordb-standalone redis-cli CONFIG GET requirepass || echo "CONFIG GET requirepass failed"
+        docker exec falkordb-standalone redis-cli CONFIG GET bind || echo "CONFIG GET bind failed"
+        docker exec falkordb-standalone redis-cli CONFIG GET protected-mode || echo "CONFIG GET protected-mode failed"
+
     - name: Run tests
       run: npx jest --coverage
       env:
