@@ -121,6 +121,7 @@ jobs:
       env:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
+        NODE_OPTIONS: --dns-result-order=ipv4first
     
     - name: Notify Google Chat
       id: test-action
