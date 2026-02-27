@@ -1,17 +1,20 @@
 name: Publish to npm
 on:
-  release:
-    types: [created]
-
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
 
 jobs:
-  publish:
+  build:
     runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'release'
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          fetch-tags: true
 
       - uses: actions/setup-node@v6
         with:
@@ -25,9 +28,33 @@ jobs:
       - run: npm run build --if-present
       - name: Set version from Git tag
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          TAG=$(git tag --points-at HEAD | grep -E '^(falkordb@|v)' | head -1)
+          VERSION="${TAG#falkordb@}"
+          VERSION="${VERSION#v}"
           echo "Setting version to $VERSION"
           npm version "$VERSION" --no-git-tag-version
+      - name: Pack
+        run: npm pack
+      - uses: actions/upload-artifact@v4
+        with:
+          name: npm-package
+          path: "*.tgz"
+
+  publish:
+    needs: [build]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: npm-package
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Publish
-        run: npm publish --provenance --access public
+        run: npm publish --provenance --access public $(ls *.tgz)
