@@ -84,7 +84,9 @@ export class Sentinel extends Single {
           console.debug("Error on server reconnect", e);
 
           // Forward errors if reconnection fails
-          falkordb.emit("error", err);
+          if (falkordb.listenerCount("error") > 0) {
+            falkordb.emit("error", err);
+          }
         }
       })
       .connect();

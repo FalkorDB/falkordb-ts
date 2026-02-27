@@ -136,7 +136,9 @@ export default class FalkorDB extends EventEmitter {
         // Create initial redis single client
         const redisClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2, {}>(redisOption)
         await redisClient
-            .on('error', err => falkordb.emit('error', err)) // Forward errors
+            .on('error', err => {
+                if (falkordb.listenerCount('error') > 0) falkordb.emit('error', err);
+            })
             .connect();
 
         // Create FalkorDB client wrapper

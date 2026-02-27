@@ -55,7 +55,9 @@ export class Cluster implements Client {
 
   async init(falkordb: FalkorDB) {
     await this.#client
-      .on("error", (err) => falkordb.emit("error", err)) // Forward errors
+      .on("error", (err) => {
+        if (falkordb.listenerCount("error") > 0) falkordb.emit("error", err);
+      })
       .connect();
   }
 
