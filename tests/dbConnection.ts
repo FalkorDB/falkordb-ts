@@ -5,7 +5,8 @@ export const client = async () => {
         return await FalkorDB.connect({
             socket: {
                 host: process.env.FALKORDB_HOST || 'localhost',
-                port: parseInt(process.env.FALKORDB_PORT || '6379', 10)
+                port: parseInt(process.env.FALKORDB_PORT || '6379', 10),
+                family: 4
             },
         });
     } catch (error) {
