@@ -64,6 +64,20 @@ jobs:
       # setting is read by the server at fork time on the shared host kernel.
       run: sudo sysctl -w vm.overcommit_memory=1
 
+    # Install and check the package before starting any FalkorDB container. A
+    # lint or compile error is the cheapest failure in this job, and putting it
+    # first means it no longer waits on three docker stacks and a cluster
+    # formation poll - roughly a minute of setup - to be reported.
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - run: npm ci
+    - run: npm run lint
+    - run: npm run build --if-present
+
     - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
@@ -114,16 +128,7 @@ jobs:
         for i in node{0..5};do
           echo "127.0.0.1 $i" | sudo tee -a /etc/hosts
         done
-    
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    
-    - run: npm ci
-    - run: npm run lint
-    - run: npm run build --if-present
+
     - name: Show running Docker containers
       run: docker ps -a
 
