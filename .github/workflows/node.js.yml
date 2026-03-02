@@ -9,8 +9,14 @@ permissions:
 on:
   push:
     branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
     branches: [ "main" ]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
   release:
     types: [created]
 
@@ -26,9 +32,23 @@ jobs:
     strategy:
       matrix:
         node-version: [20.x, 22.x]
+      fail-fast: true
 
     steps:
     - uses: actions/checkout@v6
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v6
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        cache-dependency-path: package-lock.json
+    
+    - run: npm ci
+    - run: npm run lint
+      if: matrix.node-version == '22.x'
+    - run: npm run build --if-present
+      if: matrix.node-version == '22.x'
+    
     - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@v2.5.0
       with:
@@ -79,19 +99,7 @@ jobs:
         for i in node{0..5};do
           echo "127.0.0.1 $i" | sudo tee -a /etc/hosts
         done
-    
-    - name: install docker-compose client
-      run: sudo apt update && sudo apt install docker-compose -y
 
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v6
-      with:
-        node-version: ${{ matrix.node-version }}
-        cache: 'npm'
-    
-    - run: npm ci
-    - run: npm run lint
-    - run: npm run build --if-present
     - name: Show running Docker containers
       run: docker ps -a
 
