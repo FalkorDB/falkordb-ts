@@ -2,8 +2,14 @@ name: Spellcheck
 on:
   push:
     branches: [main]
+    paths:
+      - '**/*.md'
+      - 'docs/**'
   pull_request:
     branches: [main]
+    paths:
+      - '**/*.md'
+      - 'docs/**'
 jobs:
   spellcheck:
     runs-on: ubuntu-latest
