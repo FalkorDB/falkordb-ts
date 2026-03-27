@@ -64,9 +64,9 @@ export default {
     udfDelete: UDF_DELETE,
 };
 
-type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
+export type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
 
-type QueryParams = {
+export type QueryParams = {
     [key: string]: QueryParam;
 };
 
