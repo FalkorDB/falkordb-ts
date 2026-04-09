@@ -7,7 +7,7 @@ services:
       - 17000:17000
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node0 -p 17000 ping || {echo "Redis is not ready"; exit 1}
@@ -37,7 +37,7 @@ services:
       - 17001:17001
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node1 -p 17001 ping || {echo "Redis is not ready"; exit 1}
@@ -67,7 +67,7 @@ services:
       - 17002:17002
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node2 -p 17002 ping || {echo "Redis is not ready"; exit 1}
@@ -97,7 +97,7 @@ services:
       - 17003:17003
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node3 -p 17003 ping || {echo "Redis is not ready"; exit 1}
@@ -127,7 +127,7 @@ services:
       - 17004:17004
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node4 -p 17004 ping || {echo "Redis is not ready"; exit 1}
@@ -158,7 +158,7 @@ services:
       - 17005:17005
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -h node5 -p 17005 ping || {echo "Redis is not ready"; exit 1}
@@ -193,7 +193,7 @@ services:
       - node5
     networks:
       - falkordb-cluster
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     command:
       - -c
       - |
