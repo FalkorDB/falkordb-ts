@@ -37,7 +37,7 @@
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.4",
-    "@types/jest": "^29.5.14",
+    "@types/jest": "^30.0.0",
     "@types/lodash": "^4.17.13",
     "@types/node": "^25.0.2",
     "@typescript-eslint/eslint-plugin": "^8.18.2",
