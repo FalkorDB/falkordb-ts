@@ -8,7 +8,7 @@ services:
       - falkordb-network
     ports:
       - 26379:26379
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -p 26379 ping || {echo "Sentinel is not ready"; exit 1}
@@ -36,7 +36,7 @@ services:
       - falkordb-network
     ports:
       - 26380:26380
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -p 26379 ping || {echo "Sentinel is not ready"; exit 1}
@@ -64,7 +64,7 @@ services:
       - falkordb-network
     ports:
       - 26381:26381
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -p 26379 ping || {echo "Sentinel is not ready"; exit 1}
@@ -91,7 +91,7 @@ services:
       - 6380:6380
     networks:
       - falkordb-network
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -p 6380 ping || {echo "Redis is not ready"; exit 1}
@@ -116,7 +116,7 @@ services:
       - 6381:6381
     networks:
       - falkordb-network
-    entrypoint: /bin/bash
+    entrypoint: /bin/sh
     healthcheck:
       test: |
         redis-cli -p 6381 ping || {echo "Redis is not ready"; exit 1}
