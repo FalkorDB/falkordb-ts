@@ -6,7 +6,6 @@
     "declaration": true,
     "allowJs": true,
     "useDefineForClassFields": true,
-    "esModuleInterop": false,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true
