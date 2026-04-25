@@ -52,6 +52,18 @@ jobs:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
+
+    - name: Enable memory overcommit
+      # GRAPH.COPY and BGSAVE both fork, and the runners ship with
+      # vm.overcommit_memory=0, so the kernel can refuse the fork on its
+      # heuristic alone and the copy tests fail with "GRAPH.COPY failed, could
+      # not fork". Every FalkorDB container warns about this at startup. This
+      # is a different cause from the one "Disable RDB snapshots on test
+      # servers" below handles - that one is a second fork racing this one -
+      # so both are needed. Must run before any container starts, because the
+      # setting is read by the server at fork time on the shared host kernel.
+      run: sudo sysctl -w vm.overcommit_memory=1
+
     - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
