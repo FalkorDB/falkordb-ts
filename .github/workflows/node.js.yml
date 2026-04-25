@@ -29,6 +29,8 @@ jobs:
 
     steps:
     - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+    - name: Enable memory overcommit (required for GRAPH.COPY / BGSAVE fork)
+      run: sudo sysctl -w vm.overcommit_memory=1
     - name: Run docker-compose for FalkorDB standalone instance
       uses: hoverkraft-tech/compose-action@d2bee4f07e8ca410d6b196d00f90c12e7d48c33a # v2.6.0
       with:
