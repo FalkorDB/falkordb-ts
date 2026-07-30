@@ -36,6 +36,10 @@ describe("NullClient Tests", () => {
       expect(() => nullClient.list()).toThrow("Method not implemented.");
     });
 
+    it("should throw error on stubs", () => {
+      expect(() => nullClient.stubs()).toThrow("Method not implemented.");
+    });
+
     it("should throw error on delete", () => {
       expect(() => nullClient.delete("test-graph")).toThrow(
         "Method not implemented."

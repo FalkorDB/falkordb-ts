@@ -9,6 +9,7 @@ import * as SLOWLOG from '../src/commands/SLOWLOG';
 import * as CONFIG_GET from '../src/commands/CONFIG_GET';
 import * as CONFIG_SET from '../src/commands/CONFIG_SET';
 import * as LIST from '../src/commands/LIST';
+import * as STUBS from '../src/commands/STUBS';
 import * as DELETE from '../src/commands/DELETE';
 import * as COPY from '../src/commands/COPY';
 import * as EXPLAIN from '../src/commands/EXPLAIN';
@@ -332,6 +333,24 @@ describe('Command Transformation Functions', () => {
     it('should transform arguments', () => {
       const result = LIST.transformArguments();
       expect(result).toEqual(['GRAPH.LIST']);
+    });
+  });
+
+  describe('STUBS', () => {
+    it('should transform arguments', () => {
+      const result = STUBS.transformArguments();
+      expect(result).toEqual(['GRAPH.STUBS']);
+    });
+
+    it('should be marked read only', () => {
+      expect(STUBS.IS_READ_ONLY).toBe(true);
+    });
+
+    it('should transform the reply into a list of graph names', () => {
+      expect(STUBS.transformReply(['offloaded', 'another'])).toEqual([
+        'offloaded',
+        'another'
+      ]);
     });
   });
 
