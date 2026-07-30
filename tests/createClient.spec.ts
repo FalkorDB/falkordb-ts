@@ -1,5 +1,5 @@
+import { describe, it, expect } from '@jest/globals';
 import { client } from './dbConnection';
-import { expect } from '@jest/globals';
 
 describe('FalkorDB Client', () => {
     it('create a FalkorDB client instance validated existing', async () => {

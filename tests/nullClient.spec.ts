@@ -1,6 +1,6 @@
+import { describe, it, beforeEach, expect } from '@jest/globals';
 import { NullClient } from "../src/clients/nullClient";
 import { ConstraintType, EntityType } from "../src/graph";
-import { expect } from "@jest/globals";
 
 describe("NullClient Tests", () => {
   let nullClient: NullClient;

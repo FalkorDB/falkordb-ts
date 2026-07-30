@@ -1,8 +1,8 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { Single } from "../src/clients/single";
 import { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { expect } from "@jest/globals";
 
 function getRandomNumber(): number {
   return Math.floor(Math.random() * 999999);
@@ -19,16 +19,12 @@ describe("Single Client Tests", () => {
       console.error("Failed to connect to FalkorDB:", error);
     }
 
-    // Pooled client to test pool execution paths
+    // Second client to exercise the non-shared connection execution paths
     try {
       pooledClient = await FalkorDB.connect({
         socket: {
           host: process.env.FALKORDB_HOST || "localhost",
           port: parseInt(process.env.FALKORDB_PORT || "6379", 10),
-        },
-        poolOptions: {
-          min: 1,
-          max: 10,
         },
       });
     } catch (error) {

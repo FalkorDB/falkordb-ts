@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { jest, describe, it, expect } from '@jest/globals';
 import * as UDF_LOAD from '../src/commands/UDF_LOAD';
 import * as UDF_LIST from '../src/commands/UDF_LIST';
 import * as UDF_DELETE from '../src/commands/UDF_DELETE';
