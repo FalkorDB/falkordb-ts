@@ -71,6 +71,10 @@ offloaded graphs, so `stubs()` is how you tell which of the listed graphs are no
 without that module the call rejects with an "unknown command" error — treat that as
 "offloading is not supported here".
 
+On a cluster the replies of all master nodes are combined. If only some masters fail, the
+partial result is returned and the failures are logged; the call rejects only when every
+master fails.
+
 ```typescript
 const offloaded = await db.stubs();
 ```

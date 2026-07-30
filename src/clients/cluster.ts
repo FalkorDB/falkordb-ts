@@ -107,15 +107,27 @@ export class Cluster implements Client {
   }
 
   async stubs(): Promise<Array<string>> {
-    const reply = await Promise.all(
+    const replies = await Promise.allSettled(
       this.#client.masters.map(async (master) => {
         return (await this.#client.nodeClient(master)).falkordb.stubs();
       })
     );
-    const [result, errors] = [
-      reply.filter((r) => !(r instanceof Error)).flat(),
-      reply.filter((r) => r instanceof Error),
-    ];
+
+    const result: Array<string> = [];
+    const errors: Array<unknown> = [];
+    for (const reply of replies) {
+      if (reply.status === "fulfilled") {
+        result.push(...reply.value);
+      } else {
+        errors.push(reply.reason);
+      }
+    }
+
+    // Only surface a failure when every master failed - e.g. when the
+    // graph-offloading module is missing cluster-wide ("unknown command").
+    if (errors.length > 0 && errors.length === replies.length) {
+      throw errors[0];
+    }
 
     if (errors.length > 0) {
       console.error("Some nodes failed to respond:", errors);
