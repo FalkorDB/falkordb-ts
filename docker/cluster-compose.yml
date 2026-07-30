@@ -26,7 +26,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"                 >> /data/node.conf
         echo "cluster-node-timeout 5000"                            >> /data/node.conf
         echo "cluster-announce-hostname node0"                      >> /data/node.conf
-        echo "cluster-announce-ip node0"                            >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17000"                          >> /data/node.conf
         redis-server /data/node.conf
   node1:
@@ -56,7 +56,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"                 >> /data/node.conf
         echo "cluster-node-timeout 5000"                            >> /data/node.conf
         echo "cluster-announce-hostname node1"                      >> /data/node.conf
-        echo "cluster-announce-ip node1"                            >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17001"                          >> /data/node.conf
         redis-server /data/node.conf
   node2:
@@ -86,7 +86,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"                >> /data/node.conf
         echo "cluster-node-timeout 5000"                           >> /data/node.conf
         echo "cluster-announce-hostname node2"                     >> /data/node.conf
-        echo "cluster-announce-ip node2"                           >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17002"                         >> /data/node.conf
         redis-server /data/node.conf
   node3:
@@ -116,7 +116,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"               >> /data/node.conf
         echo "cluster-node-timeout 5000"                          >> /data/node.conf
         echo "cluster-announce-hostname node3"                    >> /data/node.conf
-        echo "cluster-announce-ip node3"                          >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17003"                        >> /data/node.conf
         redis-server /data/node.conf
   node4:
@@ -146,7 +146,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"             >> /data/node.conf
         echo "cluster-node-timeout 5000"                        >> /data/node.conf
         echo "cluster-announce-hostname node4"                  >> /data/node.conf
-        echo "cluster-announce-ip node4"                        >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17004"                      >> /data/node.conf
         redis-server /data/node.conf
 
@@ -177,7 +177,7 @@ services:
         echo "cluster-config-file /data/nodes.conf"           >> /data/node.conf
         echo "cluster-node-timeout 5000"                      >> /data/node.conf
         echo "cluster-announce-hostname node5"                >> /data/node.conf
-        echo "cluster-announce-ip node5"                      >> /data/node.conf
+        echo "cluster-announce-ip $(hostname -i | awk '{print $1}')" >> /data/node.conf
         echo "cluster-announce-port 17005"                    >> /data/node.conf
         redis-server /data/node.conf
   cluster-creator:

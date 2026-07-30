@@ -1,6 +1,6 @@
+import { jest, describe, it, beforeAll, beforeEach, afterAll, expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
-import { expect } from '@jest/globals';
 import { Sentinel } from '../src/clients/sentinel';
 
 describe('Sentinel Integration Tests', () => {
@@ -35,7 +35,7 @@ describe('Sentinel Integration Tests', () => {
 
     beforeEach(() => {
         if (!sentinelClient) {
-            pending('Skipping sentinel tests - no sentinel available');
+            console.warn('Skipping sentinel tests - no sentinel available');
         }
     });
     
@@ -365,7 +365,7 @@ describe('Sentinel Integration Tests', () => {
       const fakeClient: any = {
         options: {},
         falkordb: {
-          sentinelMasters: jest.fn().mockResolvedValue([
+          sentinelMasters: jest.fn<() => Promise<string[][]>>().mockResolvedValue([
             ['ip', '127.0.0.1', 'port', '6379'],
             ['ip', '127.0.0.2', 'port', '6380'],
           ]),

@@ -1,6 +1,6 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
-import { expect } from '@jest/globals';
 
 function getRandomNumber(): number {
     return Math.floor(Math.random() * 999999);

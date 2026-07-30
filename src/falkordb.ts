@@ -161,6 +161,18 @@ export default class FalkorDB extends EventEmitter {
         return this.#client.list()
     }
 
+    /**
+     * Lists the graphs that are currently offloaded to disk ("stubs").
+     *
+     * `GRAPH.STUBS` is provided by the FalkorDB Enterprise graph-offloading
+     * module, so this rejects with an "unknown command" error on deployments
+     * where that module is not loaded. Callers that support both editions
+     * should treat such a rejection as "no offloading support".
+     */
+    async stubs() {
+        return this.#client.stubs()
+    }
+
     async configGet(configKey: string) {
         return this.#client.configGet(configKey)
     }

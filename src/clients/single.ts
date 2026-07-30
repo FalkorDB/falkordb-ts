@@ -64,6 +64,10 @@ export class Single implements Client {
     return this.client.falkordb.list();
   }
 
+  async stubs() {
+    return this.client.falkordb.stubs();
+  }
+
   async configGet(configKey: string) {
     return this.client.falkordb.configGet(configKey);
   }

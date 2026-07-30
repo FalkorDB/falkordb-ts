@@ -62,6 +62,23 @@ db.close()
 
 To learn more about Cypher query language check: https://docs.falkordb.com/cypher/
 
+#### `.stubs()`
+
+Lists the graphs that are currently offloaded to disk ("stubs"). `db.list()` already includes
+offloaded graphs, so `stubs()` is how you tell which of the listed graphs are not loaded in memory.
+
+`GRAPH.STUBS` is provided by the FalkorDB Enterprise graph-offloading module, so on deployments
+without that module the call rejects with an "unknown command" error — treat that as
+"offloading is not supported here".
+
+On a cluster the replies of all master nodes are combined. If only some masters fail, the
+partial result is returned and the failures are logged; the call rejects only when every
+master fails.
+
+```typescript
+const offloaded = await db.stubs();
+```
+
 #### `.close()`
 
 Forcibly close a client's connection to FalkorDB immediately. Calling `close` will not send further pending commands to the Redis server, or wait for or parse outstanding responses.

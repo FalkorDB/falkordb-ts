@@ -1,3 +1,4 @@
+import { describe, it } from '@jest/globals';
 import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from '../test-utils';
 import { transformArguments } from './UDF_LOAD';

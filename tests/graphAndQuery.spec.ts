@@ -1,7 +1,7 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { expect } from "@jest/globals";
 import { Temporal } from "@js-temporal/polyfill";
 
 function getRandomNumber(): number {
