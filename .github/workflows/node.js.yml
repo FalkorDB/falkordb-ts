@@ -116,6 +116,19 @@ jobs:
         docker exec node0 redis-cli -p 17000 --cluster check node0:17000 || { echo "Cluster check failed"; exit 1; }
         echo "Cluster is fully ready and operational!"
 
+    - name: Disable RDB snapshots on test servers
+      # Periodic BGSAVE forks race with GRAPH.COPY's fork and make copy tests
+      # fail with "GRAPH.COPY failed, could not fork". Snapshots are useless
+      # for these throwaway CI servers, so turn them off.
+      run: |
+        docker exec falkordb-standalone redis-cli config set save ""
+        docker exec falkordb-server-1 redis-cli -p 6380 config set save ""
+        docker exec falkordb-server-2 redis-cli -p 6381 config set save ""
+        for i in {0..5}; do
+          port=$((17000 + i))
+          docker exec node$i redis-cli -p $port config set save ""
+        done
+
     - name: Run tests
       run: npx jest --coverage
       env:
