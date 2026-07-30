@@ -33,7 +33,7 @@
     "falkordb"
   ],
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22"
   },
   "devDependencies": {
     "@tsconfig/node20": "^20.1.4",
