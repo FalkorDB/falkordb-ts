@@ -138,6 +138,18 @@ export default class FalkorDB extends EventEmitter {
             redisOption.RESP = 2;
         }
 
+        // Disable the client's default 5-second per-command timeout (introduced in
+        // @redis/client v6, DEFAULT_COMMAND_TIMEOUT). FalkorDB queries (e.g. large
+        // GRAPH.QUERY/GRAPH.COPY operations) can legitimately run longer than 5s, and
+        // previously had no client-enforced timeout at all. Without this override,
+        // such commands are aborted with a TimeoutError.
+        if (redisOption.commandOptions?.timeout === undefined) {
+            redisOption.commandOptions = {
+                ...redisOption.commandOptions,
+                timeout: 0
+            };
+        }
+
         // Create an empty FalkorDB instance for the redisClient on error event to work
         const falkordb = new FalkorDB();
 
