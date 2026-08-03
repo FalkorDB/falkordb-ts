@@ -130,6 +130,14 @@ export default class FalkorDB extends EventEmitter {
             falkordb: commands
         }
 
+        // Explicitly pin RESP2: FalkorDB's Graph/module reply parsing assumes RESP2
+        // array-shaped replies (e.g. GRAPH.MEMORY USAGE). Newer redis client majors
+        // default to RESP3, which auto-converts map-shaped replies into nested
+        // objects and would silently change the shape of results returned here.
+        if (redisOption.RESP === undefined) {
+            redisOption.RESP = 2;
+        }
+
         // Create an empty FalkorDB instance for the redisClient on error event to work
         const falkordb = new FalkorDB();
 
