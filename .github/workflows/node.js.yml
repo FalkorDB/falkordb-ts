@@ -132,11 +132,26 @@ jobs:
         done
 
     - name: Run tests
+      # The suite finishes in well under a minute; anything longer means a hang.
+      # Cap it so the job fails fast with usable logs instead of burning the
+      # 6-hour default job timeout.
+      timeout-minutes: 10
       run: npx jest --coverage
       env:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
+    - name: Dump FalkorDB container logs on failure
+      if: failure()
+      run: |
+        docker ps -a
+        for c in falkordb-standalone falkordb-server-1 falkordb-server-2 \
+                 sentinel-1 sentinel-2 sentinel-3 \
+                 node0 node1 node2 node3 node4 node5; do
+          echo "===== $c ====="
+          docker logs --tail 200 "$c" 2>&1 || true
+        done
+
     - name: Notify Google Chat
       id: test-action
       if: failure() # only send notification in case of failure
