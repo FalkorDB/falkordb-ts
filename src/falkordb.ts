@@ -130,7 +130,19 @@ export default class FalkorDB extends EventEmitter {
     #client: Client = new NullClient();
 
     static async connect(options?: FalkorDBOptions) {
-        const redisOption = (options ?? {}) as TypedRedisClientOptions;
+        const { host, port, ...rest } = options ?? {};
+        const redisOption = rest as TypedRedisClientOptions;
+
+        // Support the top-level `host`/`port` shorthand used by the other FalkorDB
+        // clients by folding them into the socket options node-redis expects.
+        // Explicit `socket` values win, and `url` takes precedence over both.
+        if (!redisOption.url && (host !== undefined || port !== undefined)) {
+            redisOption.socket = {
+                ...(host !== undefined && { host }),
+                ...(port !== undefined && { port }),
+                ...redisOption.socket,
+            } as TypedRedisClientOptions['socket'];
+        }
 
         // If the URL is provided, and the protocol is `falkor` replaces it with `redis` for the underline redis client
         // e.g. falkor://localhost:6379 -> redis://localhost:6379
