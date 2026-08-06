@@ -83,8 +83,9 @@ const db = await FalkorDB.connect({
 })
 ```
 
-`url` takes precedence over the other options, and `socket` values take precedence over the
-top-level `host` and `port`.
+`url` sets the connection address, so it overrides the top-level `host` and `port`. Other
+`socket` settings such as TLS and timeouts still apply alongside it. When both are given,
+`socket.host` and `socket.port` take precedence over the top-level `host` and `port`.
 
 #### `.stubs()`
 
