@@ -32,12 +32,10 @@ npm install falkordb
 import { FalkorDB } from 'falkordb';
 
 const db = await FalkorDB.connect({
+    host: 'localhost',
+    port: 6379,
     username: 'myUsername',
-    password: 'myPassword',
-    socket: {
-        host: 'localhost',
-        port: 6379
-    }
+    password: 'myPassword'
 })
 
 console.log('Connected to FalkorDB')
@@ -61,6 +59,32 @@ db.close()
 ```
 
 To learn more about Cypher query language check: https://docs.falkordb.com/cypher/
+
+### Connection Options
+
+`host` and `port` are the shorthand for a plain TCP connection and default to `localhost:6379`.
+You can also pass a connection URL:
+
+```typescript
+const db = await FalkorDB.connect({ url: 'falkor://localhost:6379' })
+```
+
+For anything beyond host and port — TLS, connection timeouts, keep-alive — use `socket`, which is
+passed to the underlying [node-redis](https://github.com/redis/node-redis) client:
+
+```typescript
+const db = await FalkorDB.connect({
+    socket: {
+        host: 'localhost',
+        port: 6379,
+        tls: true,
+        connectTimeout: 5000
+    }
+})
+```
+
+`url` takes precedence over the other options, and `socket` values take precedence over the
+top-level `host` and `port`.
 
 #### `.stubs()`
 
