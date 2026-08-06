@@ -153,7 +153,11 @@ jobs:
         done
 
     - name: Run tests
-      run: npx jest --coverage
+      # --forceExit because jest reports "did not exit one second after the test
+      # run has completed" and then hangs forever on handles the suites leave
+      # open. The leak still needs fixing, but it should not cost a whole runner.
+      run: npx jest --coverage --forceExit
+      timeout-minutes: 15
       env:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
