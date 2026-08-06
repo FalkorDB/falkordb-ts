@@ -65,6 +65,18 @@ export interface FalkorDBOptions {
     socket?: SocketOptions;
 
     /**
+     * Server hostname, shorthand for `socket.host`.
+     * Ignored when `url` or `socket.host` is provided.
+     */
+    host?: string;
+
+    /**
+     * Server port, shorthand for `socket.port`.
+     * Ignored when `url` or `socket.port` is provided.
+     */
+    port?: number;
+
+    /**
      * ACL username ([see ACL guide](https://redis.io/topics/acl))
      */
     username?: string;
