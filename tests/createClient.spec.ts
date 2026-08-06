@@ -1,6 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { client } from './dbConnection';
-import FalkorDB from '../src/falkordb';
+import FalkorDB, { FalkorDBOptions } from '../src/falkordb';
 
 describe('FalkorDB Client', () => {
     it('create a FalkorDB client instance validated existing', async () => {
@@ -66,7 +66,8 @@ describe('FalkorDB Client', () => {
 describe('FalkorDB connection options', () => {
     const HOST = process.env.FALKORDB_HOST || 'localhost';
     const PORT = parseInt(process.env.FALKORDB_PORT || '6379', 10);
-    const UNREACHABLE_HOST = 'falkordb-host-that-does-not-exist.invalid';
+    // Nothing can be listening here, so connecting fails immediately and for the expected reason.
+    const CLOSED_PORT = 1;
 
     /**
      * The resolved socket options of the underlying client, so the assertions verify where the
@@ -77,69 +78,72 @@ describe('FalkorDB connection options', () => {
         return (connection.options ?? {}).socket;
     };
 
+    /**
+     * Always closes the client, so a failed assertion cannot leave the socket open and hang jest.
+     */
+    const withConnection = async (options: FalkorDBOptions, assertions: (db: FalkorDB) => Promise<void>) => {
+        const db = await FalkorDB.connect(options);
+        try {
+            await assertions(db);
+        } finally {
+            await db.close();
+        }
+    };
+
+    const expectsToConnectTo = async (options: FalkorDBOptions) => {
+        await withConnection(options, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
+            expect(await db.list()).toBeDefined();
+        });
+    };
+
     it('connects with top-level host and port', async () => {
-        const db = await FalkorDB.connect({ host: HOST, port: PORT });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
+        await expectsToConnectTo({ host: HOST, port: PORT });
     });
 
     it('connects with socket host and port', async () => {
-        const db = await FalkorDB.connect({ socket: { host: HOST, port: PORT } });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
+        await expectsToConnectTo({ socket: { host: HOST, port: PORT } });
     });
 
     it('connects with a falkor url', async () => {
-        const db = await FalkorDB.connect({ url: `falkor://${HOST}:${PORT}` });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
+        await expectsToConnectTo({ url: `falkor://${HOST}:${PORT}` });
     });
 
     it('lets socket values take precedence over top-level ones', async () => {
-        const db = await FalkorDB.connect({
-            host: UNREACHABLE_HOST,
-            port: 1,
+        await expectsToConnectTo({
+            host: 'not-the-host-to-use',
+            port: CLOSED_PORT,
             socket: { host: HOST, port: PORT }
         });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
     });
 
     it('merges top-level and socket values instead of replacing them', async () => {
-        const db = await FalkorDB.connect({ host: HOST, socket: { port: PORT } });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
+        await expectsToConnectTo({ host: HOST, socket: { port: PORT } });
     });
 
     it('keeps other socket options when merging top-level host and port', async () => {
-        const db = await FalkorDB.connect({
-            host: HOST,
-            port: PORT,
-            socket: { connectTimeout: 5000 }
+        await withConnection({ host: HOST, port: PORT, socket: { connectTimeout: 5000 } }, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT, connectTimeout: 5000 });
+            expect(await db.list()).toBeDefined();
         });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT, connectTimeout: 5000 });
-        expect(await db.list()).toBeDefined();
-        await db.close();
     });
 
     it('lets the url take precedence over top-level host and port', async () => {
-        const db = await FalkorDB.connect({
+        await expectsToConnectTo({
             url: `falkor://${HOST}:${PORT}`,
-            host: UNREACHABLE_HOST,
-            port: 1
+            host: 'not-the-host-to-use',
+            port: CLOSED_PORT
         });
-        expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
-        expect(await db.list()).toBeDefined();
-        await db.close();
     });
 
-    it('rejects an unreachable top-level host instead of silently using the default', async () => {
-        await expect(FalkorDB.connect({ host: UNREACHABLE_HOST, port: PORT })).rejects.toThrow();
+    it('keeps other socket options when a url is given', async () => {
+        await withConnection({ url: `falkor://${HOST}:${PORT}`, socket: { connectTimeout: 5000 } }, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT, connectTimeout: 5000 });
+        });
+    });
+
+    it('fails on an unreachable top-level host and port instead of silently using the default', async () => {
+        await expect(FalkorDB.connect({ host: '127.0.0.1', port: CLOSED_PORT })).rejects.toThrow();
     });
 
     it('does not mutate the given options object', async () => {
