@@ -162,6 +162,18 @@ jobs:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
+    - name: Dump FalkorDB server logs
+      # The suites fail with SocketClosedUnexpectedlyError, which means a server
+      # went away mid-run. These logs say whether it crashed, OOMed or restarted.
+      if: failure()
+      run: |
+        docker ps -a
+        for name in falkordb-standalone falkordb-server-1 falkordb-server-2 sentinel-1 sentinel-2 sentinel-3 node0 node1 node2 node3 node4 node5; do
+          echo "::group::$name"
+          docker logs --tail 200 "$name" 2>&1 || echo "no container named $name"
+          echo "::endgroup::"
+        done
+
     - name: Notify Google Chat
       id: test-action
       if: failure() # only send notification in case of failure
