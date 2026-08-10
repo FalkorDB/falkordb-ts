@@ -274,7 +274,7 @@ describe("FalkorDB Execute Query", () => {
   
   it("Verify slow query logging", async () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
-    const longQuery = "UNWIND range (0, 200000) AS x RETURN max(x)";
+    const longQuery = "UNWIND range (0, 1000000) AS x RETURN max(x)";
     
     await graph.query(longQuery);
     const slowLogResults = await graph.slowLog();
