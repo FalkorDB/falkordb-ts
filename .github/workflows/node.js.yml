@@ -9,7 +9,7 @@ permissions:
 on:
   push:
     branches: [ "main" ]
-    tags: [ "v*" ]
+    tags: [ "v*", "[0-9]+.[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "main" ]
   release:
@@ -23,7 +23,7 @@ on:
       falkordb_image_tag:
         description: "FalkorDB Docker image tag to test against (defaults to latest)"
         required: false
-        default: ""
+        default: "latest"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
