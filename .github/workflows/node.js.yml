@@ -9,10 +9,21 @@ permissions:
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*" ]
   pull_request:
     branches: [ "main" ]
   release:
     types: [created]
+  # Daily run against the `edge` image to catch breaking changes in upcoming
+  # FalkorDB releases before they reach a stable release.
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      falkordb_image_tag:
+        description: "FalkorDB Docker image tag to test against (defaults to latest)"
+        required: false
+        default: ""
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
@@ -22,6 +33,12 @@ jobs:
   build:
 
     runs-on: ubuntu-latest
+
+    # The docker/*-compose.yml files read this: released `latest` for PRs,
+    # pushes, tags and releases, `edge` for the scheduled daily run (or an
+    # explicit tag on manual dispatch).
+    env:
+      FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
 
     strategy:
       matrix:
