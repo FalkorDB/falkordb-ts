@@ -29,16 +29,16 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # FalkorDB image tag under test, read by the docker/*-compose.yml files: the
+  # released `latest` for pull requests, pushes, tags and releases, `edge` for
+  # the scheduled daily run, or an explicit tag on manual dispatch.
+  FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
-
-    # The docker/*-compose.yml files read this: released `latest` for PRs,
-    # pushes, tags and releases, `edge` for the scheduled daily run (or an
-    # explicit tag on manual dispatch).
-    env:
-      FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
 
     strategy:
       matrix:
