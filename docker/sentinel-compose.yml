@@ -1,6 +1,6 @@
 services:
   sentinel-1:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: sentinel-1
     hostname: sentinel-1
     restart: always
@@ -28,7 +28,7 @@ services:
         redis-server /data/sentinel.conf --sentinel
 
   sentinel-2:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: sentinel-2
     hostname: sentinel-2
     restart: always
@@ -56,7 +56,7 @@ services:
         redis-server /data/sentinel.conf --sentinel
   
   sentinel-3:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: sentinel-3
     hostname: sentinel-3
     restart: always
@@ -84,7 +84,7 @@ services:
         redis-server /data/sentinel.conf --sentinel
 
   falkordb-server-1:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     hostname: falkordb-server-1
     container_name: falkordb-server-1
     ports:
@@ -109,7 +109,7 @@ services:
         redis-server /data/node.conf
   
   falkordb-server-2:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     hostname: falkordb-server-2
     container_name: falkordb-server-2
     ports:
