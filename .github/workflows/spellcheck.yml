@@ -14,7 +14,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Spellcheck
-        uses: rojopolis/spellcheck-github-actions@e619e00ca22f01ade9d73048dcd6518bedc552f2 # 0.63.0
+        uses: rojopolis/spellcheck-github-actions@fcc5ca8351f0590978f238d6babfe3f28afc361f # 0.65.0
         with:
           config_path: .github/spellcheck-settings.yml
           task_name: Markdown

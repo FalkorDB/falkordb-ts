@@ -9,14 +9,31 @@ permissions:
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*", "[0-9]+.[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "main" ]
   release:
     types: [created]
+  # Daily run against the `edge` image to catch breaking changes in upcoming
+  # FalkorDB releases before they reach a stable release.
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      falkordb_image_tag:
+        description: "FalkorDB Docker image tag to test against (defaults to latest)"
+        required: false
+        default: "latest"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
+env:
+  # FalkorDB image tag under test, read by the docker/*-compose.yml files: the
+  # released `latest` for pull requests, pushes, tags and releases, `edge` for
+  # the scheduled daily run, or an explicit tag on manual dispatch.
+  FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
 
 jobs:
   build:
@@ -142,7 +159,7 @@ jobs:
       if: failure() # only send notification in case of failure
       uses: SimonScholz/google-chat-action@3b3519e5102dba8aa5046fd711c4b553586409bb # v1.1.0
       with:
-          webhookUrl: '${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}'
+          webhookUrl: '${{ secrets.DRIVERS_GOOGLE_CHAT_WEBHOOK_URL }}'
           jobStatus: ${{ job.status }}
           threadKey: ${{ github.event.number }}
 
@@ -150,3 +167,21 @@ jobs:
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # A cron job has nobody watching it: GitHub only emails whoever last touched
+  # the cron line, so a failing daily run would otherwise go unnoticed. The
+  # reporter is shared with the other FalkorDB clients, which all need the same
+  # alert; `permissions` has to stay here because a called workflow can only
+  # downgrade the caller's token.
+  report-scheduled-failure:
+    name: Report scheduled failure
+    needs: [build]
+    if: ${{ always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
+    permissions:
+      issues: write
+    # Pinned, and only the one secret it declares is passed: a mutable ref
+    # plus `secrets: inherit` would let a later upstream change run with this
+    # repo's secrets. Dependabot keeps the pin current.
+    uses: FalkorDB/.github/.github/workflows/report-scheduled-failure.yml@126ec30105d98bdfb62b5631e92aa149fc0e5ad1 # 2026-08-13
+    secrets:
+      DRIVERS_GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.DRIVERS_GOOGLE_CHAT_WEBHOOK_URL }}
