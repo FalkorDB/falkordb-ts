@@ -196,7 +196,10 @@ jobs:
   report-scheduled-failure:
     name: Report scheduled failure
     needs: [build]
-    if: ${{ always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
+    # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
+    # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
+    # that hangs is exactly the case this alert exists for.
+    if: ${{ always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     permissions:
       issues: write
     # Pinned, and only the one secret it declares is passed: a mutable ref
