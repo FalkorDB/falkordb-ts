@@ -40,6 +40,10 @@ jobs:
 
     runs-on: ubuntu-latest
 
+    # Without this the job inherits the 6 hour default, so a hung step keeps a
+    # runner busy for the rest of the day instead of failing fast.
+    timeout-minutes: 30
+
     strategy:
       matrix:
         node-version: [20.x, 22.x]
@@ -149,11 +153,27 @@ jobs:
         done
 
     - name: Run tests
-      run: npx jest --coverage
+      # --forceExit because jest reports "did not exit one second after the test
+      # run has completed" and then hangs forever on handles the suites leave
+      # open. The leak still needs fixing, but it should not cost a whole runner.
+      run: npx jest --coverage --forceExit
+      timeout-minutes: 15
       env:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
+    - name: Dump FalkorDB server logs
+      # The suites fail with SocketClosedUnexpectedlyError, which means a server
+      # went away mid-run. These logs say whether it crashed, OOMed or restarted.
+      if: failure()
+      run: |
+        docker ps -a
+        for name in falkordb-standalone falkordb-server-1 falkordb-server-2 sentinel-1 sentinel-2 sentinel-3 node0 node1 node2 node3 node4 node5; do
+          echo "::group::$name"
+          docker logs --tail 200 "$name" 2>&1 || echo "no container named $name"
+          echo "::endgroup::"
+        done
+
     - name: Notify Google Chat
       id: test-action
       if: failure() # only send notification in case of failure
@@ -176,7 +196,10 @@ jobs:
   report-scheduled-failure:
     name: Report scheduled failure
     needs: [build]
-    if: ${{ always() && github.event_name == 'schedule' && contains(needs.*.result, 'failure') }}
+    # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
+    # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
+    # that hangs is exactly the case this alert exists for.
+    if: ${{ always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
     permissions:
       issues: write
     # Pinned, and only the one secret it declares is passed: a mutable ref
