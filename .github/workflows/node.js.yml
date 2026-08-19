@@ -53,7 +53,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -63,7 +63,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -78,7 +78,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/cluster-compose.yml
     
