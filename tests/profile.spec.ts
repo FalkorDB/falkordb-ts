@@ -2,7 +2,7 @@ import { describe, test, beforeAll, beforeEach, afterAll, afterEach } from '@jes
 import { client } from './dbConnection';
 import FalkorDB from '../src/falkordb';
 import Graph from '../src/graph';
-import { expectProfile } from './planHelpers';
+import { expectProfileShape } from './planHelpers';
 
 describe('Profile Tests', () => {
 
@@ -38,14 +38,20 @@ describe('Profile Tests', () => {
     test('Verifies query execution plan structure with UNWIND operation', async () => {
         const plan = await graphName.profile("UNWIND range(0, 3) AS x RETURN x");
 
-        // which operations the query compiles into is up to the engine, the
-        // client is responsible for handing back the profile it was given
-        expectProfile(plan, 2, 4);
+        expectProfileShape(plan, [
+            "Project",
+            "    Unwind",
+        ], 4);
     });
 
     test('Verifies query execution plan structure with Cartesian operation', async () => {
         const plan = await graphName.profile("MATCH (a), (b) RETURN *");
 
-        expectProfile(plan, 4, 0);
+        expectProfileShape(plan, [
+            "Project",
+            "    Cartesian Product",
+            "        All Node Scan | (a)",
+            "        All Node Scan | (b)",
+        ], 0);
     });
 });

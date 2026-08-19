@@ -2,7 +2,7 @@ import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { expectExecutionPlan } from "./planHelpers";
+import { expectExecutionPlan, expectPlanShape } from "./planHelpers";
 import { Temporal } from "@js-temporal/polyfill";
 
 function getRandomNumber(): number {
@@ -335,9 +335,10 @@ describe("FalkorDB Execute Query", () => {
     await graph.query("CREATE (:Person {name: 'Alice'})");
     const executionPlan = await graph.explain("MATCH (n:Person) RETURN n");
 
-    // which operations the query compiles into is up to the engine, the client
-    // is responsible for handing back the plan it was given
-    expectExecutionPlan(executionPlan, 2);
+    expectPlanShape(executionPlan, [
+      "Project",
+      "    Node By Label Scan | (n:Person)",
+    ]);
     await graph.delete();
   });
 
@@ -357,7 +358,14 @@ describe("FalkorDB Execute Query", () => {
             RETURN r.name, t.name`
     );
 
-    expectExecutionPlan(result, 4);
+    // The traverse direction is rendered differently by each engine, so pin
+    // its operation and nesting but not its arguments.
+    expectPlanShape(result, [
+      "Project",
+      "    Conditional Traverse",
+      "        Filter",
+      "            Node By Label Scan | (t:Team)",
+    ]);
     await graph.delete();
   });
 
@@ -380,6 +388,8 @@ describe("FalkorDB Execute Query", () => {
             RETURN r.name, t.name`
     );
 
+    // Rust names the combining operation "Union"; C names it "Join".
+    // There is no single exact operation tree to assert for this query.
     expectExecutionPlan(result, 7);
     await graph.delete();
   });

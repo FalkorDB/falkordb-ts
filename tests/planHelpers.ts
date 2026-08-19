@@ -1,15 +1,15 @@
 /**
- * Engine-agnostic assertions for execution plans.
+ * Assertions for the raw execution-plan arrays returned by the client.
  *
- * Which operations a query compiles into is the engine's business and it
- * changes between engine versions. The client's job is to issue GRAPH.EXPLAIN /
- * GRAPH.PROFILE and hand back the reply intact, so that is what these helpers
- * check: a plan came back, and every line of it is well formed.
+ * Prefer expectPlanShape wherever both engines produce the same operation
+ * tree. Keep expectExecutionPlan for documented engine-specific plans.
  */
 
 import { expect } from "@jest/globals";
 
 const INDENT = "    ";
+const ENGINE_ROOT_OPERATIONS = new Set(["Results", "Commit"]);
+const PROFILE_STATS = /\s*\|\s*Records produced: \d+,\s*Execution time: \d+\.\d+ ms\s*$/;
 
 export function indentOf(line: string): number {
   return (line.length - line.trimStart().length) / INDENT.length;
@@ -17,6 +17,10 @@ export function indentOf(line: string): number {
 
 export function operationName(line: string): string {
   return line.split("|")[0].trim();
+}
+
+function operationLine(line: string): string {
+  return line.replace(PROFILE_STATS, "").trim();
 }
 
 /** Asserts the reply is a well formed execution plan. */
@@ -35,6 +39,39 @@ export function expectExecutionPlan(plan: string[], minOperations = 1): void {
     const indent = indentOf(line);
     expect(Number.isInteger(indent)).toBe(true);
     expect(indent).toBe(index === 0 ? 0 : Math.min(indent, indentOf(plan[index - 1]) + 1));
+  });
+}
+
+/**
+ * Asserts operation names and nesting exactly, and arguments on expected lines
+ * that include them after a `|`. Engine-only driver roots are ignored.
+ */
+export function expectPlanShape(plan: string[], expected: readonly string[]): void {
+  expectExecutionPlan(plan);
+  expect(expected.length).toBeGreaterThan(0);
+
+  const expectedRoot = operationName(expected[0]);
+  const skipRoot =
+    ENGINE_ROOT_OPERATIONS.has(operationName(plan[0])) &&
+    operationName(plan[0]) !== expectedRoot;
+  const rootOffset = skipRoot ? 1 : 0;
+  const actual = plan.slice(rootOffset);
+
+  expect(actual).toHaveLength(expected.length);
+
+  expected.forEach((expectedLine, index) => {
+    const actualLine = actual[index];
+    const expectedIndent = indentOf(expectedLine);
+    const actualIndent = indentOf(actualLine) - rootOffset;
+
+    expect(Number.isInteger(expectedIndent)).toBe(true);
+    expect(actualIndent).toBe(expectedIndent);
+
+    const expectedOperation = operationLine(expectedLine);
+    const actualOperation = expectedOperation.includes("|")
+      ? operationLine(actualLine)
+      : operationName(actualLine);
+    expect(actualOperation).toBe(expectedOperation);
   });
 }
 
@@ -62,4 +99,14 @@ export function expectProfile(
     // engine, so the client must report it whichever engine answered
     expect(Math.max(...counts)).toBe(recordsProduced);
   }
+}
+
+/** Asserts an exact profile plan while retaining all profile-stat checks. */
+export function expectProfileShape(
+  plan: string[],
+  expected: readonly string[],
+  recordsProduced?: number
+): void {
+  expectPlanShape(plan, expected);
+  expectProfile(plan, expected.length, recordsProduced);
 }
