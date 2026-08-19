@@ -9,19 +9,40 @@ permissions:
 on:
   push:
     branches: [ "main" ]
+    tags: [ "v*", "[0-9]+.[0-9]+.[0-9]+" ]
   pull_request:
     branches: [ "main" ]
   release:
     types: [created]
+  # Daily run against the `edge` image to catch breaking changes in upcoming
+  # FalkorDB releases before they reach a stable release.
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      falkordb_image_tag:
+        description: "FalkorDB Docker image tag to test against (defaults to latest)"
+        required: false
+        default: "latest"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # FalkorDB image tag under test, read by the docker/*-compose.yml files: the
+  # released `latest` for pull requests, pushes, tags and releases, `edge` for
+  # the scheduled daily run, or an explicit tag on manual dispatch.
+  FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
+
 jobs:
   build:
 
     runs-on: ubuntu-latest
+
+    # Without this the job inherits the 6 hour default, so a hung step keeps a
+    # runner busy for the rest of the day instead of failing fast.
+    timeout-minutes: 30
 
     strategy:
       matrix:
@@ -32,7 +53,7 @@ jobs:
       with:
         persist-credentials: false
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -42,7 +63,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -57,7 +78,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@11beaa1c2dae4e8ed7b1665aa074723b6cecb0e4 # v3.0.0
+      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
       with:
         compose-file: ./docker/cluster-compose.yml
     
@@ -132,24 +153,25 @@ jobs:
         done
 
     - name: Run tests
-      # The suite finishes in well under a minute; anything longer means a hang.
-      # Cap it so the job fails fast with usable logs instead of burning the
-      # 6-hour default job timeout.
-      timeout-minutes: 10
-      run: npx jest --coverage
+      # --forceExit because jest reports "did not exit one second after the test
+      # run has completed" and then hangs forever on handles the suites leave
+      # open. The leak still needs fixing, but it should not cost a whole runner.
+      run: npx jest --coverage --forceExit
+      timeout-minutes: 15
       env:
         FALKORDB_HOST: 127.0.0.1
         FALKORDB_PORT: 6379
     
-    - name: Dump FalkorDB container logs on failure
+    - name: Dump FalkorDB server logs
+      # The suites fail with SocketClosedUnexpectedlyError, which means a server
+      # went away mid-run. These logs say whether it crashed, OOMed or restarted.
       if: failure()
       run: |
         docker ps -a
-        for c in falkordb-standalone falkordb-server-1 falkordb-server-2 \
-                 sentinel-1 sentinel-2 sentinel-3 \
-                 node0 node1 node2 node3 node4 node5; do
-          echo "===== $c ====="
-          docker logs --tail 200 "$c" 2>&1 || true
+        for name in falkordb-standalone falkordb-server-1 falkordb-server-2 sentinel-1 sentinel-2 sentinel-3 node0 node1 node2 node3 node4 node5; do
+          echo "::group::$name"
+          docker logs --tail 200 "$name" 2>&1 || echo "no container named $name"
+          echo "::endgroup::"
         done
 
     - name: Notify Google Chat
@@ -157,7 +179,7 @@ jobs:
       if: failure() # only send notification in case of failure
       uses: SimonScholz/google-chat-action@3b3519e5102dba8aa5046fd711c4b553586409bb # v1.1.0
       with:
-          webhookUrl: '${{ secrets.GOOGLE_CHAT_WEBHOOK_URL }}'
+          webhookUrl: '${{ secrets.DRIVERS_GOOGLE_CHAT_WEBHOOK_URL }}'
           jobStatus: ${{ job.status }}
           threadKey: ${{ github.event.number }}
 
@@ -165,3 +187,24 @@ jobs:
       uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # A cron job has nobody watching it: GitHub only emails whoever last touched
+  # the cron line, so a failing daily run would otherwise go unnoticed. The
+  # reporter is shared with the other FalkorDB clients, which all need the same
+  # alert; `permissions` has to stay here because a called workflow can only
+  # downgrade the caller's token.
+  report-scheduled-failure:
+    name: Report scheduled failure
+    needs: [build]
+    # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
+    # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
+    # that hangs is exactly the case this alert exists for.
+    if: ${{ always() && github.event_name == 'schedule' && (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) }}
+    permissions:
+      issues: write
+    # Pinned, and only the one secret it declares is passed: a mutable ref
+    # plus `secrets: inherit` would let a later upstream change run with this
+    # repo's secrets. Dependabot keeps the pin current.
+    uses: FalkorDB/.github/.github/workflows/report-scheduled-failure.yml@126ec30105d98bdfb62b5631e92aa149fc0e5ad1 # 2026-08-13
+    secrets:
+      DRIVERS_GOOGLE_CHAT_WEBHOOK_URL: ${{ secrets.DRIVERS_GOOGLE_CHAT_WEBHOOK_URL }}

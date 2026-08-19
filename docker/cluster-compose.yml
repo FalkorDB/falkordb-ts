@@ -1,6 +1,6 @@
 services:
   node0:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node0
     hostname: node0
     ports:
@@ -30,7 +30,7 @@ services:
         echo "cluster-announce-port 17000"                          >> /data/node.conf
         redis-server /data/node.conf
   node1:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node1
     hostname: node1
     ports:
@@ -60,7 +60,7 @@ services:
         echo "cluster-announce-port 17001"                          >> /data/node.conf
         redis-server /data/node.conf
   node2:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node2
     hostname: node2
     ports:
@@ -90,7 +90,7 @@ services:
         echo "cluster-announce-port 17002"                         >> /data/node.conf
         redis-server /data/node.conf
   node3:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node3
     hostname: node3
     ports:
@@ -120,7 +120,7 @@ services:
         echo "cluster-announce-port 17003"                        >> /data/node.conf
         redis-server /data/node.conf
   node4:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node4
     hostname: node4
     ports:
@@ -151,7 +151,7 @@ services:
         redis-server /data/node.conf
 
   node5:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: node5
     hostname: node5
     ports:
@@ -181,7 +181,7 @@ services:
         echo "cluster-announce-port 17005"                    >> /data/node.conf
         redis-server /data/node.conf
   cluster-creator:
-    image: falkordb/falkordb:edge
+    image: falkordb/falkordb:${FALKORDB_VERSION:-latest}
     container_name: cluster-creator
     hostname: cluster-creator
     depends_on:
