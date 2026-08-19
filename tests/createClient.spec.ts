@@ -1,5 +1,6 @@
 import { describe, it, expect } from '@jest/globals';
 import { client } from './dbConnection';
+import FalkorDB, { FalkorDBOptions } from '../src/falkordb';
 
 describe('FalkorDB Client', () => {
     it('create a FalkorDB client instance validated existing', async () => {
@@ -61,4 +62,95 @@ describe('FalkorDB Client', () => {
         });
     });    
     
+});
+describe('FalkorDB connection options', () => {
+    const HOST = process.env.FALKORDB_HOST || 'localhost';
+    const PORT = parseInt(process.env.FALKORDB_PORT || '6379', 10);
+    // Nothing can be listening here, so connecting fails immediately and for the expected reason.
+    const CLOSED_PORT = 1;
+
+    /**
+     * The resolved socket options of the underlying client, so the assertions verify where the
+     * client was actually pointed instead of relying on the default host and port being unused.
+     */
+    const resolvedSocket = async (db: FalkorDB) => {
+        const connection = await db.connection;
+        return (connection.options ?? {}).socket;
+    };
+
+    /**
+     * Always closes the client, so a failed assertion cannot leave the socket open and hang jest.
+     */
+    const withConnection = async (options: FalkorDBOptions, assertions: (db: FalkorDB) => Promise<void>) => {
+        const db = await FalkorDB.connect(options);
+        try {
+            await assertions(db);
+        } finally {
+            await db.close();
+        }
+    };
+
+    const expectsToConnectTo = async (options: FalkorDBOptions) => {
+        await withConnection(options, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT });
+            expect(await db.list()).toBeDefined();
+        });
+    };
+
+    it('connects with top-level host and port', async () => {
+        await expectsToConnectTo({ host: HOST, port: PORT });
+    });
+
+    it('connects with socket host and port', async () => {
+        await expectsToConnectTo({ socket: { host: HOST, port: PORT } });
+    });
+
+    it('connects with a falkor url', async () => {
+        await expectsToConnectTo({ url: `falkor://${HOST}:${PORT}` });
+    });
+
+    it('lets socket values take precedence over top-level ones', async () => {
+        await expectsToConnectTo({
+            host: 'not-the-host-to-use',
+            port: CLOSED_PORT,
+            socket: { host: HOST, port: PORT }
+        });
+    });
+
+    it('merges top-level and socket values instead of replacing them', async () => {
+        await expectsToConnectTo({ host: HOST, socket: { port: PORT } });
+    });
+
+    it('keeps other socket options when merging top-level host and port', async () => {
+        await withConnection({ host: HOST, port: PORT, socket: { connectTimeout: 5000 } }, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT, connectTimeout: 5000 });
+            expect(await db.list()).toBeDefined();
+        });
+    });
+
+    it('lets the url take precedence over top-level host and port', async () => {
+        await expectsToConnectTo({
+            url: `falkor://${HOST}:${PORT}`,
+            host: 'not-the-host-to-use',
+            port: CLOSED_PORT
+        });
+    });
+
+    it('keeps other socket options when a url is given', async () => {
+        await withConnection({ url: `falkor://${HOST}:${PORT}`, socket: { connectTimeout: 5000 } }, async (db) => {
+            expect(await resolvedSocket(db)).toMatchObject({ host: HOST, port: PORT, connectTimeout: 5000 });
+        });
+    });
+
+    it('fails on an unreachable top-level host and port instead of silently using the default', async () => {
+        await expect(FalkorDB.connect({ host: '127.0.0.1', port: CLOSED_PORT })).rejects.toThrow();
+    });
+
+    it('does not mutate the given options object', async () => {
+        const options = { host: HOST, port: PORT };
+        const snapshot = JSON.stringify(options);
+        const db = await FalkorDB.connect(options);
+        await db.close();
+        expect(JSON.stringify(options)).toBe(snapshot);
+    });
 });
