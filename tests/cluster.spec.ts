@@ -191,7 +191,7 @@ describe('Cluster Client Tests', () => {
         it('should test slowLog method', async () => {
             try {
                 const graph = clusterClient!.selectGraph(`cluster-test-${getRandomNumber()}`);
-                const longQuery = 'UNWIND range (0, 200000) AS x RETURN max(x)';
+                const longQuery = 'UNWIND range (0, 1000000) AS x RETURN max(x)';
                 await graph.query(longQuery);
                 const result = await graph.slowLog();
                 expect(Array.isArray(result)).toBe(true);
