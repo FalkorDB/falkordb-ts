@@ -286,16 +286,20 @@ describe("FalkorDB Execute Query", () => {
     await graph.delete();
   });
 
-  it("Assert query execution time exceeds 1-sec limit", async () => {
+  it("Reject queries that exceed a one-second timeout", async () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+    const timeoutMs = 1000;
     await graph.query("UNWIND range(0, 1000) AS val CREATE (:Node {v: val})");
-    const result = await graph.query("MATCH (a), (b), (c), (d) RETURN *");
-    const executionTimeStr = result.metadata[1];
-    const executionTime = parseFloat(executionTimeStr.split(": ")[1]);
-    expect(() => {
-      expect(executionTime).toBeLessThan(1);
-    }).toThrow();
-    await graph.delete();
+    try {
+      await expect(
+        graph.query(
+          "MATCH (a), (b), (c), (d) RETURN count(*)",
+          { TIMEOUT: timeoutMs }
+        )
+      ).rejects.toThrow("Query timed out");
+    } finally {
+      await graph.delete();
+    }
   });
 
   it("Create and match nodes with multiple labels", async () => {
