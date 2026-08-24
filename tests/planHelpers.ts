@@ -38,7 +38,12 @@ export function expectExecutionPlan(plan: string[], minOperations = 1): void {
     // an operation can only ever be one level deeper than the one above it
     const indent = indentOf(line);
     expect(Number.isInteger(indent)).toBe(true);
-    expect(indent).toBe(index === 0 ? 0 : Math.min(indent, indentOf(plan[index - 1]) + 1));
+    if (index === 0) {
+      expect(indent).toBe(0);
+    } else {
+      expect(indent).toBeGreaterThan(0);
+      expect(indent).toBeLessThanOrEqual(indentOf(plan[index - 1]) + 1);
+    }
   });
 }
 
@@ -97,7 +102,7 @@ export function expectProfile(
   if (recordsProduced !== undefined) {
     // how many rows the query yields is a property of the query, not of the
     // engine, so the client must report it whichever engine answered
-    expect(Math.max(...counts)).toBe(recordsProduced);
+    expect(counts[0]).toBe(recordsProduced);
   }
 }
 

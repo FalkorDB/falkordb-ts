@@ -2,7 +2,7 @@ import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { expectExecutionPlan, expectPlanShape } from "./planHelpers";
+import { expectPlanShape, operationName } from "./planHelpers";
 import { Temporal } from "@js-temporal/polyfill";
 
 function getRandomNumber(): number {
@@ -389,8 +389,21 @@ describe("FalkorDB Execute Query", () => {
     );
 
     // Rust names the combining operation "Union"; C names it "Join".
-    // There is no single exact operation tree to assert for this query.
-    expectExecutionPlan(result, 7);
+    const normalized = result.map((line) =>
+      operationName(line) === "Union" ? line.replace("Union", "Join") : line
+    );
+    expectPlanShape(normalized, [
+      "Distinct",
+      "    Join",
+      "        Project",
+      "            Conditional Traverse",
+      "                Filter",
+      "                    Node By Label Scan | (t:Team)",
+      "        Project",
+      "            Conditional Traverse",
+      "                Filter",
+      "                    Node By Label Scan | (t:Team)",
+    ]);
     await graph.delete();
   });
 
