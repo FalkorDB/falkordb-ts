@@ -1,5 +1,5 @@
+import { describe, it, beforeAll, beforeEach, afterAll, afterEach, expect } from '@jest/globals';
 import { client } from './dbConnection';
-import { expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import Graph, { ConstraintType, EntityType } from '../src/graph';
 
@@ -96,7 +96,6 @@ describe('Constraint Tests', () => {
         await graphName.query(`
             MATCH (a:Person {name: 'Alice'}), (b:Person {name: 'Bob'})
             CREATE (a)-[:KNOWS {since: 2020}]->(b)
-            RETURN exists((a)-[:KNOWS]->(b)) as hasRelationship
         `);
         await graphName.query("CREATE INDEX ON :KNOWS(since)");
         await graphName.constraintCreate("MANDATORY" as ConstraintType, "RELATIONSHIP" as EntityType, "KNOWS", "since");

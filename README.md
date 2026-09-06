@@ -32,12 +32,10 @@ npm install falkordb
 import { FalkorDB } from 'falkordb';
 
 const db = await FalkorDB.connect({
+    host: 'localhost',
+    port: 6379,
     username: 'myUsername',
-    password: 'myPassword',
-    socket: {
-        host: 'localhost',
-        port: 6379
-    }
+    password: 'myPassword'
 })
 
 console.log('Connected to FalkorDB')
@@ -61,6 +59,50 @@ db.close()
 ```
 
 To learn more about Cypher query language check: https://docs.falkordb.com/cypher/
+
+### Connection Options
+
+`host` and `port` are the shorthand for a plain TCP connection and default to `localhost:6379`.
+You can also pass a connection URL:
+
+```typescript
+const db = await FalkorDB.connect({ url: 'falkor://localhost:6379' })
+```
+
+For anything beyond host and port — TLS, connection timeouts, keep-alive — use `socket`, which is
+passed to the underlying [node-redis](https://github.com/redis/node-redis) client:
+
+```typescript
+const db = await FalkorDB.connect({
+    socket: {
+        host: 'localhost',
+        port: 6379,
+        tls: true,
+        connectTimeout: 5000
+    }
+})
+```
+
+`url` sets the connection address, so it overrides the top-level `host` and `port`. Other
+`socket` settings such as TLS and timeouts still apply alongside it. When both are given,
+`socket.host` and `socket.port` take precedence over the top-level `host` and `port`.
+
+#### `.stubs()`
+
+Lists the graphs that are currently offloaded to disk ("stubs"). `db.list()` already includes
+offloaded graphs, so `stubs()` is how you tell which of the listed graphs are not loaded in memory.
+
+`GRAPH.STUBS` is provided by the FalkorDB Enterprise graph-offloading module, so on deployments
+without that module the call rejects with an "unknown command" error — treat that as
+"offloading is not supported here".
+
+On a cluster the replies of all master nodes are combined. If only some masters fail, the
+partial result is returned and the failures are logged; the call rejects only when every
+master fails.
+
+```typescript
+const offloaded = await db.stubs();
+```
 
 #### `.close()`
 

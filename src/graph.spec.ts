@@ -1,3 +1,4 @@
+import { describe } from '@jest/globals';
 import { strict as assert } from 'assert';
 import testUtils, { GLOBAL } from './test-utils';
 import Graph, { GraphClientType } from './graph';

@@ -1,6 +1,6 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { client } from "./dbConnection";
-import { expect } from "@jest/globals";
 
 describe("UDF API Tests", () => {
   let falkorClient: FalkorDB;

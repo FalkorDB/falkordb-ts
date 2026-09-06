@@ -1,6 +1,6 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
-import { expect } from '@jest/globals';
 
 function getRandomNumber(): number {
     return Math.floor(Math.random() * 999999);
@@ -191,7 +191,7 @@ describe('Cluster Client Tests', () => {
         it('should test slowLog method', async () => {
             try {
                 const graph = clusterClient!.selectGraph(`cluster-test-${getRandomNumber()}`);
-                const longQuery = 'UNWIND range (0, 200000) AS x RETURN max(x)';
+                const longQuery = 'UNWIND range (0, 1000000) AS x RETURN max(x)';
                 await graph.query(longQuery);
                 const result = await graph.slowLog();
                 expect(Array.isArray(result)).toBe(true);

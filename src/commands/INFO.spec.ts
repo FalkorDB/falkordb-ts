@@ -1,3 +1,4 @@
+import { describe, it } from '@jest/globals';
 import { strict as assert } from 'assert';
 import { transformArguments, IS_READ_ONLY } from './INFO';
 

@@ -12,6 +12,15 @@ export interface Client {
 
   list(): Promise<Array<string>>;
 
+  /**
+   * Lists the graphs that are currently offloaded to disk ("stubs").
+   *
+   * `GRAPH.STUBS` is provided by the FalkorDB Enterprise graph-offloading
+   * module, so it rejects with an "unknown command" error on deployments where
+   * that module is not loaded.
+   */
+  stubs(): Promise<Array<string>>;
+
   configGet(
     configKey: string
   ): Promise<(string | number)[] | (string | number)[][]>;

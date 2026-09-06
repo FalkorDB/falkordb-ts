@@ -29,6 +29,9 @@ export class NullClient implements Client {
   list(): Promise<Array<string>> {
       throw new Error("Method not implemented.");
   }
+  stubs(): Promise<Array<string>> {
+      throw new Error("Method not implemented.");
+  }
   configGet(_configKey: string): Promise<(string | number)[] | (string | number)[][]> {
       throw new Error("Method not implemented.");
   }

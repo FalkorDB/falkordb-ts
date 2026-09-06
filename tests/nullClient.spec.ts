@@ -1,6 +1,6 @@
+import { describe, it, beforeEach, expect } from '@jest/globals';
 import { NullClient } from "../src/clients/nullClient";
 import { ConstraintType, EntityType } from "../src/graph";
-import { expect } from "@jest/globals";
 
 describe("NullClient Tests", () => {
   let nullClient: NullClient;
@@ -34,6 +34,10 @@ describe("NullClient Tests", () => {
   describe("Graph Management Methods", () => {
     it("should throw error on list", () => {
       expect(() => nullClient.list()).toThrow("Method not implemented.");
+    });
+
+    it("should throw error on stubs", () => {
+      expect(() => nullClient.stubs()).toThrow("Method not implemented.");
     });
 
     it("should throw error on delete", () => {

@@ -1,7 +1,8 @@
+import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { expect } from "@jest/globals";
+import { expectPlanShape, operationName } from "./planHelpers";
 import { Temporal } from "@js-temporal/polyfill";
 
 function getRandomNumber(): number {
@@ -274,7 +275,7 @@ describe("FalkorDB Execute Query", () => {
   
   it("Verify slow query logging", async () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
-    const longQuery = "UNWIND range (0, 200000) AS x RETURN max(x)";
+    const longQuery = "UNWIND range (0, 1000000) AS x RETURN max(x)";
     
     await graph.query(longQuery);
     const slowLogResults = await graph.slowLog();
@@ -285,16 +286,20 @@ describe("FalkorDB Execute Query", () => {
     await graph.delete();
   });
 
-  it("Assert query execution time exceeds 1-sec limit", async () => {
+  it("Reject queries that exceed a one-second timeout", async () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
+    const timeoutMs = 1000;
     await graph.query("UNWIND range(0, 1000) AS val CREATE (:Node {v: val})");
-    const result = await graph.query("MATCH (a), (b), (c), (d) RETURN *");
-    const executionTimeStr = result.metadata[1];
-    const executionTime = parseFloat(executionTimeStr.split(": ")[1]);
-    expect(() => {
-      expect(executionTime).toBeLessThan(1);
-    }).toThrow();
-    await graph.delete();
+    try {
+      await expect(
+        graph.query(
+          "MATCH (a), (b), (c), (d) RETURN count(*)",
+          { TIMEOUT: timeoutMs }
+        )
+      ).rejects.toThrow("Query timed out");
+    } finally {
+      await graph.delete();
+    }
   });
 
   it("Create and match nodes with multiple labels", async () => {
@@ -333,9 +338,11 @@ describe("FalkorDB Execute Query", () => {
     const graph = clientInstance.selectGraph(`graph_${getRandomNumber()}`);
     await graph.query("CREATE (:Person {name: 'Alice'})");
     const executionPlan = await graph.explain("MATCH (n:Person) RETURN n");
-    expect(executionPlan).toContain("Results");
-    expect(executionPlan).toContain("    Project");
-    expect(executionPlan).toContain("        Node By Label Scan | (n:Person)");
+
+    expectPlanShape(executionPlan, [
+      "Project",
+      "    Node By Label Scan | (n:Person)",
+    ]);
     await graph.delete();
   });
 
@@ -355,17 +362,14 @@ describe("FalkorDB Execute Query", () => {
             RETURN r.name, t.name`
     );
 
-    const expectedParts = [
-      "Results",
-      "    Project",
-      "        Conditional Traverse | (t)->(r:Rider)",
-      "            Filter",
-      "                Node By Label Scan | (t:Team)",
-    ];
-
-    expectedParts.forEach((expectedPart, index) => {
-      expect(result[index]).toEqual(expectedPart);
-    });
+    // The traverse direction is rendered differently by each engine, so pin
+    // its operation and nesting but not its arguments.
+    expectPlanShape(result, [
+      "Project",
+      "    Conditional Traverse",
+      "        Filter",
+      "            Node By Label Scan | (t:Team)",
+    ]);
     await graph.delete();
   });
 
@@ -388,23 +392,22 @@ describe("FalkorDB Execute Query", () => {
             RETURN r.name, t.name`
     );
 
-    const expectedParts = [
-      "Results",
-      "    Distinct",
-      "        Join",
-      "            Project",
-      "                Conditional Traverse | (t)->(r:Rider)",
-      "                    Filter",
-      "                        Node By Label Scan | (t:Team)",
-      "            Project",
-      "                Conditional Traverse | (t)->(r:Rider)",
-      "                    Filter",
-      "                        Node By Label Scan | (t:Team)",
-    ];
-
-    expectedParts.forEach((expectedPart, index) => {
-      expect(result[index]).toEqual(expectedPart);
-    });
+    // Rust names the combining operation "Union"; C names it "Join".
+    const normalized = result.map((line) =>
+      operationName(line) === "Union" ? line.replace("Union", "Join") : line
+    );
+    expectPlanShape(normalized, [
+      "Distinct",
+      "    Join",
+      "        Project",
+      "            Conditional Traverse",
+      "                Filter",
+      "                    Node By Label Scan | (t:Team)",
+      "        Project",
+      "            Conditional Traverse",
+      "                Filter",
+      "                    Node By Label Scan | (t:Team)",
+    ]);
     await graph.delete();
   });
 

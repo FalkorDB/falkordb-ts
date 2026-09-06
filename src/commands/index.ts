@@ -8,6 +8,7 @@ import * as PROFILE from './PROFILE';
 import * as QUERY from './QUERY';
 import * as RO_QUERY from './RO_QUERY';
 import * as SLOWLOG from './SLOWLOG';
+import * as STUBS from './STUBS';
 import * as CONSTRAINT_CREATE from './CONSTRAINT_CREATE';
 import * as CONSTRAINT_DROP from './CONSTRAINT_DROP';
 import * as COPY from './COPY';
@@ -42,6 +43,8 @@ export default {
     roQuery: RO_QUERY,
     SLOWLOG,
     slowLog: SLOWLOG,
+    STUBS,
+    stubs: STUBS,
     CONSTRAINT_CREATE,
     constraintCreate: CONSTRAINT_CREATE,
     CONSTRAINT_DROP,

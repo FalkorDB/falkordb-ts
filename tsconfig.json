@@ -9,7 +9,8 @@
     "esModuleInterop": false,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
-    "isolatedModules": true
+    "isolatedModules": true,
+    "types": ["jest"],
   },
   "ts-node": {
     "files": true

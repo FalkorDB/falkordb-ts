@@ -1,3 +1,4 @@
+import { describe, it } from '@jest/globals';
 import { strict as assert } from 'assert';
 import { transformArguments } from './SENTINEL_MASTER';
 

@@ -65,6 +65,18 @@ export interface FalkorDBOptions {
     socket?: SocketOptions;
 
     /**
+     * Server hostname, shorthand for `socket.host`.
+     * Ignored when `url` or `socket.host` is provided.
+     */
+    host?: string;
+
+    /**
+     * Server port, shorthand for `socket.port`.
+     * Ignored when `url` or `socket.port` is provided.
+     */
+    port?: number;
+
+    /**
      * ACL username ([see ACL guide](https://redis.io/topics/acl))
      */
     username?: string;
@@ -118,7 +130,19 @@ export default class FalkorDB extends EventEmitter {
     #client: Client = new NullClient();
 
     static async connect(options?: FalkorDBOptions) {
-        const redisOption = (options ?? {}) as TypedRedisClientOptions;
+        const { host, port, ...rest } = options ?? {};
+        const redisOption = rest as TypedRedisClientOptions;
+
+        // Support the top-level `host`/`port` shorthand used by the other FalkorDB
+        // clients by folding them into the socket options node-redis expects.
+        // Explicit `socket` values win, and `url` takes precedence over both.
+        if (!redisOption.url && (host !== undefined || port !== undefined)) {
+            redisOption.socket = {
+                ...(host !== undefined && { host }),
+                ...(port !== undefined && { port }),
+                ...redisOption.socket,
+            } as TypedRedisClientOptions['socket'];
+        }
 
         // If the URL is provided, and the protocol is `falkor` replaces it with `redis` for the underline redis client
         // e.g. falkor://localhost:6379 -> redis://localhost:6379
@@ -159,6 +183,18 @@ export default class FalkorDB extends EventEmitter {
 
     async list() {
         return this.#client.list()
+    }
+
+    /**
+     * Lists the graphs that are currently offloaded to disk ("stubs").
+     *
+     * `GRAPH.STUBS` is provided by the FalkorDB Enterprise graph-offloading
+     * module, so this rejects with an "unknown command" error on deployments
+     * where that module is not loaded. Callers that support both editions
+     * should treat such a rejection as "no offloading support".
+     */
+    async stubs() {
+        return this.#client.stubs()
     }
 
     async configGet(configKey: string) {
