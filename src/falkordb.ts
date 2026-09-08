@@ -154,6 +154,12 @@ export default class FalkorDB extends EventEmitter {
             falkordb: commands
         }
 
+        // node-redis v6 defaults to RESP3, which auto-converts module map replies
+        // (e.g. `GRAPH.MEMORY USAGE`) into nested objects. The reply parsers here
+        // expect the RESP2 array shape, so pin the protocol. The sentinel and
+        // cluster clients reuse this options object, so they inherit it too.
+        redisOption.RESP = 2;
+
         // Create an empty FalkorDB instance for the redisClient on error event to work
         const falkordb = new FalkorDB();
 
