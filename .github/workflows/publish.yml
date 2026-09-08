@@ -23,20 +23,25 @@ jobs:
   #     a commit that is not the one it was built from.
   #
   # Polling rather than trusting whichever CI run happens to be green for this
-  # commit: the daily scheduled run tests the same tree against the `edge` image,
-  # so a nightly success from before the release could otherwise mask a release
-  # run that failed. The query is therefore narrowed to `event=release`, which is
-  # the run this release started.
+  # commit. Two runs can look right and not be:
+  #
+  #   * the daily scheduled run covers the same tree against the `edge` image, so
+  #     a nightly success from before the release would mask a release run that
+  #     failed - hence `event=release`;
+  #   * two releases can point at one commit, and CI resolves the FalkorDB image
+  #     at run time, so an older tag's success says nothing about this tag today
+  #     - hence the `head_branch` check, which for a release run holds the tag.
   await-ci:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
       actions: read
     steps:
-      - name: Wait for CI to pass on ${{ github.sha }}
+      - name: Wait for CI to pass on ${{ github.event.release.tag_name }}
         env:
           GH_TOKEN: ${{ github.token }}
           HEAD_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
           # Must stay in step with the CI workflow's filename. A rename makes the
           # API call 404, which fails this job and blocks the publish rather than
           # quietly letting an untested package through.
@@ -48,23 +53,25 @@ jobs:
           while :; do
             runs=$(gh api --paginate \
               "repos/$GITHUB_REPOSITORY/actions/workflows/$CI_WORKFLOW/runs?head_sha=$HEAD_SHA&event=release&per_page=100" \
-              --jq '.workflow_runs[] | "\(.status):\(.conclusion // "none")"')
+              --jq '.workflow_runs[]
+                    | select(.head_branch == env.RELEASE_TAG)
+                    | "\(.status):\(.conclusion // "none")"')
 
             if grep -qx 'completed:success' <<<"$runs"; then
-              echo "CI passed for $HEAD_SHA."
+              echo "CI passed for $RELEASE_TAG ($HEAD_SHA)."
               exit 0
             fi
 
             # Every run is finished and none of them passed: waiting longer
             # cannot change the answer.
             if [ -n "$runs" ] && ! grep -qv '^completed:' <<<"$runs"; then
-              echo "::error::CI did not pass for $HEAD_SHA, so nothing was published."
+              echo "::error::CI did not pass for $RELEASE_TAG, so nothing was published."
               echo "$runs"
               exit 1
             fi
 
             if [ "$SECONDS" -ge "$deadline" ]; then
-              echo "::error::Timed out waiting for CI to finish on $HEAD_SHA."
+              echo "::error::Timed out waiting for CI to finish on $RELEASE_TAG."
               echo "${runs:-no CI run found for this release}"
               exit 1
             fi
