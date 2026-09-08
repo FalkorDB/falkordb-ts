@@ -111,6 +111,13 @@ export interface FalkorDBOptions {
      * Tag to append to library name that is sent to the Redis server
      */
     clientInfoTag?: string;
+
+    /**
+     * RESP protocol version. Only RESP 2 is supported: under RESP 3 node-redis rewrites
+     * module map replies into objects, which does not match the reply shapes this client
+     * parses and publishes types for. Passing anything else throws.
+     */
+    RESP?: 2;
 }
 
 async function clientFactory(client: SingleGraphConnection) {
@@ -155,9 +162,22 @@ export default class FalkorDB extends EventEmitter {
         }
 
         // node-redis v6 defaults to RESP3, which auto-converts module map replies
-        // (e.g. `GRAPH.MEMORY USAGE`) into nested objects. The reply parsers here
-        // expect the RESP2 array shape, so pin the protocol. The sentinel and
-        // cluster clients reuse this options object, so they inherit it too.
+        // into nested objects: `GRAPH.MEMORY USAGE` comes back as
+        // `{ total_graph_sz_mb: 0, ... }` instead of the flat
+        // `['total_graph_sz_mb', 0, ...]` that the reply parsers - and the
+        // `MemoryUsageReply` array type - are written against. So RESP 2 is a
+        // requirement here, not a default: honouring an explicit RESP 3 would
+        // hand the caller a reply shape the published types say is impossible.
+        // The sentinel and cluster clients reuse this options object, so they
+        // inherit the pin too.
+        const requestedRESP = (redisOption as { RESP?: number }).RESP;
+        if (requestedRESP !== undefined && requestedRESP !== 2) {
+            throw new Error(
+                `FalkorDB requires RESP 2, but RESP ${requestedRESP} was requested. ` +
+                'Under RESP 3 node-redis rewrites module map replies into objects, which does ' +
+                'not match the reply shapes this client parses and publishes types for.'
+            );
+        }
         redisOption.RESP = 2;
 
         // Create an empty FalkorDB instance for the redisClient on error event to work
