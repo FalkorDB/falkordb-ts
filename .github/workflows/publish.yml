@@ -3,13 +3,88 @@ on:
   release:
     types: [created]
 
-permissions:
-  id-token: write  # Required for OIDC
-  contents: read
+# Least privilege by default; each job below asks for exactly what it needs.
+permissions: {}
 
 jobs:
-  publish:
+  # `release: created` reaches CI and this workflow at the same moment, so
+  # without a gate npm receives the package while the tests that decide whether
+  # it works are still running, and a red CI cannot stop it (#529).
+  #
+  # This waits for CI on the released commit rather than switching the workflow
+  # to `on: workflow_run:`, for two reasons:
+  #
+  #   * npm trusted publishing matches the filename of the workflow that runs
+  #     `npm publish` against the publisher registered on npmjs.com, so the
+  #     publish step has to stay in publish.yml or releases fail with ENEEDAUTH.
+  #   * a workflow_run run is stamped with the default branch, making GITHUB_REF
+  #     and GITHUB_SHA refs/heads/main and main's head. npm copies both into the
+  #     provenance attestation, which would then claim the package was built from
+  #     a commit that is not the one it was built from.
+  #
+  # Polling rather than trusting whichever CI run happens to be green for this
+  # commit. Two runs can look right and not be:
+  #
+  #   * the daily scheduled run covers the same tree against the `edge` image, so
+  #     a nightly success from before the release would mask a release run that
+  #     failed - hence `event=release`;
+  #   * two releases can point at one commit, and CI resolves the FalkorDB image
+  #     at run time, so an older tag's success says nothing about this tag today
+  #     - hence the `head_branch` check, which for a release run holds the tag.
+  await-ci:
     runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions:
+      actions: read
+    steps:
+      - name: Wait for CI to pass on ${{ github.event.release.tag_name }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.sha }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          # Must stay in step with the CI workflow's filename. A rename makes the
+          # API call 404, which fails this job and blocks the publish rather than
+          # quietly letting an untested package through.
+          CI_WORKFLOW: node.js.yml
+        run: |
+          set -euo pipefail
+          deadline=$(( SECONDS + 55 * 60 ))
+
+          while :; do
+            runs=$(gh api --paginate \
+              "repos/$GITHUB_REPOSITORY/actions/workflows/$CI_WORKFLOW/runs?head_sha=$HEAD_SHA&event=release&per_page=100" \
+              --jq '.workflow_runs[]
+                    | select(.head_branch == env.RELEASE_TAG)
+                    | "\(.status):\(.conclusion // "none")"')
+
+            if grep -qx 'completed:success' <<<"$runs"; then
+              echo "CI passed for $RELEASE_TAG ($HEAD_SHA)."
+              exit 0
+            fi
+
+            # Every run is finished and none of them passed: waiting longer
+            # cannot change the answer.
+            if [ -n "$runs" ] && ! grep -qv '^completed:' <<<"$runs"; then
+              echo "::error::CI did not pass for $RELEASE_TAG, so nothing was published."
+              echo "$runs"
+              exit 1
+            fi
+
+            if [ "$SECONDS" -ge "$deadline" ]; then
+              echo "::error::Timed out waiting for CI to finish on $RELEASE_TAG."
+              echo "${runs:-no CI run found for this release}"
+              exit 1
+            fi
+
+            sleep 20
+          done
+
+  publish:
+    needs: [await-ci]
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write  # Required for OIDC
+      contents: read
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:

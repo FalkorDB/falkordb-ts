@@ -26,7 +26,12 @@ on:
         default: "latest"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # The event name is part of the group because creating a release also creates
+  # the tag: the tag-push run and the release run would otherwise land in the
+  # same group and cancel each other, at random. publish.yml waits specifically
+  # for the release run, so losing that race would block the release. Runs for a
+  # given pull request still supersede each other, which is what this is for.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
