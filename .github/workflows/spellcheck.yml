@@ -1,9 +1,32 @@
 name: Spellcheck
+# Only markdown is spellchecked, and only some of it: spellcheck-settings.yml
+# lists `*.md` and `docs/*.md` as its sources. These patterns mirror those two
+# exactly - `*` does not cross a `/`, so `*.md` is the repository root and
+# `docs/*.md` is that one directory - which keeps examples/README.md, which is
+# not a source, from starting a run that would check nothing. Keep the two
+# lists in step: a path here that is not a source wastes a run, and a source
+# missing from here stops being re-checked when it changes.
+#
+# The dictionary, the config and this workflow are listed too, so changing what
+# counts as a misspelling re-runs the check against the existing docs.
+#
+# Safe to filter here because Spellcheck is not a required status check. CI
+# deliberately has no such filter: "If a workflow is skipped due to path
+# filtering, branch filtering or a commit message, then checks associated with
+# that workflow will remain in a 'Pending' state", and `build (20.x)` is
+# required on main, so a docs-only pull request could never be merged.
 on:
   push:
     branches: [main]
+    paths: &spellcheck-paths
+      - '*.md'
+      - 'docs/*.md'
+      - '.github/wordlist.txt'
+      - '.github/spellcheck-settings.yml'
+      - '.github/workflows/spellcheck.yml'
   pull_request:
     branches: [main]
+    paths: *spellcheck-paths
 jobs:
   spellcheck:
     runs-on: ubuntu-latest

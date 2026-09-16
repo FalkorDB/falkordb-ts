@@ -41,6 +41,39 @@ env:
   FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
 
 jobs:
+  # Lint and compile on a runner of their own, with no FalkorDB container in
+  # sight, so a lint or type error is reported in roughly ten seconds instead
+  # of after three docker stacks have been pulled and started.
+  #
+  # This is deliberately a separate job rather than a reordering of `build`.
+  # Hoisting the install above the containers there looks free but is not: it
+  # currently runs while the cluster forms and absorbs most of that time, so
+  # `Wait for cluster to be fully ready` measures 4-10s on main (mean 7.8s over
+  # the last 8 build jobs). With the install hoisted it measured 21s on both
+  # matrix legs, taking the job from an ~88s mean to 103s - so every *passing*
+  # run pays for the fast failure. See #536.
+  lint:
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
+    # One version is enough here: this job checks the sources, not the runtime,
+    # and `build` still compiles on both matrix legs.
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      with:
+        node-version: 20.x
+        cache: 'npm'
+
+    - run: npm ci
+    - run: npm run lint
+    - run: npm run build --if-present
+
   build:
 
     runs-on: ubuntu-latest
@@ -209,7 +242,7 @@ jobs:
   # downgrade the caller's token.
   report-scheduled-failure:
     name: Report scheduled failure
-    needs: [build]
+    needs: [build, lint]
     # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
     # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
     # that hangs is exactly the case this alert exists for.
