@@ -159,8 +159,12 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
+    # Lint is deliberately separate (see the comment at the top of the `lint`
+    # job), so it runs exactly once on Node 20.x before any container starts.
+    # Re-running it on each build leg is pure duplication - eslint and tsc are
+    # not matrix-dependent - and only delays the two build legs after the
+    # cluster has already been assembled. Tracked as part of #534.
     - run: npm ci
-    - run: npm run lint
     - run: npm run build --if-present
     - name: Show running Docker containers
       run: docker ps -a
