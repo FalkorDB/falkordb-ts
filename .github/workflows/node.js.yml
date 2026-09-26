@@ -103,7 +103,7 @@ jobs:
       run: sudo sysctl -w vm.overcommit_memory=1
 
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -113,7 +113,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -128,7 +128,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/cluster-compose.yml
     
