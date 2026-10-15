@@ -1,11 +1,15 @@
 import { RedisArgument } from "@redis/client";
-import { QueryOptions } from "../commands";
 import FalkorDB from "../falkordb";
-import { ConstraintType, EntityType } from "../graph";
+import { ConstraintType, EntityType } from "../enums";
 import { Client } from "./client";
-import { SingleGraphConnection } from "./single";
-import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
-import { UdfListReply } from "../commands/UDF_LIST";
+import type {
+  MemoryUsageOptions,
+  MemoryUsageReply,
+  QueryOptions,
+  SingleGraphConnection,
+  SlowLogReply,
+  UdfListReply,
+} from "../types";
 
 /**
  * The `NullClient` class is a placeholder implementation of the `Client` interface.
@@ -59,11 +63,7 @@ export class NullClient implements Client {
   explain(_graph: string, _query: string): Promise<any> {
       throw new Error("Method not implemented.");
   }
-  slowLog(
-    _graph: string
-  ): Promise<
-    { timestamp: Date; command: string; query: string; took: number }[]
-  > {
+  slowLog(_graph: string): Promise<SlowLogReply> {
     throw new Error("Method not implemented.");
   }
   memoryUsage(

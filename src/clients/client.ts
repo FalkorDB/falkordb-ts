@@ -1,10 +1,14 @@
 import { RedisArgument } from "@redis/client";
-import { QueryOptions } from "../commands";
-import { ConstraintType, EntityType } from "../graph";
+import { ConstraintType, EntityType } from "../enums";
 import FalkorDB from "../falkordb";
-import { SingleGraphConnection } from "./single";
-import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
-import { UdfListReply } from "../commands/UDF_LIST";
+import type {
+  MemoryUsageOptions,
+  MemoryUsageReply,
+  QueryOptions,
+  SingleGraphConnection,
+  SlowLogReply,
+  UdfListReply,
+} from "../types";
 
 // A generic client interface for Redis clients
 export interface Client {
@@ -60,14 +64,7 @@ export interface Client {
     options?: MemoryUsageOptions
   ): Promise<MemoryUsageReply>;
 
-  slowLog(graph: string): Promise<
-    {
-      timestamp: Date;
-      command: string;
-      query: string;
-      took: number;
-    }[]
-  >;
+  slowLog(graph: string): Promise<SlowLogReply>;
 
   constraintCreate(
     graph: string,

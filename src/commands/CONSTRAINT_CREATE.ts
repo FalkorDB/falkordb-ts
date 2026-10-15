@@ -1,14 +1,8 @@
 import { CommandParser } from '@redis/client';
 
-export enum ConstraintType {
-    MANDATORY = "MANDATORY",
-    UNIQUE = "UNIQUE" 
-}
+import { ConstraintType, EntityType } from '../enums';
 
-export enum EntityType {
-    NODE = "NODE",
-    RELATIONSHIP = "RELATIONSHIP"
-}
+export { ConstraintType, EntityType };
 
 // GRAPH.CONSTRAINT CREATE key constraintType {NODE label | RELATIONSHIP reltype} PROPERTIES propCount prop [prop...]
 export function parseCommand(
