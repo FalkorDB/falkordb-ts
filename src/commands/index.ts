@@ -21,6 +21,7 @@ import * as UDF_FLUSH from './UDF_FLUSH';
 import * as UDF_DELETE from './UDF_DELETE';
 
 import { RedisArgument } from '@redis/client';
+import type { QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
 
 export default {
     CONFIG_GET,
@@ -67,18 +68,7 @@ export default {
     udfDelete: UDF_DELETE,
 };
 
-export type QueryParam = null | string | number | boolean | QueryParams | Array<QueryParam>;
-
-export type QueryParams = {
-    [key: string]: QueryParam;
-};
-
-export interface QueryOptions {
-    params?: QueryParams;
-    TIMEOUT?: number;
-}
-
-export type QueryOptionsBackwardCompatible = QueryOptions | number;
+export type { QueryOptions, QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
 
 export function pushQueryArguments(
     args: Array<RedisArgument>,
@@ -151,4 +141,4 @@ function queryParamToString(param: QueryParam): string {
 }
 
 // Export UDF types for external use
-export type { UdfListReply, UdfLibraryEntry } from './UDF_LIST';
+export type { UdfListReply, UdfLibraryEntry } from '../types';
