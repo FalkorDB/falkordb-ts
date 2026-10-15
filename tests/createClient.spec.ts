@@ -153,4 +153,23 @@ describe('FalkorDB connection options', () => {
         await db.close();
         expect(JSON.stringify(options)).toBe(snapshot);
     });
+
+    /**
+     * node-redis v6 made RESP3 the default, and under RESP3 the client turns module map
+     * replies into objects: `GRAPH.MEMORY USAGE` arrives as `{ total_graph_sz_mb: 0, ... }`
+     * rather than the flat `['total_graph_sz_mb', 0, ...]` that `MemoryUsageReply` declares.
+     * These two tests keep the protocol pinned, and keep the pin honest about it.
+     */
+    it('pins the protocol to RESP 2', async () => {
+        await withConnection({ host: HOST, port: PORT }, async (db) => {
+            const connection = await db.connection;
+            expect((connection.options ?? {}).RESP).toBe(2);
+        });
+    });
+
+    it('rejects an explicit RESP 3 instead of silently overriding it', async () => {
+        await expect(
+            FalkorDB.connect({ host: HOST, port: PORT, RESP: 3 } as unknown as FalkorDBOptions)
+        ).rejects.toThrow(/requires RESP 2/);
+    });
 });

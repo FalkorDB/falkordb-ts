@@ -2,11 +2,11 @@
   "extends": "@tsconfig/node20/tsconfig.json",
   "compilerOptions": {
     "outDir": "./dist",
+    "rootDir": ".",
     "target": "es2022",
     "declaration": true,
     "allowJs": true,
     "useDefineForClassFields": true,
-    "esModuleInterop": false,
     "resolveJsonModule": true,
     "allowSyntheticDefaultImports": true,
     "isolatedModules": true,

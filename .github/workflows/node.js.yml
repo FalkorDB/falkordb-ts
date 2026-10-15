@@ -26,7 +26,12 @@ on:
         default: "latest"
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  # The event name is part of the group because creating a release also creates
+  # the tag: the tag-push run and the release run would otherwise land in the
+  # same group and cancel each other, at random. publish.yml waits specifically
+  # for the release run, so losing that race would block the release. Runs for a
+  # given pull request still supersede each other, which is what this is for.
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -36,6 +41,39 @@ env:
   FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
 
 jobs:
+  # Lint and compile on a runner of their own, with no FalkorDB container in
+  # sight, so a lint or type error is reported in roughly ten seconds instead
+  # of after three docker stacks have been pulled and started.
+  #
+  # This is deliberately a separate job rather than a reordering of `build`.
+  # Hoisting the install above the containers there looks free but is not: it
+  # currently runs while the cluster forms and absorbs most of that time, so
+  # `Wait for cluster to be fully ready` measures 4-10s on main (mean 7.8s over
+  # the last 8 build jobs). With the install hoisted it measured 21s on both
+  # matrix legs, taking the job from an ~88s mean to 103s - so every *passing*
+  # run pays for the fast failure. See #536.
+  lint:
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 10
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
+    # One version is enough here: this job checks the sources, not the runtime,
+    # and `build` still compiles on both matrix legs.
+    - name: Use Node.js 20.x
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+      with:
+        node-version: 20.x
+        cache: 'npm'
+
+    - run: npm ci
+    - run: npm run lint
+    - run: npm run build --if-present
+
   build:
 
     runs-on: ubuntu-latest
@@ -52,8 +90,20 @@ jobs:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
       with:
         persist-credentials: false
+
+    - name: Enable memory overcommit
+      # GRAPH.COPY and BGSAVE both fork, and the runners ship with
+      # vm.overcommit_memory=0, so the kernel can refuse the fork on its
+      # heuristic alone and the copy tests fail with "GRAPH.COPY failed, could
+      # not fork". Every FalkorDB container warns about this at startup. This
+      # is a different cause from the one "Disable RDB snapshots on test
+      # servers" below handles - that one is a second fork racing this one -
+      # so both are needed. Must run before any container starts, because the
+      # setting is read by the server at fork time on the shared host kernel.
+      run: sudo sysctl -w vm.overcommit_memory=1
+
     - name: Run docker-compose for FalkorDB standalone instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/standalone-compose.yml
     - name: Test if FalkorDB standalone instance is running
@@ -63,7 +113,7 @@ jobs:
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB replication instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/sentinel-compose.yml
 
@@ -78,7 +128,7 @@ jobs:
         docker exec sentinel-3 redis-cli -p 26381 ping || { echo "FalkorDB replication instance is not running"; exit 1; }
 
     - name: Run docker-compose for FalkorDB cluster instance
-      uses: hoverkraft-tech/compose-action@ee6af68587292d72db67743171809c19787df4c9 # v3.1.0
+      uses: hoverkraft-tech/compose-action@b659c744ee9bed25aea2307c017ad849bd104433 # v3.2.0
       with:
         compose-file: ./docker/cluster-compose.yml
     
@@ -104,7 +154,7 @@ jobs:
         done
     
     - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
@@ -181,7 +231,7 @@ jobs:
           threadKey: ${{ github.event.number }}
 
     - name: Upload coverage reports to Codecov
-      uses: codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7.0.0
+      uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
 
@@ -192,7 +242,7 @@ jobs:
   # downgrade the caller's token.
   report-scheduled-failure:
     name: Report scheduled failure
-    needs: [build]
+    needs: [build, lint]
     # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
     # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
     # that hangs is exactly the case this alert exists for.
