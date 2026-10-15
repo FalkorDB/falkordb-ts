@@ -68,7 +68,7 @@ export default {
     udfDelete: UDF_DELETE,
 };
 
-export type { QueryOptions, QueryOptionsBackwardCompatible } from '../types';
+export type { QueryOptions, QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
 
 export function pushQueryArguments(
     args: Array<RedisArgument>,
