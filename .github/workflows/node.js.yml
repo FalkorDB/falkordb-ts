@@ -159,8 +159,13 @@ jobs:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
     
+    # No lint here: the `lint` job runs it once, on Node 20.x, in parallel with
+    # this one and on a runner with no containers (see the comment above that
+    # job). eslint output does not depend on the Node version, so re-running it
+    # on each leg is pure duplication. `build` is deliberately not gated on
+    # `lint` with `needs:` - that would serialise the two and add lint's
+    # runtime to every passing run. Tracked as part of #534.
     - run: npm ci
-    - run: npm run lint
     - run: npm run build --if-present
     - name: Show running Docker containers
       run: docker ps -a
