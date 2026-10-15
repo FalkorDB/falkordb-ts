@@ -1,6 +1,7 @@
 import * as tls from "tls";
-import { Single, SingleGraphConnection } from "./single";
-import FalkorDB, { TypedRedisClientOptions } from "../falkordb";
+import { Single } from "./single";
+import FalkorDB from "../falkordb";
+import type { SingleGraphConnection, TypedRedisClientOptions } from "../types";
 import { createClient, RedisFunctions, RedisScripts } from "@redis/client";
 import commands from "../commands";
 

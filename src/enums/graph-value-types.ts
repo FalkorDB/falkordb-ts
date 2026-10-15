@@ -1,0 +1,20 @@
+// https://github.com/FalkorDB/FalkorDB/blob/master/src/resultset/formatters/resultset_formatter.h#L20
+export enum GraphValueTypes {
+  UNKNOWN = 0,
+  NULL = 1,
+  STRING = 2,
+  INTEGER = 3,
+  BOOLEAN = 4,
+  DOUBLE = 5,
+  ARRAY = 6,
+  EDGE = 7,
+  NODE = 8,
+  PATH = 9,
+  MAP = 10,
+  POINT = 11,
+  VECTORF32 = 12,
+  DATETIME = 13,
+  DATE = 14,
+  TIME = 15,
+  DURATION = 16,
+}

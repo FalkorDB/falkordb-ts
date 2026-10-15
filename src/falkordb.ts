@@ -1,124 +1,23 @@
 
-import * as tls from 'tls';
-import * as net from 'net';
 import { EventEmitter } from 'events';
 
-import { RedisClientOptions, RedisFunctions, RedisScripts, createClient } from 'redis';
+import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
 import Graph from './graph';
 import commands from './commands';
-import { RedisClusterOptions } from '@redis/client';
 import { Client } from './clients/client';
-import { Single, SingleGraphConnection } from './clients/single';
+import { Single } from './clients/single';
 import { Sentinel } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
+import type { FalkorDBOptions, SingleGraphConnection, TypedRedisClientOptions } from './types';
 
-
-type NetSocketOptions = Partial<net.SocketConnectOpts> & {
-    tls?: false;
-};
-
-export type TypedRedisClientOptions = RedisClientOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2>;
-export type TypedRedisClusterClientOptions = RedisClusterOptions<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2>;
-
-interface TlsSocketOptions extends tls.ConnectionOptions {
-    tls: true;
-}
-
-interface SocketCommonOptions {
-
-    /**
-     * Connection Timeout (in milliseconds)
-     */
-    connectTimeout?: number;
-
-    /**
-     * Toggle [`Nagle's algorithm`](https://nodejs.org/api/net.html#net_socket_setnodelay_nodelay)
-     */
-    noDelay?: boolean;
-
-    /**
-     * Toggle [`keep-alive`](https://nodejs.org/api/net.html#net_socket_setkeepalive_enable_initialdelay)
-     */
-    keepAlive?: number | false;
-
-
-    /**
-     * When the socket closes unexpectedly (without calling `.quit()`/`.disconnect()`), the client uses `reconnectStrategy` to decide what to do. The following values are supported:
-     */
-    tls?: boolean;
-}
-
-export type SocketOptions = SocketCommonOptions & (NetSocketOptions | TlsSocketOptions);
-
-export interface FalkorDBOptions {
-
-    /**
-     * `falkor[s]://[[username][:password]@][host][:port][/db-number]`
-     */
-    url?: string;
-
-    /**
-     * Socket connection properties
-     */
-    socket?: SocketOptions;
-
-    /**
-     * Server hostname, shorthand for `socket.host`.
-     * Ignored when `url` or `socket.host` is provided.
-     */
-    host?: string;
-
-    /**
-     * Server port, shorthand for `socket.port`.
-     * Ignored when `url` or `socket.port` is provided.
-     */
-    port?: number;
-
-    /**
-     * ACL username ([see ACL guide](https://redis.io/topics/acl))
-     */
-    username?: string;
-
-    /**
-     * ACL password or the old "--requirepass" password
-     */
-    password?: string;
-
-    /**
-     * Client name ([see `CLIENT SETNAME`](https://redis.io/commands/client-setname))
-     */
-    name?: string;
-
-    /**
-     * Connect in [`READONLY`](https://redis.io/commands/readonly) mode
-     */
-    readonly?: boolean;
-
-    /**
-     * Send `PING` command at interval (in ms).
-     * Useful with Redis deployments that do not use TCP Keep-Alive.
-     */
-    pingInterval?: number;
-
-    /**
-     * If set to true, disables sending client identifier (user-agent like message) to the redis server
-     */
-    disableClientInfo?: boolean;
-
-    /**
-     * Tag to append to library name that is sent to the Redis server
-     */
-    clientInfoTag?: string;
-
-    /**
-     * RESP protocol version. Only RESP 2 is supported: under RESP 3 node-redis rewrites
-     * module map replies into objects, which does not match the reply shapes this client
-     * parses and publishes types for. Passing anything else throws.
-     */
-    RESP?: 2;
-}
+export type {
+    FalkorDBOptions,
+    SocketOptions,
+    TypedRedisClientOptions,
+    TypedRedisClusterClientOptions,
+} from './types';
 
 async function clientFactory(client: SingleGraphConnection) {
 

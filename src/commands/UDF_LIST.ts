@@ -2,11 +2,9 @@ import { CommandParser } from '@redis/client';
 
 export const IS_READ_ONLY = true;
 
-// UDF library entry: [library_name, [function_names...]]
-// or with code: [library_name, [function_names...], code]
-export type UdfLibraryEntry = [string, string[]] | [string, string[], string];
+import type { UdfListReply } from '../types';
 
-export type UdfListReply = UdfLibraryEntry[];
+export type { UdfLibraryEntry, UdfListReply } from '../types';
 
 export function parseCommand(
     parser: CommandParser,

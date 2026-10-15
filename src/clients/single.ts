@@ -1,22 +1,16 @@
 import { Client } from "./client";
-import { ConstraintType, EntityType } from "../graph";
-import {
-  RedisArgument,
-  RedisFunctions,
-  RedisScripts,
-} from "@redis/client";
-import commands, { QueryOptions } from "../commands";
-import { RedisClientType } from "@redis/client";
+import { ConstraintType, EntityType } from "../enums";
+import { RedisArgument } from "@redis/client";
 import FalkorDB from "../falkordb";
-import { MemoryUsageOptions, MemoryUsageReply } from "../commands/MEMORY_USAGE";
-import { UdfListReply } from "../commands/UDF_LIST";
+import type {
+  MemoryUsageOptions,
+  MemoryUsageReply,
+  QueryOptions,
+  SingleGraphConnection,
+  UdfListReply,
+} from "../types";
 
-export type SingleGraphConnection = RedisClientType<
-  { falkordb: typeof commands },
-  RedisFunctions,
-  RedisScripts,
-  2
->;
+export type { SingleGraphConnection };
 
 export class Single implements Client {
   protected client: SingleGraphConnection;
