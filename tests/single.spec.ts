@@ -302,6 +302,96 @@ describe("Single Client Tests", () => {
     );
 
     it(
+      "should reuse the Graph instance for the same graph id",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-graph-${getRandomNumber()}`;
+        const graph = singleClient.selectGraph(graphName);
+
+        expect(singleClient.selectGraph(graphName)).toBe(graph);
+        expect(singleClient.selectGraph(`${graphName}-other`)).not.toBe(graph);
+      })
+    );
+
+    it(
+      "should release the Graph instance once the graph is deleted",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-delete-${getRandomNumber()}`;
+        const graph = singleClient.selectGraph(graphName);
+        await graph.query("CREATE (:Test)");
+        await graph.delete();
+
+        expect(singleClient.selectGraph(graphName)).not.toBe(graph);
+      })
+    );
+
+    it(
+      "should evict the least recently selected Graph instance past the cap",
+      skipIfNoClient(async () => {
+        const prefix = `single-reuse-evict-${getRandomNumber()}`;
+        const oldest = singleClient.selectGraph(`${prefix}-oldest`);
+        const recent = singleClient.selectGraph(`${prefix}-recent`);
+
+        // Fill the cache, re-selecting `recent` midway so it is not the oldest
+        for (let i = 0; i < 1000; i++) {
+          singleClient.selectGraph(`${prefix}-${i}`);
+          if (i === 500) singleClient.selectGraph(`${prefix}-recent`);
+        }
+
+        expect(singleClient.selectGraph(`${prefix}-oldest`)).not.toBe(oldest);
+        expect(singleClient.selectGraph(`${prefix}-recent`)).toBe(recent);
+      })
+    );
+
+    it(
+      "should clear the cached replacement's metadata when an evicted instance deletes the graph",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-evicted-delete-${getRandomNumber()}`;
+        const evicted = singleClient.selectGraph(graphName);
+        await evicted.query("CREATE (:First), (:Second)");
+
+        for (let i = 0; i < 1000; i++) {
+          singleClient.selectGraph(`${graphName}-${i}`);
+        }
+        const replacement = singleClient.selectGraph(graphName);
+        expect(replacement).not.toBe(evicted);
+        await replacement.query("MATCH (n) RETURN n");
+
+        await evicted.delete();
+        expect(singleClient.selectGraph(graphName)).toBe(replacement);
+
+        await replacement.query("CREATE (:Second), (:First)");
+        const result = await replacement.query<{ n: { labels: string[] } }>(
+          "MATCH (n:First) RETURN n"
+        );
+        expect(result.data?.[0].n.labels).toEqual(["First"]);
+
+        await replacement.delete();
+      })
+    );
+
+    it(
+      "should not resolve labels from a deleted graph's metadata",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-metadata-${getRandomNumber()}`;
+        const graph = singleClient.selectGraph(graphName);
+
+        // Label ids are assigned in creation order, so recreating the graph
+        // with the labels reversed gives each label the other's id.
+        await graph.query("CREATE (:First), (:Second)");
+        await graph.query("MATCH (n) RETURN n");
+        await graph.delete();
+
+        await graph.query("CREATE (:Second), (:First)");
+        const result = await graph.query<{ n: { labels: string[] } }>(
+          "MATCH (n:First) RETURN n"
+        );
+        expect(result.data?.[0].n.labels).toEqual(["First"]);
+
+        await graph.delete();
+      })
+    );
+
+    it(
       "should test close method",
       skipIfNoClient(async () => {
         const tempClient = await FalkorDB.connect({

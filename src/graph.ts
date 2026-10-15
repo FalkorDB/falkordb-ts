@@ -28,10 +28,12 @@ export default class Graph {
   #client: Client;
   #name: string;
   #metadata?: GraphMetadata;
+  #onDelete?: (graph: Graph) => void;
 
-  constructor(client: Client, name: string) {
+  constructor(client: Client, name: string, onDelete?: (graph: Graph) => void) {
     this.#client = client;
     this.#name = name;
+    this.#onDelete = onDelete;
   }
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
@@ -45,7 +47,24 @@ export default class Graph {
   }
 
   async delete() {
-    return this.#client.delete(this.#name);
+    const reply = await this.#client.delete(this.#name);
+    // The instance is reused by `selectGraph`, and a graph recreated under the
+    // same name assigns new ids, so the cached metadata must not outlive it.
+    this.clearMetadataCache();
+    this.#onDelete?.(this);
+    return reply;
+  }
+
+  /**
+   * Drops the cached labels, relationship types and property keys, so they are
+   * refetched the next time a reply needs them. A fetch already in flight does
+   * not repopulate the cache. Call this when the graph may have been deleted or
+   * recreated other than through this instance.
+   */
+  clearMetadataCache() {
+    this.#metadata = undefined;
+    this.#setMetadataPromise = undefined;
+    this.#metadataGeneration++;
   }
 
   async explain(query: string) {
@@ -101,16 +120,24 @@ export default class Graph {
   }
 
   #setMetadataPromise?: Promise<GraphMetadata>;
+  // Bumped by clearMetadataCache so fetches started before it are discarded
+  #metadataGeneration = 0;
 
   #updateMetadata(): Promise<GraphMetadata> {
-    this.#setMetadataPromise ??= this.#setMetadata().finally(
-      () => (this.#setMetadataPromise = undefined)
-    );
+    if (!this.#setMetadataPromise) {
+      const promise = this.#setMetadata().finally(() => {
+        if (this.#setMetadataPromise === promise) {
+          this.#setMetadataPromise = undefined;
+        }
+      });
+      this.#setMetadataPromise = promise;
+    }
     return this.#setMetadataPromise;
   }
 
   // DO NOT use directly, use #updateMetadata instead
   async #setMetadata(): Promise<GraphMetadata> {
+    const generation = this.#metadataGeneration;
     const [labels, relationshipTypes, propertyKeys] = await Promise.all([
       this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false),
       this.#client.roQuery(
@@ -127,7 +154,7 @@ export default class Graph {
       ),
     ]);
 
-    this.#metadata = {
+    const metadata = {
       labels: this.#cleanMetadataArray(labels.data as Array<[string]>),
       relationshipTypes: this.#cleanMetadataArray(
         relationshipTypes.data as Array<[string]>
@@ -137,7 +164,12 @@ export default class Graph {
       ),
     };
 
-    return this.#metadata;
+    // The caller's reply predates any reset, so it still gets these names,
+    // but they are only cached if the graph was not deleted meanwhile
+    if (generation === this.#metadataGeneration) {
+      this.#metadata = metadata;
+    }
+    return metadata;
   }
 
   #cleanMetadataArray(arr: Array<[string]>): Array<string> {
