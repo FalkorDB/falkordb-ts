@@ -87,6 +87,26 @@ const db = await FalkorDB.connect({
 `socket` settings such as TLS and timeouts still apply alongside it. When both are given,
 `socket.host` and `socket.port` take precedence over the top-level `host` and `port`.
 
+#### Read-only connections
+
+Pass `readonly: true` to get a connection that can only read, even when the user it logs in
+as is allowed to write:
+
+```typescript
+const db = await FalkorDB.connect({ username: 'admin', password: 'myPassword', readonly: true })
+const graph = db.selectGraph('MotoGP')
+
+await graph.query('MATCH (r:Rider) RETURN r.name')  // runs as GRAPH.RO_QUERY
+await graph.query('CREATE (:Rider)')                // rejected by the server
+await graph.delete()                                // rejected by the client
+```
+
+`query` is sent as `GRAPH.RO_QUERY`, so the server rejects any query that writes. `delete`,
+`copy`, `profile` (which executes the query it profiles), constraint creation and removal,
+`configSet`, and UDF load/flush/delete reject without contacting the server. `db.readonly`
+tells you whether a connection is read-only. Commands sent directly on `db.connection` are not
+restricted.
+
 #### `.stubs()`
 
 Lists the graphs that are currently offloaded to disk ("stubs"). `db.list()` already includes

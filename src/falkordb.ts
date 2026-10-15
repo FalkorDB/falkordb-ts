@@ -13,6 +13,7 @@ import { Single, SingleGraphConnection } from './clients/single';
 import { Sentinel } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
+import { ReadOnly } from './clients/readOnly';
 
 
 type NetSocketOptions = Partial<net.SocketConnectOpts> & {
@@ -92,7 +93,12 @@ export interface FalkorDBOptions {
     name?: string;
 
     /**
-     * Connect in [`READONLY`](https://redis.io/commands/readonly) mode
+     * Open a read-only connection, whatever the permissions of the user it
+     * authenticates as. Queries run as `GRAPH.RO_QUERY`, so the server rejects
+     * any that write, and commands that modify the server (`delete`, `copy`,
+     * `profile`, constraints, `configSet`, UDF load/flush/delete) are rejected
+     * without being sent. Does not apply to commands sent directly on the
+     * underlying `connection`.
      */
     readonly?: boolean;
 
@@ -137,7 +143,10 @@ export default class FalkorDB extends EventEmitter {
     #client: Client = new NullClient();
 
     static async connect(options?: FalkorDBOptions) {
-        const { host, port, ...rest } = options ?? {};
+        // `readonly` is enforced by this client rather than passed to node-redis,
+        // which would send the cluster `READONLY` command - an error on a
+        // standalone server.
+        const { host, port, readonly, ...rest } = options ?? {};
         const redisOption = rest as TypedRedisClientOptions;
 
         // Support the top-level `host`/`port` shorthand used by the other FalkorDB
@@ -190,7 +199,8 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         // Create FalkorDB client wrapper
-        const client = await clientFactory(redisClient);
+        const connectedClient = await clientFactory(redisClient);
+        const client = readonly ? new ReadOnly(connectedClient) : connectedClient;
         await client.init(falkordb);
 
         // Set the client to the FalkorDB instance after it was initialized
@@ -201,6 +211,13 @@ export default class FalkorDB extends EventEmitter {
 
     selectGraph(graphId: string) {
         return new Graph(this.#client, graphId);
+    }
+
+    /**
+     * Whether this connection was opened with `readonly: true`.
+     */
+    public get readonly() {
+        return this.#client instanceof ReadOnly;
     }
 
     public get connection() {
