@@ -1,39 +1,57 @@
-/**
- * Test to verify that QueryParam and QueryParams types are properly exported
- */
-import type { QueryParam, QueryParams } from '../index';
+import { describe, it, expect } from '@jest/globals';
+import type {
+  QueryParam,
+  QueryParams,
+  QueryOptions,
+  QueryOptionsBackwardCompatible,
+} from '../index';
+import { pushQueryArguments } from '../src/commands';
 
 describe('Exported Types', () => {
-    test('QueryParams type can be used', () => {
-        const params: QueryParams = {
-            name: 'John',
-            age: 30,
-            active: true,
-            data: null,
-            tags: ['tag1', 'tag2'],
-            nested: {
-                key: 'value'
-            }
-        };
+  it('QueryParam accepts every supported value kind', () => {
+    const values: QueryParam[] = [
+      'text',
+      42,
+      true,
+      null,
+      [1, 'two', false, null],
+      { nested: { deep: [1, 2, 3] } },
+    ];
 
-        expect(params).toBeDefined();
-        expect(params.name).toBe('John');
-        expect(params.age).toBe(30);
-    });
+    expect(values).toHaveLength(6);
+  });
 
-    test('QueryParam type can be used for individual parameters', () => {
-        const stringParam: QueryParam = 'test';
-        const numberParam: QueryParam = 42;
-        const booleanParam: QueryParam = true;
-        const nullParam: QueryParam = null;
-        const arrayParam: QueryParam = [1, 2, 3];
-        const objectParam: QueryParam = { key: 'value' };
+  it('QueryParams accepts empty, flat and nested objects', () => {
+    const empty: QueryParams = {};
+    const params: QueryParams = {
+      name: 'John',
+      age: 30,
+      active: true,
+      data: null,
+      tags: ['tag1', 'tag2'],
+      nested: { key: 'value' },
+    };
 
-        expect(stringParam).toBe('test');
-        expect(numberParam).toBe(42);
-        expect(booleanParam).toBe(true);
-        expect(nullParam).toBeNull();
-        expect(arrayParam).toEqual([1, 2, 3]);
-        expect(objectParam).toEqual({ key: 'value' });
-    });
+    expect(empty).toEqual({});
+    expect(params.name).toBe('John');
+    expect(params.nested).toEqual({ key: 'value' });
+  });
+
+  it('QueryOptions built from exported types is accepted by the query command', () => {
+    const params: QueryParams = { name: 'test' };
+    const options: QueryOptions = { params, TIMEOUT: 5000 };
+
+    const args = pushQueryArguments([], 'g', 'RETURN $name', options);
+
+    expect(args).toEqual(['g', 'CYPHER name="test" RETURN $name', 'TIMEOUT', '5000']);
+  });
+
+  it('QueryOptionsBackwardCompatible accepts a timeout number or an options object', () => {
+    const asNumber: QueryOptionsBackwardCompatible = 5000;
+    const asObject: QueryOptionsBackwardCompatible = { TIMEOUT: 5000 };
+
+    expect(pushQueryArguments([], 'g', 'RETURN 1', asNumber)).toEqual(
+      pushQueryArguments([], 'g', 'RETURN 1', asObject)
+    );
+  });
 });
