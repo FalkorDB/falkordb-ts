@@ -5,6 +5,7 @@ import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
 import Graph from './graph';
 import commands from './commands';
+import { SocketClosedUnexpectedlyError, SocketTimeoutError } from '@redis/client';
 import { Client } from './clients/client';
 import { Single } from './clients/single';
 import { Sentinel } from './clients/sentinel';
@@ -18,6 +19,34 @@ export type {
     TypedRedisClientOptions,
     TypedRedisClusterClientOptions,
 } from './types';
+
+/**
+ * Retries the initial connection gets before `FalkorDB.connect()` rejects.
+ */
+const INITIAL_CONNECT_RETRIES = 3;
+
+/**
+ * node-redis' default back-off: exponential up to 2s plus jitter, and no
+ * reconnect after a socket timeout.
+ */
+function defaultReconnectStrategy(retries: number, cause: Error): number | false {
+    if (cause instanceof SocketTimeoutError) {
+        return false;
+    }
+    return Math.min(Math.pow(2, retries) * 50, 2000) + Math.floor(Math.random() * 200);
+}
+
+function initialReconnectStrategy(retries: number, cause: Error, tlsEnabled: boolean): number | false | Error {
+    if (retries < INITIAL_CONNECT_RETRIES) {
+        return defaultReconnectStrategy(retries, cause);
+    }
+    // A TLS server drops a plain-text client mid-handshake, which node-redis
+    // reports as the socket closing unexpectedly.
+    const hint = !tlsEnabled && cause instanceof SocketClosedUnexpectedlyError
+        ? ' The server closed the connection during the handshake; if it requires TLS, set `socket.tls: true` or use a `rediss://` URL.'
+        : '';
+    return new Error(`Failed to connect to FalkorDB: ${cause.message}.${hint}`, { cause });
+}
 
 async function clientFactory(client: SingleGraphConnection) {
 
@@ -79,14 +108,36 @@ export default class FalkorDB extends EventEmitter {
         }
         redisOption.RESP = 2;
 
+        // node-redis retries the first connection forever by default, so a server
+        // that keeps closing the socket - e.g. a TLS server reached without TLS -
+        // leaves `connect()` pending indefinitely. Unless the caller chose a
+        // strategy, give up after a few attempts while connecting and keep the
+        // usual unbounded back-off once connected. The sentinel and cluster
+        // clients reuse these socket options after `connected` is set.
+        let connected = false;
+        if (redisOption.socket?.reconnectStrategy === undefined) {
+            const tlsEnabled = redisOption.socket?.tls === true || !!redisOption.url?.startsWith('rediss:');
+            redisOption.socket = {
+                ...redisOption.socket,
+                reconnectStrategy: (retries: number, cause: Error) =>
+                    connected
+                        ? defaultReconnectStrategy(retries, cause)
+                        : initialReconnectStrategy(retries, cause, tlsEnabled),
+            } as TypedRedisClientOptions['socket'];
+        }
+
         // Create an empty FalkorDB instance for the redisClient on error event to work
         const falkordb = new FalkorDB();
 
         // Create initial redis single client
         const redisClient = createClient<{ falkordb: typeof commands }, RedisFunctions, RedisScripts, 2, {}>(redisOption)
         await redisClient
-            .on('error', err => falkordb.emit('error', err)) // Forward errors
+            // Forward errors. Nobody can listen on `falkordb` before it is returned,
+            // so emitting while connecting would only throw an unhandled 'error';
+            // those failures reach the caller as the rejection of `connect()`.
+            .on('error', err => { if (connected) falkordb.emit('error', err) })
             .connect();
+        connected = true;
 
         // Create FalkorDB client wrapper
         const client = await clientFactory(redisClient);
