@@ -135,10 +135,12 @@ export default class Graph {
   #client: Client;
   #name: string;
   #metadata?: GraphMetadata;
+  #onDelete?: (graph: Graph) => void;
 
-  constructor(client: Client, name: string) {
+  constructor(client: Client, name: string, onDelete?: (graph: Graph) => void) {
     this.#client = client;
     this.#name = name;
+    this.#onDelete = onDelete;
   }
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
@@ -152,7 +154,12 @@ export default class Graph {
   }
 
   async delete() {
-    return this.#client.delete(this.#name);
+    const reply = await this.#client.delete(this.#name);
+    // The instance is reused by `selectGraph`, and a graph recreated under the
+    // same name assigns new ids, so the cached metadata must not outlive it.
+    this.#metadata = undefined;
+    this.#onDelete?.(this);
+    return reply;
   }
 
   async explain(query: string) {

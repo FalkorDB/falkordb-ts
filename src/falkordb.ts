@@ -132,9 +132,15 @@ async function clientFactory(client: SingleGraphConnection) {
     return new Single(client)
 }
 
+// Upper bound on the `Graph` instances `selectGraph` keeps. Past it the least
+// recently selected one is dropped; that only costs its metadata cache, which
+// the next `selectGraph` for that id rebuilds.
+const MAX_CACHED_GRAPHS = 1000;
+
 export default class FalkorDB extends EventEmitter {
 
     #client: Client = new NullClient();
+    #graphs = new Map<string, Graph>();
 
     static async connect(options?: FalkorDBOptions) {
         const { host, port, ...rest } = options ?? {};
@@ -199,8 +205,32 @@ export default class FalkorDB extends EventEmitter {
         return falkordb
     }
 
+    /**
+     * Returns the `Graph` for `graphId`. Repeated calls with the same id return
+     * the same instance, so its cached metadata (labels, relationship types and
+     * property keys) is shared instead of being refetched by every new handle.
+     * The instance is released when the graph is deleted through it, or when
+     * more than `MAX_CACHED_GRAPHS` graphs have been selected since its last use.
+     */
     selectGraph(graphId: string) {
-        return new Graph(this.#client, graphId);
+        let graph = this.#graphs.get(graphId);
+        if (graph) {
+            // Re-insert so the Map's insertion order tracks recency of use
+            this.#graphs.delete(graphId);
+        } else {
+            graph = new Graph(this.#client, graphId, (deleted) => {
+                // An instance already evicted must not remove its replacement
+                if (this.#graphs.get(graphId) === deleted) {
+                    this.#graphs.delete(graphId);
+                }
+            });
+        }
+        this.#graphs.set(graphId, graph);
+
+        if (this.#graphs.size > MAX_CACHED_GRAPHS) {
+            this.#graphs.delete(this.#graphs.keys().next().value!);
+        }
+        return graph;
     }
 
     public get connection() {
@@ -255,6 +285,7 @@ export default class FalkorDB extends EventEmitter {
      * Closes the client.
      */
     async close() {
+        this.#graphs.clear();
         return this.#client.disconnect();
     }
 }
