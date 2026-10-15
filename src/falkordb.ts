@@ -219,9 +219,13 @@ export default class FalkorDB extends EventEmitter {
             this.#graphs.delete(graphId);
         } else {
             graph = new Graph(this.#client, graphId, (deleted) => {
-                // An instance already evicted must not remove its replacement
-                if (this.#graphs.get(graphId) === deleted) {
+                const cached = this.#graphs.get(graphId);
+                if (cached === deleted) {
                     this.#graphs.delete(graphId);
+                } else {
+                    // An instance already evicted deleted the graph: keep its
+                    // replacement, but not the names it cached for that graph
+                    cached?.clearMetadataCache();
                 }
             });
         }
