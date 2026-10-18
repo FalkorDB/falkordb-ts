@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 
 import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
-import Graph, { MetadataVersion } from './graph';
+import Graph, { GraphSchemaState } from './graph';
 import commands from './commands';
 import { Client } from './clients/client';
 import { Single } from './clients/single';
@@ -43,10 +43,10 @@ export default class FalkorDB extends EventEmitter {
     // Shared by every instance for a graph id, including ones evicted from
     // #graphs that callers still hold. Weakly held, so an entry lives only as
     // long as some instance using it does.
-    #metadataVersions = new Map<string, WeakRef<MetadataVersion>>();
-    #metadataVersionsCleanup = new FinalizationRegistry<string>((graphId) => {
-        if (!this.#metadataVersions.get(graphId)?.deref()) {
-            this.#metadataVersions.delete(graphId);
+    #schemas = new Map<string, WeakRef<GraphSchemaState>>();
+    #schemasCleanup = new FinalizationRegistry<string>((graphId) => {
+        if (!this.#schemas.get(graphId)?.deref()) {
+            this.#schemas.delete(graphId);
         }
     });
 
@@ -119,6 +119,9 @@ export default class FalkorDB extends EventEmitter {
      * property keys) is shared instead of being refetched by every new handle.
      * The instance is released when the graph is deleted through it, or when
      * more than `MAX_CACHED_GRAPHS` graphs have been selected since its last use.
+     * Each query carries the schema version the cached metadata matches, so a
+     * schema changed by another client (e.g. the graph deleted and recreated) is
+     * rejected by the server and the metadata refreshed before the query is retried.
      */
     selectGraph(graphId: string) {
         let graph = this.#graphs.get(graphId);
@@ -127,7 +130,7 @@ export default class FalkorDB extends EventEmitter {
             this.#graphs.delete(graphId);
         } else {
             graph = new Graph(this.#client, graphId, {
-                metadataVersion: this.#metadataVersion(graphId),
+                schema: this.#schema(graphId),
                 onDelete: (deleted) => {
                     // An instance already evicted must not remove its replacement
                     if (this.#graphs.get(graphId) === deleted) {
@@ -144,14 +147,14 @@ export default class FalkorDB extends EventEmitter {
         return graph;
     }
 
-    #metadataVersion(graphId: string) {
-        let version = this.#metadataVersions.get(graphId)?.deref();
-        if (!version) {
-            version = { value: 0 };
-            this.#metadataVersions.set(graphId, new WeakRef(version));
-            this.#metadataVersionsCleanup.register(version, graphId);
+    #schema(graphId: string) {
+        let schema = this.#schemas.get(graphId)?.deref();
+        if (!schema) {
+            schema = { generation: 0, version: 0 };
+            this.#schemas.set(graphId, new WeakRef(schema));
+            this.#schemasCleanup.register(schema, graphId);
         }
-        return version;
+        return schema;
     }
 
     public get connection() {
@@ -207,6 +210,7 @@ export default class FalkorDB extends EventEmitter {
      */
     async close() {
         this.#graphs.clear();
+        this.#schemas.clear();
         return this.#client.disconnect();
     }
 }

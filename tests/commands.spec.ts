@@ -427,12 +427,22 @@ describe('Command Transformation Functions', () => {
       const result = QUERY.transformArguments('mygraph', 'MATCH (n) RETURN n', undefined, true);
       expect(result).toEqual(['GRAPH.QUERY', 'mygraph', 'MATCH (n) RETURN n', '--compact']);
     });
+
+    it('should transform arguments with schema version', () => {
+      const result = QUERY.transformArguments('mygraph', 'MATCH (n) RETURN n', { TIMEOUT: 5000 }, true, 123);
+      expect(result).toEqual(['GRAPH.QUERY', 'mygraph', 'MATCH (n) RETURN n', 'TIMEOUT', '5000', 'version', '123', '--compact']);
+    });
   });
 
   describe('RO_QUERY', () => {
     it('should transform arguments with graph name and query', () => {
       const result = RO_QUERY.transformArguments('mygraph', 'MATCH (n) RETURN n');
       expect(result).toEqual(['GRAPH.RO_QUERY', 'mygraph', 'MATCH (n) RETURN n']);
+    });
+
+    it('should transform arguments with schema version', () => {
+      const result = RO_QUERY.transformArguments('mygraph', 'MATCH (n) RETURN n', undefined, true, 0);
+      expect(result).toEqual(['GRAPH.RO_QUERY', 'mygraph', 'MATCH (n) RETURN n', 'version', '0', '--compact']);
     });
 
     it('should transform arguments with TIMEOUT option', () => {

@@ -1,6 +1,7 @@
 import { describe, it, expect } from '@jest/globals';
 import * as SLOWLOG from '../src/commands/SLOWLOG';
 import * as QUERY from '../src/commands/QUERY';
+import { SchemaVersionMismatchError } from '../src/errors';
 
 describe('Command Reply Transformations', () => {
   describe('SLOWLOG transformReply', () => {
@@ -96,6 +97,24 @@ describe('Command Reply Transformations', () => {
       expect(result.headers).toEqual(['name']);
       expect(result.data).toEqual([]);
       expect(result.metadata).toEqual(['No results']);
+    });
+
+    it('should throw SchemaVersionMismatchError on a version mismatch reply', () => {
+      const rawReply: any = [new Error('version mismatch'), 1289081430];
+      let error: unknown;
+      try {
+        QUERY.transformReply(rawReply);
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SchemaVersionMismatchError);
+      expect((error as SchemaVersionMismatchError).version).toBe(1289081430);
+    });
+
+    it('should rethrow any other error at the start of the reply', () => {
+      const rawReply: any = [new Error('boom'), 1];
+      expect(() => QUERY.transformReply(rawReply)).toThrow('boom');
     });
   });
 });

@@ -396,6 +396,32 @@ describe("Single Client Tests", () => {
     );
 
     it(
+      "should decode labels correctly after another client deletes and recreates the graph",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-external-${getRandomNumber()}`;
+        const graph = singleClient.selectGraph(graphName);
+        await graph.query("CREATE (:First), (:Second)");
+        await graph.query("MATCH (n) RETURN n");
+
+        const otherClient = await client();
+        try {
+          const other = otherClient.selectGraph(graphName);
+          await other.delete();
+          await other.query("CREATE (:Second), (:First)");
+        } finally {
+          await otherClient.close();
+        }
+
+        const result = await graph.query<{ n: { labels: string[] } }>(
+          "MATCH (n:First) RETURN n"
+        );
+        expect(result.data?.[0].n.labels).toEqual(["First"]);
+
+        await graph.delete();
+      })
+    );
+
+    it(
       "should not resolve labels from a deleted graph's metadata",
       skipIfNoClient(async () => {
         const graphName = `single-reuse-metadata-${getRandomNumber()}`;

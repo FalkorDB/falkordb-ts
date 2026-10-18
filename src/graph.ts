@@ -2,6 +2,7 @@ import { RedisArgument } from "@redis/client";
 import { Client } from "./clients/client";
 import { Temporal } from "@js-temporal/polyfill";
 import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
+import { SchemaVersionMismatchError } from "./errors";
 import type {
   GraphEdge,
   GraphEdgeRawValue,
@@ -25,41 +26,69 @@ export type { GraphReply };
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
 /**
- * Bumped whenever a graph's metadata becomes invalid. Every `Graph` instance
- * for the same graph shares one, so a delete through any of them invalidates
- * the metadata cached by all of them.
+ * What the client knows about a graph's schema. Every `Graph` instance for the
+ * same graph shares one, so a change seen through any of them invalidates the
+ * metadata cached by all of them.
  */
-export interface MetadataVersion {
-  value: number;
+export interface GraphSchemaState {
+  // Bumped whenever cached metadata becomes invalid
+  generation: number;
+  // The server's schema version, sent with each query so the server rejects
+  // it if the schema changed (e.g. the graph was deleted and recreated by
+  // another client) instead of the reply being decoded with stale names
+  version: number;
 }
 
 export interface GraphCacheOptions {
-  metadataVersion?: MetadataVersion;
+  schema?: GraphSchemaState;
   onDelete?: (graph: Graph) => void;
 }
 
 export default class Graph {
   #client: Client;
   #name: string;
-  #metadata?: { version: number; names: GraphMetadata };
-  #metadataVersion: MetadataVersion;
+  #metadata?: { generation: number; names: GraphMetadata };
+  #schema: GraphSchemaState;
   #onDelete?: (graph: Graph) => void;
 
   constructor(client: Client, name: string, cache?: GraphCacheOptions) {
     this.#client = client;
     this.#name = name;
-    this.#metadataVersion = cache?.metadataVersion ?? { value: 0 };
+    this.#schema = cache?.schema ?? { generation: 0, version: 0 };
     this.#onDelete = cache?.onDelete;
   }
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
-    const reply = await this.#client.query(this.#name, query, options);
+    const reply = await this.#withSchemaVersion((version) =>
+      this.#client.query(this.#name, query, options, true, version)
+    );
     return this.#parseReply<T>(reply);
   }
 
   async roQuery<T>(query: RedisArgument, options?: QueryOptions) {
-    const reply = await this.#client.roQuery(this.#name, query, options);
+    const reply = await this.#withSchemaVersion((version) =>
+      this.#client.roQuery(this.#name, query, options, true, version)
+    );
     return this.#parseReply<T>(reply);
+  }
+
+  async #withSchemaVersion(
+    run: (version?: number) => Promise<QueryReply>
+  ): Promise<QueryReply> {
+    try {
+      return await run(this.#schema.version);
+    } catch (err) {
+      if (!(err instanceof SchemaVersionMismatchError)) throw err;
+
+      // The server rejected the query without running it, so retrying is
+      // safe. Metadata fetched from here on is at least as new as
+      // `err.version`, so pairing the two is sound. The retry is sent without
+      // a version so that further concurrent schema changes cannot make it
+      // loop; names they add get new ids and are fetched when needed.
+      this.clearMetadataCache();
+      this.#schema.version = err.version;
+      return run();
+    }
   }
 
   async delete() {
@@ -67,6 +96,8 @@ export default class Graph {
     // The instance is reused by `selectGraph`, and a graph recreated under the
     // same name assigns new ids, so the cached metadata must not outlive it.
     this.clearMetadataCache();
+    // A recreated graph starts from an empty schema, whose version is 0
+    this.#schema.version = 0;
     this.#onDelete?.(this);
     return reply;
   }
@@ -75,11 +106,11 @@ export default class Graph {
    * Drops the cached labels, relationship types and property keys, here and in
    * every other instance `selectGraph` returned for this graph, so they are
    * refetched the next time a reply needs them. A fetch already in flight does
-   * not repopulate the cache. Call this when the graph may have been deleted or
-   * recreated other than through this client.
+   * not repopulate the cache. Schema changes made by other clients are detected
+   * on the next query, so this is rarely needed.
    */
   clearMetadataCache() {
-    this.#metadataVersion.value++;
+    this.#schema.generation++;
     this.#metadata = undefined;
   }
 
@@ -135,15 +166,15 @@ export default class Graph {
     return this.#client.copy(this.#name, destGraph);
   }
 
-  #pendingMetadata?: { version: number; promise: Promise<GraphMetadata> };
+  #pendingMetadata?: { generation: number; promise: Promise<GraphMetadata> };
 
   #updateMetadata(): Promise<GraphMetadata> {
-    const version = this.#metadataVersion.value;
+    const generation = this.#schema.generation;
     // A fetch started before the metadata was invalidated is not joined
-    if (this.#pendingMetadata?.version !== version) {
+    if (this.#pendingMetadata?.generation !== generation) {
       const pending = {
-        version,
-        promise: this.#setMetadata(version).finally(() => {
+        generation,
+        promise: this.#setMetadata(generation).finally(() => {
           if (this.#pendingMetadata === pending) {
             this.#pendingMetadata = undefined;
           }
@@ -155,7 +186,7 @@ export default class Graph {
   }
 
   // DO NOT use directly, use #updateMetadata instead
-  async #setMetadata(version: number): Promise<GraphMetadata> {
+  async #setMetadata(generation: number): Promise<GraphMetadata> {
     const [labels, relationshipTypes, propertyKeys] = await Promise.all([
       this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false),
       this.#client.roQuery(
@@ -184,8 +215,8 @@ export default class Graph {
 
     // The caller's reply predates any reset, so it still gets these names,
     // but they are only cached if the graph was not deleted meanwhile
-    if (version === this.#metadataVersion.value) {
-      this.#metadata = { version, names: metadata };
+    if (generation === this.#schema.generation) {
+      this.#metadata = { generation, names: metadata };
     }
     return metadata;
   }
@@ -199,7 +230,7 @@ export default class Graph {
     id: number
   ): GraphMetadata[T][number] | Promise<GraphMetadata[T][number]> {
     const metadata =
-      this.#metadata?.version === this.#metadataVersion.value
+      this.#metadata?.generation === this.#schema.generation
         ? this.#metadata.names
         : undefined;
     return metadata?.[key][id] ?? this.#getMetadataAsync(key, id);

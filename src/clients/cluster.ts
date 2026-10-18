@@ -66,9 +66,10 @@ export class Cluster implements Client {
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact = true
+    compact = true,
+    version?: number
   ) {
-    return this.#client.falkordb.query(graph, query, options, compact);
+    return this.#client.falkordb.query(graph, query, options, compact, version);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -76,9 +77,10 @@ export class Cluster implements Client {
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact = true
+    compact = true,
+    version?: number
   ) {
-    return this.#client.falkordb.roQuery(graph, query, options, compact);
+    return this.#client.falkordb.roQuery(graph, query, options, compact, version);
   }
 
   async delete(graph: string) {

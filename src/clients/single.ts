@@ -27,18 +27,20 @@ export class Single implements Client {
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact = true
+    compact = true,
+    version?: number
   ) {
-    return await this.client.falkordb.query(graph, query, options, compact);
+    return await this.client.falkordb.query(graph, query, options, compact, version);
   }
 
   async roQuery<_T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact = true
+    compact = true,
+    version?: number
   ) {
-    return await this.client.falkordb.roQuery(graph, query, options, compact);
+    return await this.client.falkordb.roQuery(graph, query, options, compact, version);
   }
 
   async delete(graph: string) {
