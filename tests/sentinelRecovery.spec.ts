@@ -4,8 +4,10 @@ import {
     ErrorReply,
     SocketClosedUnexpectedlyError,
 } from '@redis/client';
+import * as net from 'net';
 import FalkorDB from '../src/falkordb';
 import { Sentinel } from '../src/clients/sentinel';
+import commands from '../src/commands';
 
 type FakeClient = {
     name: string;
@@ -36,6 +38,8 @@ function sentinelWith(oldMaster: FakeClient, newMasters: Array<FakeClient | Erro
     s.falkordb.on('error', () => {});
     s.ready = true;
     const tryConnect = jest.fn(async () => {
+        // Like the real lookup, the new master is only known after a round trip
+        await new Promise((resolve) => setImmediate(resolve));
         const next = newMasters.shift();
         if (!next || next instanceof Error) {
             throw next ?? new Error('no master');
@@ -84,6 +88,25 @@ describe('Sentinel master recovery', () => {
         expect(tryConnect).toHaveBeenCalledTimes(1);
     });
 
+    it('shares one re-discovery between concurrent failed commands', async () => {
+        const oldMaster = fakeClient('old', () =>
+            Promise.reject(new ErrorReply("READONLY You can't write against a read only replica.")));
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel, tryConnect } = sentinelWith(oldMaster, [newMaster]);
+
+        await expect(Promise.all([sentinel.list(), sentinel.list()])).resolves.toEqual([['g'], ['g']]);
+        expect(tryConnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('retries on socket errors such as ECONNRESET', async () => {
+        const reset = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET' });
+        const oldMaster = fakeClient('old', () => Promise.reject(reset));
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel } = sentinelWith(oldMaster, [newMaster]);
+
+        await expect(sentinel.list()).resolves.toEqual(['g']);
+    });
+
     it('keeps re-discovering the master until it succeeds', async () => {
         const oldMaster = fakeClient('old', () => Promise.reject(new SocketClosedUnexpectedlyError()));
         const newMaster = fakeClient('new', () => Promise.resolve(['g']));
@@ -126,5 +149,113 @@ describe('Sentinel master recovery', () => {
         const attempts = tryConnect.mock.calls.length;
         await new Promise((resolve) => setTimeout(resolve, 300));
         expect(tryConnect.mock.calls.length).toBe(attempts);
+    });
+});
+
+/**
+ * Minimal RESP server: answers GRAPH.LIST with its name, anything else with OK.
+ */
+async function fakeServer(name: string) {
+    const sockets = new Set<net.Socket>();
+    const server = net.createServer((socket) => {
+        sockets.add(socket);
+        socket.on('close', () => sockets.delete(socket));
+        socket.on('error', () => {});
+        let buffer = '';
+        socket.on('data', (chunk) => {
+            buffer += chunk.toString();
+            for (;;) {
+                const command = parseCommand(buffer);
+                if (!command) break;
+                buffer = buffer.slice(command.length);
+                socket.write(command.args[0]?.toUpperCase() === 'GRAPH.LIST'
+                    ? `*1\r\n$${name.length}\r\n${name}\r\n`
+                    : '+OK\r\n');
+            }
+        });
+    });
+    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+    return {
+        port: (server.address() as net.AddressInfo).port,
+        dropConnections: () => sockets.forEach((s) => s.destroy()),
+        close: () => {
+            sockets.forEach((s) => s.destroy());
+            return new Promise((resolve) => server.close(resolve));
+        },
+    };
+}
+
+function parseCommand(buffer: string): { args: string[]; length: number } | null {
+    let pos = 0;
+    const line = () => {
+        const end = buffer.indexOf('\r\n', pos);
+        if (end < 0) return null;
+        const value = buffer.slice(pos, end);
+        pos = end + 2;
+        return value;
+    };
+    const header = line();
+    if (header === null) return null;
+    const args: string[] = [];
+    for (let i = 0; i < parseInt(header.slice(1), 10); i++) {
+        const size = line();
+        if (size === null) return null;
+        const len = parseInt(size.slice(1), 10);
+        if (buffer.length < pos + len + 2) return null;
+        args.push(buffer.slice(pos, pos + len));
+        pos += len + 2;
+    }
+    return { args, length: pos };
+}
+
+describe('Sentinel master connection', () => {
+    beforeAll(() => {
+        jest.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+    afterAll(() => {
+        (console.debug as jest.Mock).mockRestore();
+    });
+
+    function sentinelPointingTo(ports: number[]) {
+        const sentinelClient: any = {
+            options: { modules: { falkordb: commands }, RESP: 2 },
+            disconnect: jest.fn(() => Promise.resolve()),
+            falkordb: {
+                sentinelMasters: jest.fn(async () => {
+                    const port = ports.length > 1 ? ports.shift()! : ports[0];
+                    return [['name', 'master', 'ip', '127.0.0.1', 'port', String(port)]];
+                }),
+            },
+        };
+        const falkordb = new FalkorDB();
+        falkordb.on('error', () => {});
+        return { sentinel: new Sentinel(sentinelClient), falkordb };
+    }
+
+    it('reconnects to the new master when the server closes the connection', async () => {
+        const oldMaster = await fakeServer('old');
+        const newMaster = await fakeServer('new');
+        const { sentinel, falkordb } = sentinelPointingTo([oldMaster.port, newMaster.port]);
+        try {
+            await sentinel.init(falkordb);
+            await expect(sentinel.list()).resolves.toEqual(['old']);
+
+            oldMaster.dropConnections();
+            await expect(sentinel.list()).resolves.toEqual(['new']);
+        } finally {
+            await sentinel.disconnect();
+            await oldMaster.close();
+            await newMaster.close();
+        }
+    });
+
+    it('fails init without retrying when the master is unreachable', async () => {
+        const server = await fakeServer('gone');
+        await server.close();
+        const { sentinel, falkordb } = sentinelPointingTo([server.port]);
+
+        await expect(sentinel.init(falkordb)).rejects.toThrow();
+        expect((sentinel as any).recovery).toBeNull();
+        await sentinel.disconnect();
     });
 });
