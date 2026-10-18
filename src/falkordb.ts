@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 
 import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
-import Graph from './graph';
+import Graph, { MetadataVersion } from './graph';
 import commands from './commands';
 import { Client } from './clients/client';
 import { Single } from './clients/single';
@@ -40,6 +40,15 @@ export default class FalkorDB extends EventEmitter {
 
     #client: Client = new NullClient();
     #graphs = new Map<string, Graph>();
+    // Shared by every instance for a graph id, including ones evicted from
+    // #graphs that callers still hold. Weakly held, so an entry lives only as
+    // long as some instance using it does.
+    #metadataVersions = new Map<string, WeakRef<MetadataVersion>>();
+    #metadataVersionsCleanup = new FinalizationRegistry<string>((graphId) => {
+        if (!this.#metadataVersions.get(graphId)?.deref()) {
+            this.#metadataVersions.delete(graphId);
+        }
+    });
 
     static async connect(options?: FalkorDBOptions) {
         const { host, port, ...rest } = options ?? {};
@@ -117,15 +126,14 @@ export default class FalkorDB extends EventEmitter {
             // Re-insert so the Map's insertion order tracks recency of use
             this.#graphs.delete(graphId);
         } else {
-            graph = new Graph(this.#client, graphId, (deleted) => {
-                const cached = this.#graphs.get(graphId);
-                if (cached === deleted) {
-                    this.#graphs.delete(graphId);
-                } else {
-                    // An instance already evicted deleted the graph: keep its
-                    // replacement, but not the names it cached for that graph
-                    cached?.clearMetadataCache();
-                }
+            graph = new Graph(this.#client, graphId, {
+                metadataVersion: this.#metadataVersion(graphId),
+                onDelete: (deleted) => {
+                    // An instance already evicted must not remove its replacement
+                    if (this.#graphs.get(graphId) === deleted) {
+                        this.#graphs.delete(graphId);
+                    }
+                },
             });
         }
         this.#graphs.set(graphId, graph);
@@ -134,6 +142,16 @@ export default class FalkorDB extends EventEmitter {
             this.#graphs.delete(this.#graphs.keys().next().value!);
         }
         return graph;
+    }
+
+    #metadataVersion(graphId: string) {
+        let version = this.#metadataVersions.get(graphId)?.deref();
+        if (!version) {
+            version = { value: 0 };
+            this.#metadataVersions.set(graphId, new WeakRef(version));
+            this.#metadataVersionsCleanup.register(version, graphId);
+        }
+        return version;
     }
 
     public get connection() {

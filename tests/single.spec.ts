@@ -370,6 +370,32 @@ describe("Single Client Tests", () => {
     );
 
     it(
+      "should clear a retained evicted instance's metadata when the replacement deletes the graph",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-retained-${getRandomNumber()}`;
+        const evicted = singleClient.selectGraph(graphName);
+        await evicted.query("CREATE (:First), (:Second)");
+        await evicted.query("MATCH (n) RETURN n");
+
+        for (let i = 0; i < 1000; i++) {
+          singleClient.selectGraph(`${graphName}-${i}`);
+        }
+        const replacement = singleClient.selectGraph(graphName);
+        expect(replacement).not.toBe(evicted);
+
+        await replacement.delete();
+        await replacement.query("CREATE (:Second), (:First)");
+
+        const result = await evicted.query<{ n: { labels: string[] } }>(
+          "MATCH (n:First) RETURN n"
+        );
+        expect(result.data?.[0].n.labels).toEqual(["First"]);
+
+        await evicted.delete();
+      })
+    );
+
+    it(
       "should not resolve labels from a deleted graph's metadata",
       skipIfNoClient(async () => {
         const graphName = `single-reuse-metadata-${getRandomNumber()}`;

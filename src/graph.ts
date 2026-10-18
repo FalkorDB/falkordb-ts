@@ -24,16 +24,32 @@ export type { GraphReply };
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
+/**
+ * Bumped whenever a graph's metadata becomes invalid. Every `Graph` instance
+ * for the same graph shares one, so a delete through any of them invalidates
+ * the metadata cached by all of them.
+ */
+export interface MetadataVersion {
+  value: number;
+}
+
+export interface GraphCacheOptions {
+  metadataVersion?: MetadataVersion;
+  onDelete?: (graph: Graph) => void;
+}
+
 export default class Graph {
   #client: Client;
   #name: string;
-  #metadata?: GraphMetadata;
+  #metadata?: { version: number; names: GraphMetadata };
+  #metadataVersion: MetadataVersion;
   #onDelete?: (graph: Graph) => void;
 
-  constructor(client: Client, name: string, onDelete?: (graph: Graph) => void) {
+  constructor(client: Client, name: string, cache?: GraphCacheOptions) {
     this.#client = client;
     this.#name = name;
-    this.#onDelete = onDelete;
+    this.#metadataVersion = cache?.metadataVersion ?? { value: 0 };
+    this.#onDelete = cache?.onDelete;
   }
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
@@ -56,15 +72,15 @@ export default class Graph {
   }
 
   /**
-   * Drops the cached labels, relationship types and property keys, so they are
+   * Drops the cached labels, relationship types and property keys, here and in
+   * every other instance `selectGraph` returned for this graph, so they are
    * refetched the next time a reply needs them. A fetch already in flight does
    * not repopulate the cache. Call this when the graph may have been deleted or
-   * recreated other than through this instance.
+   * recreated other than through this client.
    */
   clearMetadataCache() {
+    this.#metadataVersion.value++;
     this.#metadata = undefined;
-    this.#setMetadataPromise = undefined;
-    this.#metadataGeneration++;
   }
 
   async explain(query: string) {
@@ -119,25 +135,27 @@ export default class Graph {
     return this.#client.copy(this.#name, destGraph);
   }
 
-  #setMetadataPromise?: Promise<GraphMetadata>;
-  // Bumped by clearMetadataCache so fetches started before it are discarded
-  #metadataGeneration = 0;
+  #pendingMetadata?: { version: number; promise: Promise<GraphMetadata> };
 
   #updateMetadata(): Promise<GraphMetadata> {
-    if (!this.#setMetadataPromise) {
-      const promise = this.#setMetadata().finally(() => {
-        if (this.#setMetadataPromise === promise) {
-          this.#setMetadataPromise = undefined;
-        }
-      });
-      this.#setMetadataPromise = promise;
+    const version = this.#metadataVersion.value;
+    // A fetch started before the metadata was invalidated is not joined
+    if (this.#pendingMetadata?.version !== version) {
+      const pending = {
+        version,
+        promise: this.#setMetadata(version).finally(() => {
+          if (this.#pendingMetadata === pending) {
+            this.#pendingMetadata = undefined;
+          }
+        }),
+      };
+      this.#pendingMetadata = pending;
     }
-    return this.#setMetadataPromise;
+    return this.#pendingMetadata.promise;
   }
 
   // DO NOT use directly, use #updateMetadata instead
-  async #setMetadata(): Promise<GraphMetadata> {
-    const generation = this.#metadataGeneration;
+  async #setMetadata(version: number): Promise<GraphMetadata> {
     const [labels, relationshipTypes, propertyKeys] = await Promise.all([
       this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false),
       this.#client.roQuery(
@@ -166,8 +184,8 @@ export default class Graph {
 
     // The caller's reply predates any reset, so it still gets these names,
     // but they are only cached if the graph was not deleted meanwhile
-    if (generation === this.#metadataGeneration) {
-      this.#metadata = metadata;
+    if (version === this.#metadataVersion.value) {
+      this.#metadata = { version, names: metadata };
     }
     return metadata;
   }
@@ -180,7 +198,11 @@ export default class Graph {
     key: T,
     id: number
   ): GraphMetadata[T][number] | Promise<GraphMetadata[T][number]> {
-    return this.#metadata?.[key][id] ?? this.#getMetadataAsync(key, id);
+    const metadata =
+      this.#metadata?.version === this.#metadataVersion.value
+        ? this.#metadata.names
+        : undefined;
+    return metadata?.[key][id] ?? this.#getMetadataAsync(key, id);
   }
 
   // DO NOT use directly, use #getMetadata instead
