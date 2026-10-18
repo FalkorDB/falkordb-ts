@@ -113,7 +113,9 @@ export default class FalkorDB extends EventEmitter {
         // leaves `connect()` pending indefinitely. Unless the caller chose a
         // strategy, give up after a few attempts while connecting and keep the
         // usual unbounded back-off once connected. The sentinel and cluster
-        // clients reuse these socket options after `connected` is set.
+        // clients reuse these socket options, so `connected` is only set once
+        // they are up too: a node discovered during `init()` that cannot be
+        // reached must fail `connect()` as well.
         let connected = false;
         if (redisOption.socket?.reconnectStrategy === undefined) {
             const tlsEnabled = redisOption.socket?.tls === true || !!redisOption.url?.startsWith('rediss:');
@@ -137,11 +139,11 @@ export default class FalkorDB extends EventEmitter {
             // those failures reach the caller as the rejection of `connect()`.
             .on('error', err => { if (connected) falkordb.emit('error', err) })
             .connect();
-        connected = true;
 
         // Create FalkorDB client wrapper
         const client = await clientFactory(redisClient);
         await client.init(falkordb);
+        connected = true;
 
         // Set the client to the FalkorDB instance after it was initialized
         falkordb.#client = client;  

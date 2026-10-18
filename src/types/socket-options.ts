@@ -24,13 +24,16 @@ export interface SocketCommonOptions {
      * 2. `number` -> wait for `X` milliseconds before reconnecting.
      * 3. `(retries, cause) => false | number | Error` -> `number` is the same as configuring a `number` directly, `Error` is the same as `false`, but with a custom error.
      *
-     * By default the initial connection is retried 3 times before `FalkorDB.connect()` rejects,
-     * and reconnects after that back off exponentially without a limit.
+     * By default the initial connection is retried 3 times before `FalkorDB.connect()` rejects.
+     * After that, reconnects back off exponentially up to 2 seconds between attempts, with no
+     * limit on the number of attempts. A socket timeout (see `socketTimeout`) is never retried:
+     * the client closes instead.
      */
     reconnectStrategy?: false | number | ((retries: number, cause: Error) => false | Error | number);
 
     /**
      * Timeout (in milliseconds) after which an idle socket is closed. `undefined` means no timeout.
+     * With the default `reconnectStrategy` a timed-out client is not reconnected.
      */
     socketTimeout?: number;
 

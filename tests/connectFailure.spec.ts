@@ -22,6 +22,65 @@ async function listen(onConnection: (socket: net.Socket, index: number) => void)
     return (server.address() as net.AddressInfo).port;
 }
 
+/** Pipes an accepted socket to the real FalkorDB server. */
+function proxyToFalkorDB(socket: net.Socket) {
+    const upstream = net.connect(FALKORDB_PORT, FALKORDB_HOST);
+    socket.pipe(upstream).pipe(socket);
+    socket.on('error', () => upstream.destroy());
+    upstream.on('error', () => socket.destroy());
+    socket.on('close', () => upstream.destroy());
+}
+
+function bulkString(value: string) {
+    return `$${Buffer.byteLength(value)}\r\n${value}\r\n`;
+}
+
+/**
+ * Answers just enough RESP for `FalkorDB.connect()` to treat the server as a
+ * cluster node whose only shard lives on `shardPort`. Everything else gets `+OK`.
+ */
+function fakeClusterNode(socket: net.Socket, shardPort: number) {
+    let buffer = '';
+    socket.on('data', data => {
+        buffer += data.toString();
+        // node-redis sends each command as an array of bulk strings.
+        for (;;) {
+            const header = /^\*(\d+)\r\n/.exec(buffer);
+            if (!header) return;
+            let offset = header[0].length;
+            const args: string[] = [];
+            for (let i = 0; i < Number(header[1]); i++) {
+                const length = /^\$(\d+)\r\n/.exec(buffer.slice(offset));
+                if (!length || buffer.length < offset + length[0].length + Number(length[1]) + 2) return;
+                offset += length[0].length;
+                args.push(buffer.slice(offset, offset + Number(length[1])));
+                offset += Number(length[1]) + 2;
+            }
+            buffer = buffer.slice(offset);
+
+            const command = args.join(' ').toUpperCase();
+            if (command.startsWith('INFO')) {
+                socket.write(bulkString('# Server\r\nredis_mode:cluster\r\n'));
+            } else if (command.startsWith('CLUSTER SLOTS')) {
+                socket.write(`*1\r\n*3\r\n:0\r\n:16383\r\n*3\r\n${bulkString('127.0.0.1')}:${shardPort}\r\n${bulkString('shard')}`);
+            } else {
+                socket.write('+OK\r\n');
+            }
+        }
+    });
+}
+
+/** Returns a port nothing listens on. */
+async function closedPort() {
+    const port = await listen(() => undefined);
+    await new Promise(resolve => servers.pop()!.close(resolve));
+    return port;
+}
+
+function graphName(prefix: string) {
+    return `${prefix}-${Math.floor(Math.random() * 1e9)}`;
+}
+
 afterEach(async () => {
     // `close()` waits for open connections, so drop the ones a test left open.
     accepted.splice(0).forEach(socket => socket.destroy());
@@ -55,8 +114,7 @@ describe('FalkorDB.connect failures', () => {
     });
 
     it('rejects when nothing listens on the port', async () => {
-        const port = await listen(() => undefined);
-        await new Promise(resolve => servers.pop()!.close(resolve));
+        const port = await closedPort();
 
         await expect(FalkorDB.connect({ socket: { host: '127.0.0.1', port } }))
             .rejects.toThrow(/Failed to connect to FalkorDB: .*ECONNREFUSED/);
@@ -86,18 +144,16 @@ describe('FalkorDB.connect failures', () => {
                 socket.destroy();
                 return;
             }
-            const upstream = net.connect(FALKORDB_PORT, FALKORDB_HOST);
-            socket.pipe(upstream).pipe(socket);
-            socket.on('error', () => upstream.destroy());
-            upstream.on('error', () => socket.destroy());
-            socket.on('close', () => upstream.destroy());
+            proxyToFalkorDB(socket);
         });
 
         const db = await FalkorDB.connect({ socket: { host: '127.0.0.1', port } });
+        const graph = db.selectGraph(graphName('connect-failure-retry'));
         try {
-            const result = await db.selectGraph('connect-failure-retry').query<{ x: number }>('RETURN 1 AS x');
+            const result = await graph.query<{ x: number }>('RETURN 1 AS x');
             expect(result.data).toEqual([{ x: 1 }]);
         } finally {
+            await graph.delete();
             await db.close();
         }
     });
@@ -116,14 +172,11 @@ describe('FalkorDB.connect failures', () => {
         const sockets: net.Socket[] = [];
         const port = await listen(socket => {
             sockets.push(socket);
-            const upstream = net.connect(FALKORDB_PORT, FALKORDB_HOST);
-            socket.pipe(upstream).pipe(socket);
-            socket.on('error', () => upstream.destroy());
-            upstream.on('error', () => socket.destroy());
-            socket.on('close', () => upstream.destroy());
+            proxyToFalkorDB(socket);
         });
 
         const db = await FalkorDB.connect({ socket: { host: '127.0.0.1', port } });
+        const graph = db.selectGraph(graphName('connect-failure-reconnect'));
         try {
             const errors: Error[] = [];
             db.on('error', (err: Error) => errors.push(err));
@@ -132,11 +185,20 @@ describe('FalkorDB.connect failures', () => {
             await new Promise(resolve => setTimeout(resolve, 500));
 
             expect(errors.length).toBeGreaterThan(0);
-            const result = await db.selectGraph('connect-failure-reconnect').query<{ x: number }>('RETURN 1 AS x');
+            const result = await graph.query<{ x: number }>('RETURN 1 AS x');
             expect(result.data).toEqual([{ x: 1 }]);
             expect(sockets.length).toBeGreaterThan(1);
         } finally {
+            await graph.delete();
             await db.close();
         }
+    });
+
+    it('rejects when a cluster shard discovered while connecting is unreachable', async () => {
+        const shardPort = await closedPort();
+        const port = await listen(socket => fakeClusterNode(socket, shardPort));
+
+        await expect(FalkorDB.connect({ socket: { host: '127.0.0.1', port } }))
+            .rejects.toThrow(new RegExp(`Failed to connect to FalkorDB: .*ECONNREFUSED 127\\.0\\.0\\.1:${shardPort}`));
     });
 });
