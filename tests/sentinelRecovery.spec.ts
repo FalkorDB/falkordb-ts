@@ -179,6 +179,36 @@ describe('Sentinel master recovery', () => {
         expect(oldMaster.destroy).not.toHaveBeenCalled();
     });
 
+    it('stops waiting for a demoted master after a timeout, without resending its in-flight writes', async () => {
+        jest.useFakeTimers({ doNotFake: ['setImmediate', 'queueMicrotask', 'nextTick'] });
+        try {
+            let failInFlight: (err: Error) => void = () => {};
+            const inFlight = new Promise((_, reject) => { failInFlight = reject; });
+            const readOnly = new ErrorReply("READONLY You can't write against a read only replica.");
+            const oldMaster: any = fakeClient('old', () => Promise.reject(readOnly));
+            oldMaster.falkordb.query
+                .mockImplementationOnce(() => inFlight)
+                .mockImplementationOnce(() => Promise.reject(readOnly));
+            oldMaster.isReady = true;
+            oldMaster.close = jest.fn(() => new Promise(() => {})); // never drains
+            oldMaster.destroy = jest.fn(() => failInFlight(new DisconnectsClientError()));
+            const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+            const { sentinel } = sentinelWith(oldMaster, [newMaster]);
+
+            const stuck = sentinel.query('g', 'CREATE ()');
+            stuck.catch(() => {});
+            await expect(sentinel.query('g', 'CREATE ()')).resolves.toEqual(['g']);
+            expect(oldMaster.destroy).not.toHaveBeenCalled();
+
+            await jest.advanceTimersByTimeAsync(5000);
+            expect(oldMaster.destroy).toHaveBeenCalled();
+            await expect(stuck).rejects.toBeInstanceOf(DisconnectsClientError);
+            expect(newMaster.falkordb.query).toHaveBeenCalledTimes(1);
+        } finally {
+            jest.useRealTimers();
+        }
+    });
+
     it('does not retry other errors', async () => {
         const master = fakeClient('old', () => Promise.reject(new ErrorReply('ERR Invalid graph operation')));
         const { sentinel, tryConnect } = sentinelWith(master, []);
@@ -216,6 +246,8 @@ describe('Sentinel master recovery', () => {
  */
 async function fakeServer(name: string, { holdQueries = false } = {}) {
     const sockets = new Set<net.Socket>();
+    let onQuery: () => void = () => {};
+    const queryReceived = new Promise<void>((resolve) => { onQuery = resolve; });
     const server = net.createServer((socket) => {
         sockets.add(socket);
         socket.on('close', () => sockets.delete(socket));
@@ -229,6 +261,7 @@ async function fakeServer(name: string, { holdQueries = false } = {}) {
                 buffer = buffer.slice(command.length);
                 const cmd = command.args[0]?.toUpperCase();
                 if (cmd === 'GRAPH.QUERY') {
+                    onQuery();
                     // Like a master paused with CLIENT PAUSE WRITE during a hand-over
                     if (!holdQueries) socket.write('*1\r\n*1\r\n$16\r\nNodes created: 1\r\n');
                 } else {
@@ -242,6 +275,7 @@ async function fakeServer(name: string, { holdQueries = false } = {}) {
     await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
     return {
         port: (server.address() as net.AddressInfo).port,
+        queryReceived,
         dropConnections: () => sockets.forEach((s) => s.destroy()),
         close: () => {
             sockets.forEach((s) => s.destroy());
@@ -323,7 +357,7 @@ describe('Sentinel master connection', () => {
             try {
                 await sentinel.init(falkordb);
                 const write = sentinel.query('g', 'CREATE ()');
-                await new Promise((resolve) => setTimeout(resolve, 50));
+                await oldMaster.queryReceived;
                 oldMaster.dropConnections();
 
                 if (retryWritesOnConnectionLoss) {

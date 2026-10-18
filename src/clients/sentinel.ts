@@ -22,6 +22,13 @@ const MAX_COMMAND_RETRIES = 3;
 const MIN_RECOVERY_DELAY_MS = 100;
 const MAX_RECOVERY_DELAY_MS = 2000;
 
+// How long a demoted master's connection may take to finish in-flight commands
+const CLOSE_TIMEOUT_MS = 5000;
+
+// Connections destroyed while commands may still have been in flight, whose
+// DisconnectsClientError rejections therefore have an unknown outcome
+const forceClosed = new WeakSet<SingleGraphConnection>();
+
 const RETRYABLE_SOCKET_CODES = new Set([
   "ECONNRESET",
   "ECONNREFUSED",
@@ -35,7 +42,10 @@ const RETRYABLE_SOCKET_CODES = new Set([
  * Whether the command certainly did not run on the server, so it is safe to
  * resend it to the current master.
  */
-function wasNotExecuted(err: unknown) {
+function wasNotExecuted(err: unknown, client: SingleGraphConnection) {
+  if (err instanceof DisconnectsClientError && forceClosed.has(client)) {
+    return false;
+  }
   if (err instanceof ErrorReply) {
     // The node was demoted to a replica while the command was queued or blocked
     return /^(READONLY|UNBLOCKED)\b/.test(err.message);
@@ -53,9 +63,10 @@ function wasNotExecuted(err: unknown) {
  * Whether the connection dropped while waiting for the reply, so the command
  * may or may not have run on the server.
  */
-function isConnectionLost(err: unknown) {
+function isConnectionLost(err: unknown, client: SingleGraphConnection) {
   return (
     err instanceof SocketClosedUnexpectedlyError ||
+    (err instanceof DisconnectsClientError && forceClosed.has(client)) ||
     RETRYABLE_SOCKET_CODES.has((err as NodeJS.ErrnoException)?.code ?? "")
   );
 }
@@ -67,8 +78,18 @@ function isConnectionLost(err: unknown) {
 function dropClient(client: SingleGraphConnection) {
   if (client.isReady) {
     // The connection is alive (e.g. the node was demoted): let in-flight
-    // commands get their replies, so none is left with an unknown outcome
-    client.close().catch(() => client.destroy());
+    // commands get their replies, so none is left with an unknown outcome.
+    // If they take too long, give up on them: their outcome is then unknown.
+    const forceClose = () => {
+      forceClosed.add(client);
+      client.destroy();
+    };
+    const timer = setTimeout(forceClose, CLOSE_TIMEOUT_MS);
+    timer.unref?.();
+    client
+      .close()
+      .catch(forceClose)
+      .finally(() => clearTimeout(timer));
   } else {
     // The socket is gone. Destroy once node-redis has failed the in-flight
     // commands with the socket error, so that DisconnectsClientError only
@@ -144,8 +165,8 @@ export class Sentinel extends Single {
       try {
         return await fn(client);
       } catch (err) {
-        const notExecuted = wasNotExecuted(err);
-        const connectionLost = isConnectionLost(err);
+        const notExecuted = wasNotExecuted(err, client);
+        const connectionLost = isConnectionLost(err, client);
         if (this.closed || (!notExecuted && !connectionLost)) {
           throw err;
         }
