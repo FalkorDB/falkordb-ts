@@ -2,8 +2,51 @@ import * as tls from "tls";
 import { Single } from "./single";
 import FalkorDB from "../falkordb";
 import type { SingleGraphConnection, TypedRedisClientOptions } from "../types";
-import { createClient, RedisFunctions, RedisScripts } from "@redis/client";
+import {
+  ClientClosedError,
+  ClientOfflineError,
+  createClient,
+  DisconnectsClientError,
+  ErrorReply,
+  RedisFunctions,
+  RedisScripts,
+  SocketClosedUnexpectedlyError,
+} from "@redis/client";
 import commands from "../commands";
+
+// How many times a command is resent after losing its connection to the master
+const MAX_COMMAND_RETRIES = 3;
+
+// Backoff between attempts to re-discover the master
+const MIN_RECOVERY_DELAY_MS = 100;
+const MAX_RECOVERY_DELAY_MS = 2000;
+
+const RETRYABLE_SOCKET_CODES = new Set([
+  "ECONNRESET",
+  "ECONNREFUSED",
+  "EPIPE",
+  "ETIMEDOUT",
+  "EHOSTUNREACH",
+  "ENETUNREACH",
+]);
+
+/**
+ * Whether a command failed because its connection to the master was lost or
+ * the node is no longer the master, so it can be resent to the current master.
+ */
+function isRetryable(err: unknown) {
+  if (err instanceof ErrorReply) {
+    // The node was demoted to a replica while the command was queued or blocked
+    return /^(READONLY|UNBLOCKED)\b/.test(err.message);
+  }
+  return (
+    err instanceof SocketClosedUnexpectedlyError ||
+    err instanceof DisconnectsClientError ||
+    err instanceof ClientClosedError ||
+    err instanceof ClientOfflineError ||
+    RETRYABLE_SOCKET_CODES.has((err as NodeJS.ErrnoException)?.code ?? "")
+  );
+}
 
 function extractDetails(masters: Array<Array<string>>) {
   const allDetails: Record<string, string>[] = [];
@@ -19,10 +62,92 @@ function extractDetails(masters: Array<Array<string>>) {
 
 export class Sentinel extends Single {
   private sentinelClient!: SingleGraphConnection;
+  private redisOption: TypedRedisClientOptions = {};
+  private falkordb?: FalkorDB;
 
-  init(falkordb: FalkorDB): Promise<void> {
-    const redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
-    return this.tryConnectSentinelServer(this.client, redisOption, falkordb);
+  // Set once the first master connection is up; recovery only runs after that
+  private ready = false;
+  private closed = false;
+
+  // Pending re-discovery of the master, shared by every command waiting on it
+  private recovery: Promise<void> | null = null;
+
+  async init(falkordb: FalkorDB): Promise<void> {
+    this.redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
+    this.falkordb = falkordb;
+    await this.tryConnectSentinelServer(this.client, this.redisOption, falkordb);
+    this.ready = true;
+  }
+
+  /**
+   * Runs a command on the current master. If the master connection is lost, or
+   * the node was demoted, waits for the new master and resends the command
+   * there instead of failing it.
+   */
+  protected async run<T>(
+    fn: (client: SingleGraphConnection) => Promise<T>
+  ): Promise<T> {
+    for (let attempt = 0; ; attempt++) {
+      if (this.recovery) {
+        await this.recovery;
+      }
+      const client = this.client;
+      try {
+        return await fn(client);
+      } catch (err) {
+        if (this.closed || attempt >= MAX_COMMAND_RETRIES || !isRetryable(err)) {
+          throw err;
+        }
+        console.debug("Command failed on master connection, retrying", err);
+        // e.g. READONLY: the connection is fine but points to a replica now
+        if (this.client === client) {
+          this.recover(client);
+        }
+      }
+    }
+  }
+
+  /**
+   * Re-discovers the master and reconnects, retrying with backoff until it
+   * succeeds or the client is closed.
+   */
+  private recover(failedClient: SingleGraphConnection): Promise<void> {
+    if (this.recovery) {
+      return this.recovery;
+    }
+
+    // Drop the old connection so nothing more is sent to the old master.
+    // Commands it rejects are resent by run() once the new master is up.
+    failedClient.destroy();
+
+    this.recovery = (async () => {
+      for (let attempt = 0; !this.closed; attempt++) {
+        try {
+          await this.tryConnectSentinelServer(
+            this.sentinelClient,
+            this.redisOption,
+            this.falkordb!
+          );
+          console.debug("Connected to server");
+          return;
+        } catch (e) {
+          console.debug("Error on server reconnect", e);
+          this.falkordb?.emit("error", e);
+          const delay = Math.min(
+            MIN_RECOVERY_DELAY_MS * 2 ** attempt,
+            MAX_RECOVERY_DELAY_MS
+          );
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
+      }
+      throw new ClientClosedError();
+    })().finally(() => {
+      this.recovery = null;
+    });
+
+    // Avoid an unhandled rejection when no command is waiting on it
+    this.recovery.catch(() => {});
+    return this.recovery;
   }
 
   /**
@@ -32,7 +157,7 @@ export class Sentinel extends Single {
   private async tryConnectSentinelServer(
     client: SingleGraphConnection,
     redisOption: TypedRedisClientOptions,
-    falkordb: FalkorDB
+    _falkordb: FalkorDB
   ) {
     // TODO support multi sentinels
     const masters = await client.falkordb.sentinelMasters();
@@ -66,29 +191,25 @@ export class Sentinel extends Single {
     // Set original client as sentinel and server client as client
     this.client = realClient;
 
-    await realClient
-      .on("error", async (err) => {
-        console.debug("Error on server connection", err);
+    try {
+      await realClient
+        .on("error", (err) => {
+          console.debug("Error on server connection", err);
 
-        // Disconnect the client to avoid further errors and retries
-        realClient.disconnect();
+          // Errors on a previous server connection, or before the first
+          // connection is up (init() reports those), need no recovery
+          if (this.client !== realClient || !this.ready || this.recovery) {
+            realClient.destroy();
+            return;
+          }
 
-        // If error occurs on previous server connection, no need to reconnect
-        if (this.client !== realClient) {
-          return;
-        }
-
-        try {
-          await this.tryConnectSentinelServer(client, redisOption, falkordb);
-          console.debug("Connected to server");
-        } catch (e) {
-          console.debug("Error on server reconnect", e);
-
-          // Forward errors if reconnection fails
-          falkordb.emit("error", err);
-        }
-      })
-      .connect();
+          this.recover(realClient);
+        })
+        .connect();
+    } catch (err) {
+      realClient.destroy();
+      throw err;
+    }
   }
 
   quit() {
@@ -96,6 +217,7 @@ export class Sentinel extends Single {
   }
 
   async disconnect() {
+    this.closed = true;
     const promises = [super.disconnect()];
     if (this.sentinelClient) {
       const reply = this.sentinelClient.disconnect();
