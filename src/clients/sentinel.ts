@@ -132,7 +132,10 @@ export class Sentinel extends Single {
           return;
         } catch (e) {
           console.debug("Error on server reconnect", e);
-          this.falkordb?.emit("error", e);
+          // Emitting "error" without a listener throws, which would end recovery
+          if (this.falkordb?.listenerCount("error")) {
+            this.falkordb.emit("error", e);
+          }
           const delay = Math.min(
             MIN_RECOVERY_DELAY_MS * 2 ** attempt,
             MAX_RECOVERY_DELAY_MS

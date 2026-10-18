@@ -120,6 +120,16 @@ describe('Sentinel master recovery', () => {
         expect(tryConnect).toHaveBeenCalledTimes(3);
     });
 
+    it('keeps re-discovering when nothing listens for error events', async () => {
+        const oldMaster = fakeClient('old', () => Promise.reject(new SocketClosedUnexpectedlyError()));
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel, tryConnect } = sentinelWith(oldMaster, [new Error('stale master'), newMaster]);
+        (sentinel as any).falkordb.removeAllListeners('error');
+
+        await expect(sentinel.list()).resolves.toEqual(['g']);
+        expect(tryConnect).toHaveBeenCalledTimes(2);
+    });
+
     it('does not retry other errors', async () => {
         const master = fakeClient('old', () => Promise.reject(new ErrorReply('ERR Invalid graph operation')));
         const { sentinel, tryConnect } = sentinelWith(master, []);
