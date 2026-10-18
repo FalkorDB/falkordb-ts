@@ -13,6 +13,7 @@ import {
   SocketClosedUnexpectedlyError,
 } from "@redis/client";
 import commands from "../commands";
+import type { RunOptions } from "./single";
 
 // How many times a command is resent after losing its connection to the master
 const MAX_COMMAND_RETRIES = 3;
@@ -31,21 +32,60 @@ const RETRYABLE_SOCKET_CODES = new Set([
 ]);
 
 /**
- * Whether a command failed because its connection to the master was lost or
- * the node is no longer the master, so it can be resent to the current master.
+ * Whether the command certainly did not run on the server, so it is safe to
+ * resend it to the current master.
  */
-function isRetryable(err: unknown) {
+function wasNotExecuted(err: unknown) {
   if (err instanceof ErrorReply) {
     // The node was demoted to a replica while the command was queued or blocked
     return /^(READONLY|UNBLOCKED)\b/.test(err.message);
   }
+  // Rejected before being sent: on a closed client, or flushed unsent when a
+  // dead master connection is destroyed (see dropClient)
   return (
-    err instanceof SocketClosedUnexpectedlyError ||
-    err instanceof DisconnectsClientError ||
     err instanceof ClientClosedError ||
     err instanceof ClientOfflineError ||
+    err instanceof DisconnectsClientError
+  );
+}
+
+/**
+ * Whether the connection dropped while waiting for the reply, so the command
+ * may or may not have run on the server.
+ */
+function isConnectionLost(err: unknown) {
+  return (
+    err instanceof SocketClosedUnexpectedlyError ||
     RETRYABLE_SOCKET_CODES.has((err as NodeJS.ErrnoException)?.code ?? "")
   );
+}
+
+/**
+ * Stops using a master connection. Commands still unsent are rejected with
+ * DisconnectsClientError, which run() resends.
+ */
+function dropClient(client: SingleGraphConnection) {
+  if (client.isReady) {
+    // The connection is alive (e.g. the node was demoted): let in-flight
+    // commands get their replies, so none is left with an unknown outcome
+    client.close().catch(() => client.destroy());
+  } else {
+    // The socket is gone. Destroy once node-redis has failed the in-flight
+    // commands with the socket error, so that DisconnectsClientError only
+    // reaches commands that were never sent.
+    queueMicrotask(() => client.destroy());
+  }
+}
+
+export interface SentinelOptions {
+  /**
+   * Resend write commands to the new master when the connection is lost while
+   * waiting for their reply. The old master may have already run them, so a
+   * write can be applied twice. Read-only commands, and commands the server
+   * certainly did not run, are always resent.
+   * @default false
+   */
+  retryWritesOnConnectionLoss?: boolean;
 }
 
 function extractDetails(masters: Array<Array<string>>) {
@@ -72,6 +112,13 @@ export class Sentinel extends Single {
   // Pending re-discovery of the master, shared by every command waiting on it
   private recovery: Promise<void> | null = null;
 
+  private readonly retryWritesOnConnectionLoss: boolean;
+
+  constructor(client: SingleGraphConnection, options: SentinelOptions = {}) {
+    super(client);
+    this.retryWritesOnConnectionLoss = options.retryWritesOnConnectionLoss ?? false;
+  }
+
   async init(falkordb: FalkorDB): Promise<void> {
     this.redisOption = (this.client.options ?? {}) as TypedRedisClientOptions;
     this.falkordb = falkordb;
@@ -82,10 +129,12 @@ export class Sentinel extends Single {
   /**
    * Runs a command on the current master. If the master connection is lost, or
    * the node was demoted, waits for the new master and resends the command
-   * there instead of failing it.
+   * there when that is safe: the command certainly did not run, it is
+   * read-only, or `retryWritesOnConnectionLoss` is set.
    */
   protected async run<T>(
-    fn: (client: SingleGraphConnection) => Promise<T>
+    fn: (client: SingleGraphConnection) => Promise<T>,
+    { readOnly = false }: RunOptions = {}
   ): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       if (this.recovery) {
@@ -95,14 +144,24 @@ export class Sentinel extends Single {
       try {
         return await fn(client);
       } catch (err) {
-        if (this.closed || attempt >= MAX_COMMAND_RETRIES || !isRetryable(err)) {
+        const notExecuted = wasNotExecuted(err);
+        const connectionLost = isConnectionLost(err);
+        if (this.closed || (!notExecuted && !connectionLost)) {
           throw err;
         }
-        console.debug("Command failed on master connection, retrying", err);
+
+        // Switch to the new master even when this command is not resent
         // e.g. READONLY: the connection is fine but points to a replica now
         if (this.client === client) {
           this.recover(client);
         }
+
+        const resend =
+          notExecuted || readOnly || this.retryWritesOnConnectionLoss;
+        if (!resend || attempt >= MAX_COMMAND_RETRIES) {
+          throw err;
+        }
+        console.debug("Command failed on master connection, retrying", err);
       }
     }
   }
@@ -116,9 +175,9 @@ export class Sentinel extends Single {
       return this.recovery;
     }
 
-    // Drop the old connection so nothing more is sent to the old master.
-    // Commands it rejects are resent by run() once the new master is up.
-    failedClient.destroy();
+    // Stop sending to the old master. Commands it rejects unsent are resent
+    // by run() once the new master is up.
+    dropClient(failedClient);
 
     this.recovery = (async () => {
       for (let attempt = 0; !this.closed; attempt++) {
@@ -202,7 +261,7 @@ export class Sentinel extends Single {
           // Errors on a previous server connection, or before the first
           // connection is up (init() reports those), need no recovery
           if (this.client !== realClient || !this.ready || this.recovery) {
-            realClient.destroy();
+            dropClient(realClient);
             return;
           }
 

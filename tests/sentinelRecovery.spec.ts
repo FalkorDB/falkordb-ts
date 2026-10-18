@@ -6,22 +6,22 @@ import {
 } from '@redis/client';
 import * as net from 'net';
 import FalkorDB from '../src/falkordb';
-import { Sentinel } from '../src/clients/sentinel';
+import { Sentinel, type SentinelOptions } from '../src/clients/sentinel';
 import commands from '../src/commands';
 
 type FakeClient = {
     name: string;
     destroy: jest.Mock;
     disconnect: jest.Mock;
-    falkordb: { list: jest.Mock };
+    falkordb: { list: jest.Mock; query: jest.Mock };
 };
 
-function fakeClient(name: string, list: () => Promise<unknown>): FakeClient {
+function fakeClient(name: string, reply: () => Promise<unknown>): FakeClient {
     return {
         name,
         destroy: jest.fn(),
         disconnect: jest.fn(() => Promise.resolve()),
-        falkordb: { list: jest.fn(list) },
+        falkordb: { list: jest.fn(reply), query: jest.fn(reply) },
     };
 }
 
@@ -30,8 +30,12 @@ function fakeClient(name: string, list: () => Promise<unknown>): FakeClient {
  * re-discovery stubbed to switch to `newMasters` in order (an Error fails
  * that attempt).
  */
-function sentinelWith(oldMaster: FakeClient, newMasters: Array<FakeClient | Error>) {
-    const sentinel = new Sentinel(oldMaster as any);
+function sentinelWith(
+    oldMaster: FakeClient,
+    newMasters: Array<FakeClient | Error>,
+    options: SentinelOptions = {}
+) {
+    const sentinel = new Sentinel(oldMaster as any, options);
     const s = sentinel as any;
     s.sentinelClient = fakeClient('sentinel', () => Promise.resolve([]));
     s.falkordb = new FalkorDB();
@@ -130,6 +134,51 @@ describe('Sentinel master recovery', () => {
         expect(tryConnect).toHaveBeenCalledTimes(2);
     });
 
+    it('does not resend a write whose connection was lost, but still switches master', async () => {
+        const oldMaster = fakeClient('old', () => Promise.reject(new SocketClosedUnexpectedlyError()));
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel, tryConnect } = sentinelWith(oldMaster, [newMaster]);
+
+        await expect(sentinel.query('g', 'CREATE ()')).rejects.toBeInstanceOf(SocketClosedUnexpectedlyError);
+        expect(tryConnect).toHaveBeenCalledTimes(1);
+        await expect(sentinel.query('g', 'CREATE ()')).resolves.toEqual(['g']);
+        expect(newMaster.falkordb.query).toHaveBeenCalledTimes(1);
+    });
+
+    it('resends a write whose connection was lost when retryWritesOnConnectionLoss is set', async () => {
+        const oldMaster = fakeClient('old', () => Promise.reject(new SocketClosedUnexpectedlyError()));
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel } = sentinelWith(oldMaster, [newMaster], { retryWritesOnConnectionLoss: true });
+
+        await expect(sentinel.query('g', 'CREATE ()')).resolves.toEqual(['g']);
+    });
+
+    it('resends writes that certainly did not run', async () => {
+        for (const err of [
+            new DisconnectsClientError(),
+            new ErrorReply("READONLY You can't write against a read only replica."),
+        ]) {
+            const oldMaster = fakeClient('old', () => Promise.reject(err));
+            const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+            const { sentinel } = sentinelWith(oldMaster, [newMaster]);
+
+            await expect(sentinel.query('g', 'CREATE ()')).resolves.toEqual(['g']);
+        }
+    });
+
+    it('lets in-flight commands finish on a demoted master that is still connected', async () => {
+        const oldMaster: any = fakeClient('old', () =>
+            Promise.reject(new ErrorReply("READONLY You can't write against a read only replica.")));
+        oldMaster.isReady = true;
+        oldMaster.close = jest.fn(() => Promise.resolve());
+        const newMaster = fakeClient('new', () => Promise.resolve(['g']));
+        const { sentinel } = sentinelWith(oldMaster, [newMaster]);
+
+        await expect(sentinel.query('g', 'CREATE ()')).resolves.toEqual(['g']);
+        expect(oldMaster.close).toHaveBeenCalled();
+        expect(oldMaster.destroy).not.toHaveBeenCalled();
+    });
+
     it('does not retry other errors', async () => {
         const master = fakeClient('old', () => Promise.reject(new ErrorReply('ERR Invalid graph operation')));
         const { sentinel, tryConnect } = sentinelWith(master, []);
@@ -165,7 +214,7 @@ describe('Sentinel master recovery', () => {
 /**
  * Minimal RESP server: answers GRAPH.LIST with its name, anything else with OK.
  */
-async function fakeServer(name: string) {
+async function fakeServer(name: string, { holdQueries = false } = {}) {
     const sockets = new Set<net.Socket>();
     const server = net.createServer((socket) => {
         sockets.add(socket);
@@ -178,9 +227,15 @@ async function fakeServer(name: string) {
                 const command = parseCommand(buffer);
                 if (!command) break;
                 buffer = buffer.slice(command.length);
-                socket.write(command.args[0]?.toUpperCase() === 'GRAPH.LIST'
-                    ? `*1\r\n$${name.length}\r\n${name}\r\n`
-                    : '+OK\r\n');
+                const cmd = command.args[0]?.toUpperCase();
+                if (cmd === 'GRAPH.QUERY') {
+                    // Like a master paused with CLIENT PAUSE WRITE during a hand-over
+                    if (!holdQueries) socket.write('*1\r\n*1\r\n$16\r\nNodes created: 1\r\n');
+                } else {
+                    socket.write(cmd === 'GRAPH.LIST'
+                        ? `*1\r\n$${name.length}\r\n${name}\r\n`
+                        : '+OK\r\n');
+                }
             }
         });
     });
@@ -226,7 +281,7 @@ describe('Sentinel master connection', () => {
         (console.debug as jest.Mock).mockRestore();
     });
 
-    function sentinelPointingTo(ports: number[]) {
+    function sentinelPointingTo(ports: number[], options: SentinelOptions = {}) {
         const sentinelClient: any = {
             options: { modules: { falkordb: commands }, RESP: 2 },
             disconnect: jest.fn(() => Promise.resolve()),
@@ -239,7 +294,7 @@ describe('Sentinel master connection', () => {
         };
         const falkordb = new FalkorDB();
         falkordb.on('error', () => {});
-        return { sentinel: new Sentinel(sentinelClient), falkordb };
+        return { sentinel: new Sentinel(sentinelClient, options), falkordb };
     }
 
     it('reconnects to the new master when the server closes the connection', async () => {
@@ -258,6 +313,33 @@ describe('Sentinel master connection', () => {
             await newMaster.close();
         }
     });
+
+    for (const retryWritesOnConnectionLoss of [false, true]) {
+        it(`handles a write held by the old master during hand-over (retryWritesOnConnectionLoss: ${retryWritesOnConnectionLoss})`, async () => {
+            const oldMaster = await fakeServer('old', { holdQueries: true });
+            const newMaster = await fakeServer('new');
+            const { sentinel, falkordb } = sentinelPointingTo(
+                [oldMaster.port, newMaster.port], { retryWritesOnConnectionLoss });
+            try {
+                await sentinel.init(falkordb);
+                const write = sentinel.query('g', 'CREATE ()');
+                await new Promise((resolve) => setTimeout(resolve, 50));
+                oldMaster.dropConnections();
+
+                if (retryWritesOnConnectionLoss) {
+                    await expect(write).resolves.toBeDefined();
+                } else {
+                    // The outcome is unknown, so it is not resent
+                    await expect(write).rejects.toBeInstanceOf(SocketClosedUnexpectedlyError);
+                }
+                await expect(sentinel.list()).resolves.toEqual(['new']);
+            } finally {
+                await sentinel.disconnect();
+                await oldMaster.close();
+                await newMaster.close();
+            }
+        });
+    }
 
     it('fails init without retrying when the master is unreachable', async () => {
         const server = await fakeServer('gone');

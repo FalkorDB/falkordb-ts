@@ -12,6 +12,13 @@ import type {
 
 export type { SingleGraphConnection };
 
+export interface RunOptions {
+  /** The command does not change data, so running it twice is harmless */
+  readOnly?: boolean;
+}
+
+const READ_ONLY: RunOptions = { readOnly: true };
+
 export class Single implements Client {
   protected client: SingleGraphConnection;
 
@@ -27,7 +34,10 @@ export class Single implements Client {
    * Runs a command against the underlying connection.
    * Subclasses override it to add recovery, e.g. retrying on a new master.
    */
-  protected run<T>(fn: (client: SingleGraphConnection) => Promise<T>): Promise<T> {
+  protected run<T>(
+    fn: (client: SingleGraphConnection) => Promise<T>,
+    _options: RunOptions = {}
+  ): Promise<T> {
     return fn(this.client);
   }
 
@@ -46,7 +56,7 @@ export class Single implements Client {
     options?: QueryOptions,
     compact = true
   ) {
-    return await this.run((client) => client.falkordb.roQuery(graph, query, options, compact));
+    return await this.run((client) => client.falkordb.roQuery(graph, query, options, compact), READ_ONLY);
   }
 
   async delete(graph: string) {
@@ -55,7 +65,7 @@ export class Single implements Client {
   }
 
   async explain(graph: string, query: string) {
-    return this.run((client) => client.falkordb.explain(graph, query));
+    return this.run((client) => client.falkordb.explain(graph, query), READ_ONLY);
   }
 
   async profile<_T>(graph: string, query: string) {
@@ -63,7 +73,7 @@ export class Single implements Client {
   }
 
   async list() {
-    return this.run((client) => client.falkordb.list());
+    return this.run((client) => client.falkordb.list(), READ_ONLY);
   }
 
   async stubs() {
@@ -71,7 +81,7 @@ export class Single implements Client {
   }
 
   async configGet(configKey: string) {
-    return this.run((client) => client.falkordb.configGet(configKey));
+    return this.run((client) => client.falkordb.configGet(configKey), READ_ONLY);
   }
 
   async configSet(configKey: string, value: number | string) {
@@ -80,18 +90,18 @@ export class Single implements Client {
   }
 
   async info(section?: string) {
-    return this.run((client) => client.falkordb.info(section));
+    return this.run((client) => client.falkordb.info(section), READ_ONLY);
   }
 
   async slowLog(graph: string) {
-    return this.run((client) => client.falkordb.slowLog(graph));
+    return this.run((client) => client.falkordb.slowLog(graph), READ_ONLY);
   }
 
   async memoryUsage(
     graph: string,
     options?: MemoryUsageOptions
   ): Promise<MemoryUsageReply> {
-    return this.run((client) => client.falkordb.memoryUsage(graph, options));
+    return this.run((client) => client.falkordb.memoryUsage(graph, options), READ_ONLY);
   }
 
   async constraintCreate(
@@ -133,7 +143,7 @@ export class Single implements Client {
   }
 
   async udfList(lib?: string, withCode: boolean = false): Promise<UdfListReply> {
-    return this.run((client) => client.falkordb.udfList(lib, withCode)) as Promise<UdfListReply>;
+    return this.run((client) => client.falkordb.udfList(lib, withCode), READ_ONLY) as Promise<UdfListReply>;
   }
 
   async udfFlush() {
