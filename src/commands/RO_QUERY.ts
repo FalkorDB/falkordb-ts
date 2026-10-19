@@ -10,14 +10,16 @@ export function parseCommand(
     graph: RedisArgument,
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
-    compact?: boolean
+    compact?: boolean,
+    version?: number
 ): void {
     const args = pushQueryArguments(
         ['GRAPH.RO_QUERY'],
         graph,
         query,
         options,
-        compact
+        compact,
+        version
     );
     parser.push(...args);
 }
@@ -26,14 +28,16 @@ export function transformArguments(
     graph: RedisArgument,
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
-    compact?: boolean
+    compact?: boolean,
+    version?: number
 ): Array<RedisArgument> {
     return pushQueryArguments(
         ['GRAPH.RO_QUERY'],
         graph,
         query,
         options,
-        compact
+        compact,
+        version
     );
 }
 

@@ -75,7 +75,8 @@ export function pushQueryArguments(
     graph: RedisArgument,
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
-    compact?: boolean
+    compact?: boolean,
+    version?: number
 ): Array<RedisArgument> {
     args.push(graph);
 
@@ -92,6 +93,10 @@ export function pushQueryArguments(
         if (options?.TIMEOUT !== undefined) {
             pushTimeout(args, options.TIMEOUT);
         }
+    }
+
+    if (version !== undefined) {
+        args.push('version', version.toString());
     }
 
     if (compact) {

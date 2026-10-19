@@ -38,7 +38,8 @@ export interface Client {
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact?: boolean
+    compact?: boolean,
+    version?: number
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -49,7 +50,8 @@ export interface Client {
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
-    compact?: boolean
+    compact?: boolean,
+    version?: number
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

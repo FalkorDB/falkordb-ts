@@ -3,7 +3,7 @@ import { EventEmitter } from 'events';
 
 import { RedisFunctions, RedisScripts, createClient } from 'redis';
 
-import Graph from './graph';
+import Graph, { GraphSchemaState } from './graph';
 import commands from './commands';
 import { SocketClosedUnexpectedlyError, SocketTimeoutError } from '@redis/client';
 import { Client } from './clients/client';
@@ -60,9 +60,24 @@ async function clientFactory(client: SingleGraphConnection, sentinelOptions: Sen
     return new Single(client)
 }
 
+// Upper bound on the `Graph` instances `selectGraph` keeps. Past it the least
+// recently selected one is dropped; that only costs its metadata cache, which
+// the next `selectGraph` for that id rebuilds.
+const MAX_CACHED_GRAPHS = 1000;
+
 export default class FalkorDB extends EventEmitter {
 
     #client: Client = new NullClient();
+    #graphs = new Map<string, Graph>();
+    // Shared by every instance for a graph id, including ones evicted from
+    // #graphs that callers still hold. Weakly held, so an entry lives only as
+    // long as some instance using it does.
+    #schemas = new Map<string, WeakRef<GraphSchemaState>>();
+    #schemasCleanup = new FinalizationRegistry<string>((graphId) => {
+        if (!this.#schemas.get(graphId)?.deref()) {
+            this.#schemas.delete(graphId);
+        }
+    });
 
     static async connect(options?: FalkorDBOptions) {
         const { host, port, retryWritesOnConnectionLoss, ...rest } = options ?? {};
@@ -151,8 +166,48 @@ export default class FalkorDB extends EventEmitter {
         return falkordb
     }
 
+    /**
+     * Returns the `Graph` for `graphId`. Repeated calls with the same id return
+     * the same instance, so its cached metadata (labels, relationship types and
+     * property keys) is shared instead of being refetched by every new handle.
+     * The instance is released when the graph is deleted through it, or when
+     * more than `MAX_CACHED_GRAPHS` graphs have been selected since its last use.
+     * Each query carries the schema version the cached metadata matches, so a
+     * schema changed by another client (e.g. the graph deleted and recreated) is
+     * rejected by the server and the metadata refreshed before the query is retried.
+     */
     selectGraph(graphId: string) {
-        return new Graph(this.#client, graphId);
+        let graph = this.#graphs.get(graphId);
+        if (graph) {
+            // Re-insert so the Map's insertion order tracks recency of use
+            this.#graphs.delete(graphId);
+        } else {
+            graph = new Graph(this.#client, graphId, {
+                schema: this.#schema(graphId),
+                onDelete: (deleted) => {
+                    // An instance already evicted must not remove its replacement
+                    if (this.#graphs.get(graphId) === deleted) {
+                        this.#graphs.delete(graphId);
+                    }
+                },
+            });
+        }
+        this.#graphs.set(graphId, graph);
+
+        if (this.#graphs.size > MAX_CACHED_GRAPHS) {
+            this.#graphs.delete(this.#graphs.keys().next().value!);
+        }
+        return graph;
+    }
+
+    #schema(graphId: string) {
+        let schema = this.#schemas.get(graphId)?.deref();
+        if (!schema) {
+            schema = { generation: 0, version: 0 };
+            this.#schemas.set(graphId, new WeakRef(schema));
+            this.#schemasCleanup.register(schema, graphId);
+        }
+        return schema;
     }
 
     public get connection() {
@@ -207,6 +262,8 @@ export default class FalkorDB extends EventEmitter {
      * Closes the client.
      */
     async close() {
+        this.#graphs.clear();
+        this.#schemas.clear();
         return this.#client.disconnect();
     }
 }
