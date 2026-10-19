@@ -73,6 +73,16 @@ jobs:
     - run: npm ci
     - run: npm run lint
     - run: npm run build --if-present
+    # Node detects a CommonJS module's named exports by scanning its source;
+    # make sure ESM callers can still `import { FalkorDB } from 'falkordb'`
+    - name: Check ESM named imports of the build
+      run: |
+        node --input-type=module -e '
+          import { FalkorDB, Graph, ConstraintType, EntityType } from "./dist/index.js";
+          for (const [name, value] of Object.entries({ FalkorDB, Graph, ConstraintType, EntityType })) {
+            if (!value) throw new Error(`${name} is not exported`);
+          }
+        '
 
   build:
 
