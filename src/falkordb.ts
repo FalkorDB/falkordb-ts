@@ -8,7 +8,7 @@ import commands from './commands';
 import { SocketClosedUnexpectedlyError, SocketTimeoutError } from '@redis/client';
 import { Client } from './clients/client';
 import { Single } from './clients/single';
-import { Sentinel } from './clients/sentinel';
+import { Sentinel, type SentinelOptions } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
 import type { FalkorDBOptions, SingleGraphConnection, TypedRedisClientOptions } from './types';
@@ -48,12 +48,12 @@ function initialReconnectStrategy(retries: number, cause: Error, tlsEnabled: boo
     return new Error(`Failed to connect to FalkorDB: ${cause.message}.${hint}`, { cause });
 }
 
-async function clientFactory(client: SingleGraphConnection) {
+async function clientFactory(client: SingleGraphConnection, sentinelOptions: SentinelOptions) {
 
     const info = await client.info("server")
 
     if (info.includes("redis_mode:sentinel")) {
-        return new Sentinel(client)
+        return new Sentinel(client, sentinelOptions)
     } else if (info.includes("redis_mode:cluster")) {
         return new Cluster(client);
     }
@@ -65,7 +65,7 @@ export default class FalkorDB extends EventEmitter {
     #client: Client = new NullClient();
 
     static async connect(options?: FalkorDBOptions) {
-        const { host, port, ...rest } = options ?? {};
+        const { host, port, retryWritesOnConnectionLoss, ...rest } = options ?? {};
         const redisOption = rest as TypedRedisClientOptions;
 
         // Support the top-level `host`/`port` shorthand used by the other FalkorDB
@@ -141,7 +141,7 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         // Create FalkorDB client wrapper
-        const client = await clientFactory(redisClient);
+        const client = await clientFactory(redisClient, { retryWritesOnConnectionLoss });
         await client.init(falkordb);
         connected = true;
 

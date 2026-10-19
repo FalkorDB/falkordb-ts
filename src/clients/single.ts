@@ -12,6 +12,13 @@ import type {
 
 export type { SingleGraphConnection };
 
+export interface RunOptions {
+  /** The command does not change data, so running it twice is harmless */
+  readOnly?: boolean;
+}
+
+const READ_ONLY: RunOptions = { readOnly: true };
+
 export class Single implements Client {
   protected client: SingleGraphConnection;
 
@@ -23,13 +30,24 @@ export class Single implements Client {
     return Promise.resolve();
   }
 
+  /**
+   * Runs a command against the underlying connection.
+   * Subclasses override it to add recovery, e.g. retrying on a new master.
+   */
+  protected run<T>(
+    fn: (client: SingleGraphConnection) => Promise<T>,
+    _options: RunOptions = {}
+  ): Promise<T> {
+    return fn(this.client);
+  }
+
   async query<_T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
     compact = true
   ) {
-    return await this.client.falkordb.query(graph, query, options, compact);
+    return await this.run((client) => client.falkordb.query(graph, query, options, compact));
   }
 
   async roQuery<_T>(
@@ -38,52 +56,52 @@ export class Single implements Client {
     options?: QueryOptions,
     compact = true
   ) {
-    return await this.client.falkordb.roQuery(graph, query, options, compact);
+    return await this.run((client) => client.falkordb.roQuery(graph, query, options, compact), READ_ONLY);
   }
 
   async delete(graph: string) {
-    const reply = this.client.falkordb.delete(graph);
+    const reply = this.run((client) => client.falkordb.delete(graph));
     return reply.then(() => {});
   }
 
   async explain(graph: string, query: string) {
-    return this.client.falkordb.explain(graph, query);
+    return this.run((client) => client.falkordb.explain(graph, query), READ_ONLY);
   }
 
   async profile<_T>(graph: string, query: string) {
-    return this.client.falkordb.profile(graph, query);
+    return this.run((client) => client.falkordb.profile(graph, query));
   }
 
   async list() {
-    return this.client.falkordb.list();
+    return this.run((client) => client.falkordb.list(), READ_ONLY);
   }
 
   async stubs() {
-    return this.client.falkordb.stubs();
+    return this.run((client) => client.falkordb.stubs());
   }
 
   async configGet(configKey: string) {
-    return this.client.falkordb.configGet(configKey);
+    return this.run((client) => client.falkordb.configGet(configKey), READ_ONLY);
   }
 
   async configSet(configKey: string, value: number | string) {
-    const reply = this.client.falkordb.configSet(configKey, value);
+    const reply = this.run((client) => client.falkordb.configSet(configKey, value));
     return reply.then(() => {});
   }
 
   async info(section?: string) {
-    return this.client.falkordb.info(section);
+    return this.run((client) => client.falkordb.info(section), READ_ONLY);
   }
 
   async slowLog(graph: string) {
-    return this.client.falkordb.slowLog(graph);
+    return this.run((client) => client.falkordb.slowLog(graph), READ_ONLY);
   }
 
   async memoryUsage(
     graph: string,
     options?: MemoryUsageOptions
   ): Promise<MemoryUsageReply> {
-    return this.client.falkordb.memoryUsage(graph, options);
+    return this.run((client) => client.falkordb.memoryUsage(graph, options), READ_ONLY);
   }
 
   async constraintCreate(
@@ -93,13 +111,13 @@ export class Single implements Client {
     label: string,
     ...properties: string[]
   ) {
-    const reply = this.client.falkordb.constraintCreate(
+    const reply = this.run((client) => client.falkordb.constraintCreate(
       graph,
       constraintType,
       entityType,
       label,
       ...properties
-    );
+    ));
     return reply.then(() => {});
   }
 
@@ -110,34 +128,34 @@ export class Single implements Client {
     label: string,
     ...properties: string[]
   ) {
-    const reply = this.client.falkordb.constraintDrop(
+    const reply = this.run((client) => client.falkordb.constraintDrop(
       graph,
       constraintType,
       entityType,
       label,
       ...properties
-    );
+    ));
     return reply.then(() => {});
   }
 
   async udfLoad(name: string, script: string | Function, replace: boolean = false) {
-    return this.client.falkordb.udfLoad(name, script, replace);
+    return this.run((client) => client.falkordb.udfLoad(name, script, replace));
   }
 
   async udfList(lib?: string, withCode: boolean = false): Promise<UdfListReply> {
-    return this.client.falkordb.udfList(lib, withCode) as Promise<UdfListReply>;
+    return this.run((client) => client.falkordb.udfList(lib, withCode), READ_ONLY) as Promise<UdfListReply>;
   }
 
   async udfFlush() {
-    return this.client.falkordb.udfFlush();
+    return this.run((client) => client.falkordb.udfFlush());
   }
 
   async udfDelete(lib: string) {
-    return this.client.falkordb.udfDelete(lib);
+    return this.run((client) => client.falkordb.udfDelete(lib));
   }
 
   async copy<_T>(srcGraph: string, destGraph: string) {
-    return this.client.falkordb.copy(srcGraph, destGraph);
+    return this.run((client) => client.falkordb.copy(srcGraph, destGraph));
   }
 
   quit() {
