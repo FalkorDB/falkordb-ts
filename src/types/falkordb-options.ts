@@ -25,6 +25,16 @@ export interface FalkorDBOptions {
     port?: number;
 
     /**
+     * Sentinel only. Resend write commands to the new master when the
+     * connection is lost while waiting for their reply, e.g. during a master
+     * hand-over. The old master may have already run them, so a write can be
+     * applied twice. Read-only commands, and commands the server certainly did
+     * not run (such as ones rejected with `READONLY`), are always resent.
+     * @default false
+     */
+    retryWritesOnConnectionLoss?: boolean;
+
+    /**
      * ACL username ([see ACL guide](https://redis.io/topics/acl))
      */
     username?: string;
