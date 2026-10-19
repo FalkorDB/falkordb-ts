@@ -587,3 +587,5 @@ export default class Graph {
     return this.dropTypedIndex("VECTOR", "EDGE", label, attribute);
   }
 }
+
+export { Graph };

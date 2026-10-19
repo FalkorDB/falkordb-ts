@@ -267,3 +267,5 @@ export default class FalkorDB extends EventEmitter {
         return this.#client.disconnect();
     }
 }
+
+export { FalkorDB };
