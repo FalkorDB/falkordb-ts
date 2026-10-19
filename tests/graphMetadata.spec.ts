@@ -61,20 +61,24 @@ describe('Graph metadata cache', () => {
                 labels: 'Old',
                 labelFetches: 0,
             };
+            const run = async (version?: number) => {
+                state.sent.push(version);
+                if (state.mismatch !== undefined && version !== undefined) {
+                    const current = state.mismatch;
+                    state.mismatch = undefined;
+                    throw new SchemaVersionMismatchError(current);
+                }
+                return nodeReply;
+            };
             const client = {
-                query: async (_g: string, _q: string, _o: unknown, _c: boolean, version?: number) => {
-                    state.sent.push(version);
-                    if (state.mismatch !== undefined && version !== undefined) {
-                        const current = state.mismatch;
-                        state.mismatch = undefined;
-                        throw new SchemaVersionMismatchError(current);
+                query: (_g: string, _q: string, _o: unknown, _c: boolean, version?: number) => run(version),
+                roQuery: async (_g: string, query: string, _o: unknown, _c: boolean, version?: number) => {
+                    if (query === 'CALL db.labels()') {
+                        state.labelFetches++;
+                        return { data: [[state.labels]] };
                     }
-                    return nodeReply;
-                },
-                roQuery: async (_graph: string, query: string) => {
-                    if (query !== 'CALL db.labels()') return { data: [] };
-                    state.labelFetches++;
-                    return { data: [[state.labels]] };
+                    if (query.startsWith('CALL db.')) return { data: [] };
+                    return run(version);
                 },
                 delete: async () => 'OK',
             } as unknown as Client;
@@ -98,6 +102,22 @@ describe('Graph metadata cache', () => {
             expect(state.sent).toEqual([0, 0, undefined]);
 
             await graph.query('RETURN 1');
+            expect(state.sent[3]).toBe(42);
+        });
+
+        it('should refresh metadata and retry once on a version mismatch in roQuery', async () => {
+            const { state, client } = versionedClient();
+            const graph = new Graph(client, 'graph');
+
+            await graph.roQuery('MATCH (n) RETURN n');
+            state.labels = 'New';
+            state.mismatch = 42;
+            const result = await graph.roQuery<{ n: { labels: string[] } }>('MATCH (n) RETURN n');
+
+            expect(result.data?.[0].n.labels).toEqual(['New']);
+            expect(state.sent).toEqual([0, 0, undefined]);
+
+            await graph.roQuery('RETURN 1');
             expect(state.sent[3]).toBe(42);
         });
 

@@ -400,24 +400,26 @@ describe("Single Client Tests", () => {
       skipIfNoClient(async () => {
         const graphName = `single-reuse-external-${getRandomNumber()}`;
         const graph = singleClient.selectGraph(graphName);
-        await graph.query("CREATE (:First), (:Second)");
-        await graph.query("MATCH (n) RETURN n");
-
-        const otherClient = await client();
         try {
-          const other = otherClient.selectGraph(graphName);
-          await other.delete();
-          await other.query("CREATE (:Second), (:First)");
+          await graph.query("CREATE (:First), (:Second)");
+          await graph.query("MATCH (n) RETURN n");
+
+          const otherClient = await client();
+          try {
+            const other = otherClient.selectGraph(graphName);
+            await other.delete();
+            await other.query("CREATE (:Second), (:First)");
+          } finally {
+            await otherClient.close();
+          }
+
+          const result = await graph.query<{ n: { labels: string[] } }>(
+            "MATCH (n:First) RETURN n"
+          );
+          expect(result.data?.[0].n.labels).toEqual(["First"]);
         } finally {
-          await otherClient.close();
+          await graph.delete().catch(() => {});
         }
-
-        const result = await graph.query<{ n: { labels: string[] } }>(
-          "MATCH (n:First) RETURN n"
-        );
-        expect(result.data?.[0].n.labels).toEqual(["First"]);
-
-        await graph.delete();
       })
     );
 
