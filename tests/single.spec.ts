@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from "../src/falkordb";
 import { Single } from "../src/clients/single";
-import { ConstraintType, EntityType } from "../src/graph";
+import Graph, { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
 
 function getRandomNumber(): number {
@@ -395,31 +395,78 @@ describe("Single Client Tests", () => {
       })
     );
 
-    it(
-      "should decode labels correctly after another client deletes and recreates the graph",
-      skipIfNoClient(async () => {
-        const graphName = `single-reuse-external-${getRandomNumber()}`;
-        const graph = singleClient.selectGraph(graphName);
+    // Another client deletes the graph and recreates it with the labels in the
+    // opposite order, so each label id now names the other label. `recreate`
+    // runs on that client's handle.
+    async function decodeAfterExternalRecreate(
+      graphName: string,
+      recreate: (other: Graph) => Promise<void>,
+      beforeRecreate: (graph: Graph) => Promise<boolean> = async () => true
+    ) {
+      const graph = singleClient.selectGraph(graphName);
+      try {
+        await graph.query("CREATE (:First), (:Second)");
+        await graph.query("MATCH (n) RETURN n");
+        if (!(await beforeRecreate(graph))) return;
+
+        const otherClient = await client();
         try {
-          await graph.query("CREATE (:First), (:Second)");
-          await graph.query("MATCH (n) RETURN n");
-
-          const otherClient = await client();
-          try {
-            const other = otherClient.selectGraph(graphName);
-            await other.delete();
-            await other.query("CREATE (:Second), (:First)");
-          } finally {
-            await otherClient.close();
-          }
-
-          const result = await graph.query<{ n: { labels: string[] } }>(
-            "MATCH (n:First) RETURN n"
-          );
-          expect(result.data?.[0].n.labels).toEqual(["First"]);
+          const other = otherClient.selectGraph(graphName);
+          await other.delete();
+          await recreate(other);
         } finally {
-          await graph.delete().catch(() => {});
+          await otherClient.close();
         }
+
+        const result = await graph.query<{ n: { labels: string[] } }>(
+          "MATCH (n:First) RETURN n"
+        );
+        expect(result.data?.[0].n.labels).toEqual(["First"]);
+      } finally {
+        await graph.delete().catch(() => {});
+      }
+    }
+
+    // The C engine's schema version is a hash of the schema names, the Rust
+    // engine's a count of schema-changing writes. They word the rejection of a
+    // stale version differently, which tells them apart.
+    async function usesSchemaVersionCounter(graphName: string) {
+      const connection = await singleClient.connection;
+      const reply = (await connection.sendCommand([
+        "GRAPH.RO_QUERY", graphName, "RETURN 1", "version", "4294967295",
+      ])) as unknown[];
+      return reply[0] instanceof Error && /invalid graph version/.test(reply[0].message);
+    }
+
+    it(
+      "should decode labels correctly after another client recreates the graph with another schema version",
+      skipIfNoClient(async () => {
+        // Two schema-changing writes where the original took one, so the
+        // version moves whether it is a hash or a counter
+        await decodeAfterExternalRecreate(
+          `single-reuse-external-${getRandomNumber()}`,
+          async (other) => {
+            await other.query("CREATE (:Second)");
+            await other.query("CREATE (:First)");
+          }
+        );
+      })
+    );
+
+    it(
+      "should decode labels correctly after another client recreates the graph with as many schema changes",
+      skipIfNoClient(async () => {
+        const graphName = `single-reuse-external-same-${getRandomNumber()}`;
+        await decodeAfterExternalRecreate(
+          graphName,
+          async (other) => {
+            await other.query("CREATE (:Second), (:First)");
+          },
+          // A counter reaches the old version again after as many writes, so
+          // the server cannot tell the client its names are stale; only a
+          // hash of the names catches this
+          async () => !(await usesSchemaVersionCounter(graphName))
+        );
       })
     );
 
