@@ -55,7 +55,11 @@ async function clientFactory(client: SingleGraphConnection, sentinelOptions: Sen
     if (info.includes("redis_mode:sentinel")) {
         return new Sentinel(client, sentinelOptions)
     } else if (info.includes("redis_mode:cluster")) {
-        return new Cluster(client);
+        // Connecting through a replica (or asking for `readonly`) opts in to
+        // serving read-only commands from replicas, see `Cluster`.
+        const replication = await client.info("replication");
+        const useReplicas = client.options?.readonly === true || /^role:slave\r?$/m.test(replication);
+        return new Cluster(client, { useReplicas });
     }
     return new Single(client)
 }
