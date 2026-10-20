@@ -288,9 +288,21 @@ describe('Cluster Client through a replica', () => {
         // Count GRAPH.RO_QUERY calls on every replica node. A replica only
         // answers reads after READONLY, so any count proves both.
         const nodes = [17000, 17001, 17002, 17003, 17004, 17005].map(port =>
-            createClient({ socket: { host: 'localhost', port } }));
-        await Promise.all(nodes.map(node => node.connect()));
+            createClient({ socket: { host: 'localhost', port, reconnectStrategy: false } }));
+        let client: FalkorDB | undefined;
         try {
+            await Promise.all(nodes.map(node => node.connect()));
+            // A new cluster reports itself ready before CLUSTER SLOTS lists the
+            // replicas, and a client that connects then knows of no replicas to
+            // read from. Wait for them, then connect.
+            await eventually(async () => {
+                const slots = await nodes[3].clusterSlots();
+                if (slots.some(slot => slot.replicas.length === 0)) {
+                    throw new Error('CLUSTER SLOTS does not list a replica for every shard yet');
+                }
+            }, 30000);
+            client = await FalkorDB.connect({ socket: { host: 'localhost', port: REPLICA_PORT } });
+
             const replicas = [];
             for (const node of nodes) {
                 if ((await node.info('replication')).includes('role:slave')) replicas.push(node);
@@ -305,7 +317,7 @@ describe('Cluster Client through a replica', () => {
                 return calls;
             };
 
-            const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+            const graph = client.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
             await graph.query('CREATE (:Person {id: 1})');
             await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
 
@@ -317,9 +329,11 @@ describe('Cluster Client through a replica', () => {
             expect(await roQueryCalls()).toBeGreaterThan(before);
             await graph.delete();
         } finally {
-            await Promise.all(nodes.map(node => node.close()));
+            await client?.close();
+            // Safe on clients that failed to connect, unlike close()
+            nodes.forEach(node => node.destroy());
         }
-    });
+    }, 45000);
 
     it('reads the slowlog from the master that ran the query', async () => {
         const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
