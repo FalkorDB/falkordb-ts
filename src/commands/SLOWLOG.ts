@@ -1,7 +1,9 @@
 import { CommandParser } from '@redis/client';
 import type { SlowLogRawReply, SlowLogReply } from '../types';
 
-export const IS_READ_ONLY = true;
+// Each node keeps its own slowlog and replicas don't record the queries their
+// master ran, so this is sent to the master like a write
+export const IS_READ_ONLY = false;
 
 export const FIRST_KEY_INDEX = 1;
 

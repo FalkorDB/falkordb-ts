@@ -9,7 +9,9 @@ function getRandomNumber(): number {
 describe('Cluster Client Tests', () => {
     let clusterClient: FalkorDB | null = null;
     const CLUSTER_HOST = 'localhost';
-    const CLUSTER_PORT = 17003;
+    // A master: reads served by a replica can trail the write before them,
+    // which the tests below don't wait for. Replicas are covered separately.
+    const CLUSTER_PORT = 17000;
 
     beforeAll(async () => {
         try {
@@ -241,5 +243,62 @@ describe('Cluster Client Tests', () => {
             await graph1.delete();
             await graph2.delete();
         });
+    });
+});
+
+describe('Cluster Client through a replica', () => {
+    let replicaClient: FalkorDB | null = null;
+    // node3 is a replica in the CI cluster (see docker/cluster-compose.yml)
+    const REPLICA_PORT = 17003;
+
+    // Reads may be served by a replica that has not caught up with the write
+    // yet, so retry until the change has replicated.
+    async function eventually<T>(read: () => Promise<T>, timeout = 5000): Promise<T> {
+        const deadline = Date.now() + timeout;
+        for (;;) {
+            try {
+                return await read();
+            } catch (err) {
+                if (Date.now() > deadline) throw err;
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+
+    beforeAll(async () => {
+        replicaClient = await FalkorDB.connect({
+            socket: { host: 'localhost', port: REPLICA_PORT, connectTimeout: 10000 }
+        });
+    }, 10000);
+
+    afterAll(async () => {
+        await replicaClient?.close();
+    });
+
+    it('writes through the masters and reads the replicated data', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        await graph.query('CREATE (:Person {id: 1})');
+        const result = await eventually(() => graph.roQuery<{ id: number }>('MATCH (n:Person) RETURN n.id AS id'));
+        expect(result.data).toEqual([{ id: 1 }]);
+        await graph.delete();
+    });
+
+    it('reads the slowlog from the master that ran the query', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        const longQuery = 'UNWIND range (0, 1000000) AS x RETURN max(x)';
+        await graph.query(longQuery);
+        const result = await graph.slowLog();
+        expect(result[0].query).toBe(longQuery);
+    });
+
+    it('profiles a write query', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        const result = await graph.profile('CREATE (:Person {id: 1})');
+        expect(result).toBeDefined();
+        await graph.delete();
+    });
+
+    it('runs keyless writes on a master', async () => {
+        await expect(replicaClient!.configSet('RESULTSET_SIZE', 1000)).resolves.toBeUndefined();
     });
 });
