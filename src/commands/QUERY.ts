@@ -43,12 +43,16 @@ export function transformArguments(
     );
 }
 
+// How the server words the rejection of a stale `version`: the C engine says
+// `version mismatch`, the Rust engine `ERR invalid graph version`
+const VERSION_MISMATCH = /^(?:ERR )?(?:version mismatch|invalid graph version)$/;
+
 export function transformReply(reply: QueryRawReply): QueryReply {
     // A query sent with a stale `version` is rejected with
-    // `[error "version mismatch", current version]` and not executed
+    // `[error, current version]` and not executed
     const [first, second] = reply as unknown[];
     if (first instanceof Error) {
-        if (first.message === 'version mismatch') {
+        if (VERSION_MISMATCH.test(first.message)) {
             throw new SchemaVersionMismatchError(second as number);
         }
         throw first;
