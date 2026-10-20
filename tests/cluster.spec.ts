@@ -1,4 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
+import { createClient } from 'redis';
 import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
 
@@ -281,6 +282,43 @@ describe('Cluster Client through a replica', () => {
         const result = await eventually(() => graph.roQuery<{ id: number }>('MATCH (n:Person) RETURN n.id AS id'));
         expect(result.data).toEqual([{ id: 1 }]);
         await graph.delete();
+    });
+
+    it('serves reads from the replicas', async () => {
+        // Count GRAPH.RO_QUERY calls on every replica node. A replica only
+        // answers reads after READONLY, so any count proves both.
+        const nodes = [17000, 17001, 17002, 17003, 17004, 17005].map(port =>
+            createClient({ socket: { host: 'localhost', port } }));
+        await Promise.all(nodes.map(node => node.connect()));
+        try {
+            const replicas = [];
+            for (const node of nodes) {
+                if ((await node.info('replication')).includes('role:slave')) replicas.push(node);
+            }
+            expect(replicas.length).toBeGreaterThan(0);
+            const roQueryCalls = async () => {
+                let calls = 0;
+                for (const replica of replicas) {
+                    const stats = /cmdstat_graph\.RO_QUERY:calls=(\d+)/i.exec(await replica.info('commandstats'));
+                    calls += stats ? Number(stats[1]) : 0;
+                }
+                return calls;
+            };
+
+            const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+            await graph.query('CREATE (:Person {id: 1})');
+            await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
+
+            const before = await roQueryCalls();
+            // Each read picks the master or its replica at random
+            for (let i = 0; i < 20; i++) {
+                await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
+            }
+            expect(await roQueryCalls()).toBeGreaterThan(before);
+            await graph.delete();
+        } finally {
+            await Promise.all(nodes.map(node => node.close()));
+        }
     });
 
     it('reads the slowlog from the master that ran the query', async () => {
