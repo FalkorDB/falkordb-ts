@@ -112,6 +112,19 @@ describe('Command Reply Transformations', () => {
       expect((error as SchemaVersionMismatchError).version).toBe(1289081430);
     });
 
+    it('should throw SchemaVersionMismatchError on the Rust engine wording', () => {
+      const rawReply: any = [new Error('ERR invalid graph version'), 7];
+      let error: unknown;
+      try {
+        QUERY.transformReply(rawReply);
+      } catch (err) {
+        error = err;
+      }
+
+      expect(error).toBeInstanceOf(SchemaVersionMismatchError);
+      expect((error as SchemaVersionMismatchError).version).toBe(7);
+    });
+
     it('should rethrow any other error at the start of the reply', () => {
       const rawReply: any = [new Error('boom'), 1];
       expect(() => QUERY.transformReply(rawReply)).toThrow('boom');
