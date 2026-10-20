@@ -10,6 +10,7 @@ module.exports = {
     // graph state and on GRAPH.COPY's fork (Redis allows one child process
     // at a time, so two concurrent copies fail with "could not fork").
     maxWorkers: 1,
+    globalSetup: "<rootDir>/tests/globalSetup.ts",
     setupFiles: ["<rootDir>/tests/setup.ts"],
     setupFilesAfterEnv: ["<rootDir>/tests/dbConnection.ts"],
     coverageProvider: "v8"

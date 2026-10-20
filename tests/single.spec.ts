@@ -400,14 +400,12 @@ describe("Single Client Tests", () => {
     // runs on that client's handle.
     async function decodeAfterExternalRecreate(
       graphName: string,
-      recreate: (other: Graph) => Promise<void>,
-      beforeRecreate: (graph: Graph) => Promise<boolean> = async () => true
+      recreate: (other: Graph) => Promise<void>
     ) {
       const graph = singleClient.selectGraph(graphName);
       try {
         await graph.query("CREATE (:First), (:Second)");
         await graph.query("MATCH (n) RETURN n");
-        if (!(await beforeRecreate(graph))) return;
 
         const otherClient = await client();
         try {
@@ -427,16 +425,12 @@ describe("Single Client Tests", () => {
       }
     }
 
-    // The C engine's schema version is a hash of the schema names, the Rust
-    // engine's a count of schema-changing writes. They word the rejection of a
-    // stale version differently, which tells them apart.
-    async function usesSchemaVersionCounter(graphName: string) {
-      const connection = await singleClient.connection;
-      const reply = (await connection.sendCommand([
-        "GRAPH.RO_QUERY", graphName, "RETURN 1", "version", "4294967295",
-      ])) as unknown[];
-      return reply[0] instanceof Error && /invalid graph version/.test(reply[0].message);
-    }
+    // A counter reaches the old schema version again after as many schema
+    // changes, so on the Rust engine the server cannot tell the client its
+    // names are stale; only the C engine's hash of the names catches it.
+    // See tests/globalSetup.ts.
+    const itWithHashedSchemaVersion =
+      process.env.FALKORDB_SCHEMA_VERSION === "counter" ? it.skip : it;
 
     it(
       "should decode labels correctly after another client recreates the graph with another schema version",
@@ -453,19 +447,14 @@ describe("Single Client Tests", () => {
       })
     );
 
-    it(
+    itWithHashedSchemaVersion(
       "should decode labels correctly after another client recreates the graph with as many schema changes",
       skipIfNoClient(async () => {
-        const graphName = `single-reuse-external-same-${getRandomNumber()}`;
         await decodeAfterExternalRecreate(
-          graphName,
+          `single-reuse-external-same-${getRandomNumber()}`,
           async (other) => {
             await other.query("CREATE (:Second), (:First)");
-          },
-          // A counter reaches the old version again after as many writes, so
-          // the server cannot tell the client its names are stale; only a
-          // hash of the names catches this
-          async () => !(await usesSchemaVersionCounter(graphName))
+          }
         );
       })
     );
