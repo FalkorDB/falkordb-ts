@@ -162,4 +162,20 @@ describe('Graph metadata cache', () => {
             expect(calls).toBe(1);
         });
     });
+
+    it('should fetch metadata from the master, not a lagging replica', async () => {
+        // A write created label id 0; the replica has not received it yet
+        const client = {
+            query: async () => nodeReply,
+            roQuery: async (_g: string, query: string, _o: unknown, _c: boolean, _v?: number, primary?: boolean) => {
+                if (query === 'CALL db.labels()') return { data: primary ? [['NewLabel']] : [] };
+                return { data: [] };
+            },
+        } as unknown as Client;
+        const graph = new Graph(client, 'graph');
+
+        const result = await graph.query<{ n: { labels: string[] } }>('CREATE (n:NewLabel) RETURN n');
+
+        expect(result.data?.[0].n.labels).toEqual(['NewLabel']);
+    });
 });

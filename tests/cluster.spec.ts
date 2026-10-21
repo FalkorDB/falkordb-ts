@@ -1,4 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
+import { createClient } from 'redis';
 import FalkorDB from '../src/falkordb';
 import { ConstraintType, EntityType } from '../src/graph';
 
@@ -9,7 +10,9 @@ function getRandomNumber(): number {
 describe('Cluster Client Tests', () => {
     let clusterClient: FalkorDB | null = null;
     const CLUSTER_HOST = 'localhost';
-    const CLUSTER_PORT = 17003;
+    // A master: reads served by a replica can trail the write before them,
+    // which the tests below don't wait for. Replicas are covered separately.
+    const CLUSTER_PORT = 17000;
 
     beforeAll(async () => {
         try {
@@ -106,7 +109,9 @@ describe('Cluster Client Tests', () => {
         });
         it('should test configSet method', async () => {
             try {
-                const result = await clusterClient!.configSet('RESULTSET_SIZE', 1000);
+                // Writes the server default (unlimited): the setting is server-wide
+                // and outlives the test, and a restore could land on another master.
+                const result = await clusterClient!.configSet('RESULTSET_SIZE', -1);
                 expect(result).toBeUndefined();
             } catch (err) {
                 console.error('configSet method error:', err);
@@ -241,5 +246,114 @@ describe('Cluster Client Tests', () => {
             await graph1.delete();
             await graph2.delete();
         });
+    });
+});
+
+describe('Cluster Client through a replica', () => {
+    let replicaClient: FalkorDB | null = null;
+    // node3 is a replica in the CI cluster (see docker/cluster-compose.yml)
+    const REPLICA_PORT = 17003;
+
+    // Reads may be served by a replica that has not caught up with the write
+    // yet, so retry until the change has replicated.
+    async function eventually<T>(read: () => Promise<T>, timeout = 5000): Promise<T> {
+        const deadline = Date.now() + timeout;
+        for (;;) {
+            try {
+                return await read();
+            } catch (err) {
+                if (Date.now() > deadline) throw err;
+                await new Promise(resolve => setTimeout(resolve, 50));
+            }
+        }
+    }
+
+    beforeAll(async () => {
+        replicaClient = await FalkorDB.connect({
+            socket: { host: 'localhost', port: REPLICA_PORT, connectTimeout: 10000 }
+        });
+    }, 10000);
+
+    afterAll(async () => {
+        await replicaClient?.close();
+    });
+
+    it('writes through the masters and reads the replicated data', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        await graph.query('CREATE (:Person {id: 1})');
+        const result = await eventually(() => graph.roQuery<{ id: number }>('MATCH (n:Person) RETURN n.id AS id'));
+        expect(result.data).toEqual([{ id: 1 }]);
+        await graph.delete();
+    });
+
+    it('serves reads from the replicas', async () => {
+        // Count GRAPH.RO_QUERY calls on every replica node. A replica only
+        // answers reads after READONLY, so any count proves both.
+        const nodes = [17000, 17001, 17002, 17003, 17004, 17005].map(port =>
+            createClient({ socket: { host: 'localhost', port, reconnectStrategy: false } }));
+        let client: FalkorDB | undefined;
+        try {
+            await Promise.all(nodes.map(node => node.connect()));
+            // A new cluster reports itself ready before CLUSTER SLOTS lists the
+            // replicas, and a client that connects then knows of no replicas to
+            // read from. Wait for them, then connect.
+            await eventually(async () => {
+                const slots = await nodes[3].clusterSlots();
+                if (slots.some(slot => slot.replicas.length === 0)) {
+                    throw new Error('CLUSTER SLOTS does not list a replica for every shard yet');
+                }
+            }, 30000);
+            client = await FalkorDB.connect({ socket: { host: 'localhost', port: REPLICA_PORT } });
+
+            const replicas = [];
+            for (const node of nodes) {
+                if ((await node.info('replication')).includes('role:slave')) replicas.push(node);
+            }
+            expect(replicas.length).toBeGreaterThan(0);
+            const roQueryCalls = async () => {
+                let calls = 0;
+                for (const replica of replicas) {
+                    const stats = /cmdstat_graph\.RO_QUERY:calls=(\d+)/i.exec(await replica.info('commandstats'));
+                    calls += stats ? Number(stats[1]) : 0;
+                }
+                return calls;
+            };
+
+            const graph = client.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+            await graph.query('CREATE (:Person {id: 1})');
+            await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
+
+            const before = await roQueryCalls();
+            // Each read picks the master or its replica at random
+            for (let i = 0; i < 20; i++) {
+                await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
+            }
+            expect(await roQueryCalls()).toBeGreaterThan(before);
+            await graph.delete();
+        } finally {
+            await client?.close();
+            // Safe on clients that failed to connect, unlike close()
+            nodes.forEach(node => node.destroy());
+        }
+    }, 45000);
+
+    it('reads the slowlog from the master that ran the query', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        const longQuery = 'UNWIND range (0, 1000000) AS x RETURN max(x)';
+        await graph.query(longQuery);
+        const result = await graph.slowLog();
+        expect(result[0].query).toBe(longQuery);
+    });
+
+    it('profiles a write query', async () => {
+        const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        const result = await graph.profile('CREATE (:Person {id: 1})');
+        expect(result).toBeDefined();
+        await graph.delete();
+    });
+
+    it('runs keyless writes on a master', async () => {
+        // The server default (unlimited), so the write leaves the master unchanged
+        await expect(replicaClient!.configSet('RESULTSET_SIZE', -1)).resolves.toBeUndefined();
     });
 });

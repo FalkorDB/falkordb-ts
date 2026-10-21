@@ -187,19 +187,25 @@ export default class Graph {
 
   // DO NOT use directly, use #updateMetadata instead
   async #setMetadata(generation: number): Promise<GraphMetadata> {
+    // Fetched from the master: a reply served by it (every write's) can use
+    // names a lagging replica does not have yet
     const [labels, relationshipTypes, propertyKeys] = await Promise.all([
-      this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false),
+      this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false, undefined, true),
       this.#client.roQuery(
         this.#name,
         "CALL db.relationshipTypes()",
         undefined,
-        false
+        false,
+        undefined,
+        true
       ),
       this.#client.roQuery(
         this.#name,
         "CALL db.propertyKeys()",
         undefined,
-        false
+        false,
+        undefined,
+        true
       ),
     ]);
 
