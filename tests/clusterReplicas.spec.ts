@@ -32,14 +32,16 @@ function mockCluster() {
     falkordb: replica.falkordb,
     getRandomNode: () => replica,
     nodeClient: (node: FakeNode) => Promise.resolve(node),
+    sendCommand: jest.fn(async () => [[[1, 'label']], [[[2, 'NewLabel']]], []]),
     on() { return this; },
     connect: jest.fn(async () => undefined),
     disconnect: jest.fn(async () => undefined),
   };
+  (replica.falkordb as Record<string, jest.Mock>).roQuery = jest.fn();
   const createCluster = jest
     .spyOn(redisClient, 'createCluster')
     .mockReturnValue(cluster as unknown as ReturnType<typeof redisClient.createCluster>);
-  return { createCluster, master, replica };
+  return { createCluster, master, replica, cluster };
 }
 
 function fakeConnection(): SingleGraphConnection {
@@ -129,6 +131,19 @@ describe('Cluster replicas', () => {
       expect(master.falkordb[command]).toHaveBeenCalledTimes(1);
       expect(replica.falkordb[command]).not.toHaveBeenCalled();
     }
+  });
+
+  it('runs a primary roQuery on the master as GRAPH.RO_QUERY', async () => {
+    const { cluster: redisCluster, replica } = mockCluster();
+    const cluster = new Cluster(fakeConnection(), { useReplicas: true });
+
+    const reply = await cluster.roQuery('graph', 'CALL db.labels()', undefined, false, undefined, true);
+
+    // Routed by the graph key with isReadonly false, i.e. to the slot's master
+    expect(redisCluster.sendCommand).toHaveBeenCalledWith(
+      'graph', false, ['GRAPH.RO_QUERY', 'graph', 'CALL db.labels()']);
+    expect(replica.falkordb.roQuery).not.toHaveBeenCalled();
+    expect(reply.data).toEqual([[[2, 'NewLabel']]]);
   });
 
   it('returns a master as the connection', async () => {

@@ -45,13 +45,18 @@ export interface Client {
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   profile<T>(graph: string, query: RedisArgument): Promise<any>;
 
+  /**
+   * @param primary Run on the graph's master even where reads may be served
+   * by replicas, for a reply that must be at least as new as the master's
+   */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
     compact?: boolean,
-    version?: number
+    version?: number,
+    primary?: boolean
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

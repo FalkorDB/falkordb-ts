@@ -6,6 +6,7 @@ import {
   RedisScripts,
 } from "@redis/client";
 import commands from "../commands";
+import * as RO_QUERY from "../commands/RO_QUERY";
 import { createCluster } from "@redis/client";
 import FalkorDB from "../falkordb";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
@@ -97,8 +98,15 @@ export class Cluster implements Client {
     query: RedisArgument,
     options?: QueryOptions,
     compact = true,
-    version?: number
+    version?: number,
+    primary = false
   ) {
+    if (primary) {
+      // Still GRAPH.RO_QUERY, so read-only users can run it, but routed to the
+      // slot's master as a write would be
+      const args = RO_QUERY.transformArguments(graph, query, options, compact, version);
+      return RO_QUERY.transformReply(await this.#client.sendCommand(graph, false, args));
+    }
     return this.#client.falkordb.roQuery(graph, query, options, compact, version);
   }
 
