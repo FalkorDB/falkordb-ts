@@ -3,7 +3,7 @@ import { createClient } from 'redis';
 // How each engine rejects a stale `version`
 const SCHEMA_VERSION_SCHEMES: Array<[RegExp, string]> = [
     [/^version mismatch$/, 'hash'],
-    [/^(?:ERR )?invalid graph version$/, 'counter'],
+    [/^(?:ERR )?invalid graph version(?:, current version)?$/, 'counter'],
 ];
 
 /**

@@ -44,8 +44,9 @@ export function transformArguments(
 }
 
 // How the server words the rejection of a stale `version`: the C engine says
-// `version mismatch`, the Rust engine `ERR invalid graph version`
-const VERSION_MISMATCH = /^(?:ERR )?(?:version mismatch|invalid graph version)$/;
+// `version mismatch`, the Rust engine `ERR invalid graph version, current version`
+const VERSION_MISMATCH =
+    /^(?:ERR )?(?:version mismatch|invalid graph version)(?:, current version)?$/;
 
 export function transformReply(reply: QueryRawReply): QueryReply {
     // A query sent with a stale `version` is rejected with

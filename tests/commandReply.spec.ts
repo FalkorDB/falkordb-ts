@@ -113,7 +113,7 @@ describe('Command Reply Transformations', () => {
     });
 
     it('should throw SchemaVersionMismatchError on the Rust engine wording', () => {
-      const rawReply: any = [new Error('ERR invalid graph version'), 7];
+      const rawReply: any = [new Error('ERR invalid graph version, current version'), 7];
       let error: unknown;
       try {
         QUERY.transformReply(rawReply);
