@@ -109,7 +109,9 @@ describe('Cluster Client Tests', () => {
         });
         it('should test configSet method', async () => {
             try {
-                const result = await clusterClient!.configSet('RESULTSET_SIZE', 1000);
+                // Writes the server default (unlimited): the setting is server-wide
+                // and outlives the test, and a restore could land on another master.
+                const result = await clusterClient!.configSet('RESULTSET_SIZE', -1);
                 expect(result).toBeUndefined();
             } catch (err) {
                 console.error('configSet method error:', err);
@@ -351,6 +353,7 @@ describe('Cluster Client through a replica', () => {
     });
 
     it('runs keyless writes on a master', async () => {
-        await expect(replicaClient!.configSet('RESULTSET_SIZE', 1000)).resolves.toBeUndefined();
+        // The server default (unlimited), so the write leaves the master unchanged
+        await expect(replicaClient!.configSet('RESULTSET_SIZE', -1)).resolves.toBeUndefined();
     });
 });
