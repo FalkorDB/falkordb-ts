@@ -66,6 +66,9 @@ export class NullClient implements Client {
   slowLog(_graph: string): Promise<SlowLogReply> {
     throw new Error("Method not implemented.");
   }
+  slowLogReset(_graph: string): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
   memoryUsage(
     _graph: string,
     _options?: MemoryUsageOptions

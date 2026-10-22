@@ -4,6 +4,8 @@ import { Temporal } from "@js-temporal/polyfill";
 import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
 import { SchemaVersionMismatchError } from "./errors";
 import type {
+  CallProcedureOptions,
+  ConstraintInfo,
   GraphEdge,
   GraphEdgeRawValue,
   GraphEntityProperties,
@@ -15,13 +17,20 @@ import type {
   GraphRawValue,
   GraphReply,
   GraphValue,
+  IndexInfo,
   MemoryUsageOptions,
   QueryOptions,
+  QueryParam,
+  QueryParams,
   QueryReply,
+  VectorIndexOptions,
 } from "./types";
 
 export { ConstraintType, EntityType };
 export type { GraphReply };
+
+// The error `CREATE INDEX` fails with when a property is already indexed
+const ALREADY_INDEXED = /^Attribute '.*' is already indexed$/;
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
@@ -56,6 +65,11 @@ export default class Graph {
     this.#name = name;
     this.#schema = cache?.schema ?? { generation: 0, version: 0 };
     this.#onDelete = cache?.onDelete;
+  }
+
+  /** The graph's name (its Redis key) */
+  get name(): string {
+    return this.#name;
   }
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
@@ -132,6 +146,60 @@ export default class Graph {
 		)
 	}
 
+	/** Clears the graph's slow log (`GRAPH.SLOWLOG <graph> RESET`) */
+	async slowLogReset() {
+		return this.#client.slowLogReset(this.#name)
+	}
+
+  /**
+   * Calls a procedure, e.g. `callProcedure('db.idx.fulltext.queryNodes', ['Movie', 'Jungle'])`.
+   * The arguments are sent as query parameters, so they need no escaping.
+   * Runs as a read-only query unless `readOnly` is `false`.
+   */
+  async callProcedure<T>(
+    procedure: string,
+    args: QueryParam[] = [],
+    options: CallProcedureOptions = {}
+  ): Promise<GraphReply<T>> {
+    const params: QueryParams = {};
+    const placeholders = args.map((arg, i) => {
+      params[`param${i}`] = arg;
+      return `$param${i}`;
+    });
+
+    let query = `CALL ${procedure}(${placeholders.join(",")})`;
+    if (options.yields?.length) {
+      query += ` YIELD ${options.yields.join(",")}`;
+    }
+
+    const queryOptions: QueryOptions = { TIMEOUT: options.timeout };
+    if (args.length) queryOptions.params = params;
+
+    return options.readOnly === false
+      ? this.query<T>(query, queryOptions)
+      : this.roQuery<T>(query, queryOptions);
+  }
+
+  /** Lists the graph's indexes (`CALL db.indexes()`) */
+  async listIndices(): Promise<IndexInfo[]> {
+    type Row = Omit<IndexInfo, "entityType"> & { entitytype: string };
+    const reply = await this.callProcedure<Row>("db.indexes");
+    return (reply.data ?? []).map(({ entitytype, ...index }) => ({
+      ...index,
+      entityType: entitytype,
+    }));
+  }
+
+  /** Lists the graph's constraints and their status (`CALL db.constraints()`) */
+  async listConstraints(): Promise<ConstraintInfo[]> {
+    type Row = Omit<ConstraintInfo, "entityType"> & { entitytype: string };
+    const reply = await this.callProcedure<Row>("db.constraints");
+    return (reply.data ?? []).map(({ entitytype, ...constraint }) => ({
+      ...constraint,
+      entityType: entitytype,
+    }));
+  }
+
   async constraintCreate(
     constraintType: ConstraintType,
     entityType: EntityType,
@@ -160,6 +228,125 @@ export default class Graph {
       label,
       ...properties
     );
+  }
+
+  /**
+   * Creates a unique constraint on nodes, first creating the range index it
+   * requires on each property that is not indexed yet.
+   *
+   * The constraint is enforced asynchronously: the server accepts it before
+   * checking the existing data, so poll `listConstraints()` until its status
+   * is `OPERATIONAL` (or `FAILED` if existing nodes violate it).
+   */
+  async createNodeUniqueConstraint(label: string, ...properties: string[]) {
+    await this.#ensureRangeIndexes("NODE", label, properties);
+    return this.constraintCreate(
+      ConstraintType.UNIQUE,
+      EntityType.NODE,
+      label,
+      ...properties
+    );
+  }
+
+  /**
+   * Creates a unique constraint on relationships, first creating the range
+   * index it requires on each property that is not indexed yet.
+   *
+   * Enforced asynchronously, see `createNodeUniqueConstraint`.
+   */
+  async createEdgeUniqueConstraint(relation: string, ...properties: string[]) {
+    await this.#ensureRangeIndexes("EDGE", relation, properties);
+    return this.constraintCreate(
+      ConstraintType.UNIQUE,
+      EntityType.RELATIONSHIP,
+      relation,
+      ...properties
+    );
+  }
+
+  /**
+   * Creates a mandatory constraint on nodes. Enforced asynchronously, see
+   * `createNodeUniqueConstraint`.
+   */
+  async createNodeMandatoryConstraint(label: string, ...properties: string[]) {
+    return this.constraintCreate(
+      ConstraintType.MANDATORY,
+      EntityType.NODE,
+      label,
+      ...properties
+    );
+  }
+
+  /**
+   * Creates a mandatory constraint on relationships. Enforced asynchronously,
+   * see `createNodeUniqueConstraint`.
+   */
+  async createEdgeMandatoryConstraint(
+    relation: string,
+    ...properties: string[]
+  ) {
+    return this.constraintCreate(
+      ConstraintType.MANDATORY,
+      EntityType.RELATIONSHIP,
+      relation,
+      ...properties
+    );
+  }
+
+  /** Drops a unique constraint on nodes; its supporting range index is kept */
+  async dropNodeUniqueConstraint(label: string, ...properties: string[]) {
+    return this.constraintDrop(
+      ConstraintType.UNIQUE,
+      EntityType.NODE,
+      label,
+      ...properties
+    );
+  }
+
+  /** Drops a unique constraint on relationships; its supporting range index is kept */
+  async dropEdgeUniqueConstraint(relation: string, ...properties: string[]) {
+    return this.constraintDrop(
+      ConstraintType.UNIQUE,
+      EntityType.RELATIONSHIP,
+      relation,
+      ...properties
+    );
+  }
+
+  async dropNodeMandatoryConstraint(label: string, ...properties: string[]) {
+    return this.constraintDrop(
+      ConstraintType.MANDATORY,
+      EntityType.NODE,
+      label,
+      ...properties
+    );
+  }
+
+  async dropEdgeMandatoryConstraint(relation: string, ...properties: string[]) {
+    return this.constraintDrop(
+      ConstraintType.MANDATORY,
+      EntityType.RELATIONSHIP,
+      relation,
+      ...properties
+    );
+  }
+
+  // Indexes each property separately: a single CREATE INDEX over several
+  // properties fails as a whole if any of them is already indexed
+  async #ensureRangeIndexes(
+    entityType: "NODE" | "EDGE",
+    label: string,
+    properties: string[]
+  ) {
+    for (const property of properties) {
+      try {
+        await this.createTypedIndex("RANGE", entityType, label, [property]);
+      } catch (err) {
+        if (!(err instanceof Error && ALREADY_INDEXED.test(err.message))) {
+          throw err;
+        }
+      }
+    }
   }
 
   async copy(destGraph: string) {
@@ -471,16 +658,29 @@ export default class Graph {
     return this.createTypedIndex("FULLTEXT", "NODE", label, properties);
   }
 
+  /**
+   * Creates a vector index, either as
+   * `createNodeVectorIndex(label, { dimension, similarityFunction, M, efConstruction, efRuntime }, ...properties)`
+   * or, for backward compatibility, as
+   * `createNodeVectorIndex(label, dimension, similarityFunction, ...properties)`.
+   */
   async createNodeVectorIndex(
     label: string,
-    dim: number = 0,
-    similarityFunction: string = "euclidean",
+    options: VectorIndexOptions,
     ...properties: string[]
+  ): Promise<QueryReply>;
+  async createNodeVectorIndex(
+    label: string,
+    dim?: number,
+    similarityFunction?: string,
+    ...properties: string[]
+  ): Promise<QueryReply>;
+  async createNodeVectorIndex(
+    label: string,
+    dimOrOptions?: number | VectorIndexOptions,
+    ...rest: Array<string | undefined>
   ): Promise<QueryReply> {
-    const options = {
-      dimension: dim,
-      similarityFunction: similarityFunction,
-    };
+    const [options, properties] = this.#vectorIndexArguments(dimOrOptions, rest);
 
     return await this.createTypedIndex(
       "VECTOR",
@@ -505,16 +705,29 @@ export default class Graph {
     return this.createTypedIndex("FULLTEXT", "EDGE", label, properties);
   }
 
+  /**
+   * Creates a vector index, either as
+   * `createEdgeVectorIndex(label, { dimension, similarityFunction, M, efConstruction, efRuntime }, ...properties)`
+   * or, for backward compatibility, as
+   * `createEdgeVectorIndex(label, dimension, similarityFunction, ...properties)`.
+   */
   async createEdgeVectorIndex(
     label: string,
-    dim: number = 0,
-    similarityFunction: string = "euclidean",
+    options: VectorIndexOptions,
     ...properties: string[]
+  ): Promise<QueryReply>;
+  async createEdgeVectorIndex(
+    label: string,
+    dim?: number,
+    similarityFunction?: string,
+    ...properties: string[]
+  ): Promise<QueryReply>;
+  async createEdgeVectorIndex(
+    label: string,
+    dimOrOptions?: number | VectorIndexOptions,
+    ...rest: Array<string | undefined>
   ): Promise<QueryReply> {
-    const options = {
-      dimension: dim,
-      similarityFunction: similarityFunction,
-    };
+    const [options, properties] = this.#vectorIndexArguments(dimOrOptions, rest);
 
     return await this.createTypedIndex(
       "VECTOR",
@@ -523,6 +736,32 @@ export default class Graph {
       properties,
       options
     );
+  }
+
+  // Resolves both forms of create{Node,Edge}VectorIndex's arguments
+  #vectorIndexArguments(
+    dimOrOptions: number | VectorIndexOptions | undefined,
+    rest: Array<string | undefined>
+  ): [Record<string, string | number>, string[]] {
+    if (dimOrOptions !== null && typeof dimOrOptions === "object") {
+      const { dimension, similarityFunction = "euclidean", ...hnsw } =
+        dimOrOptions;
+      const options: Record<string, string | number> = {
+        dimension,
+        similarityFunction,
+      };
+      for (const [key, value] of Object.entries(hnsw)) {
+        if (value !== undefined) options[key] = value;
+      }
+      return [options, rest as string[]];
+    }
+
+    const [similarityFunction = "euclidean", ...properties] = rest;
+    return [
+      // `dim = 0` in the original signature defaulted only `undefined`
+      { dimension: dimOrOptions === undefined ? 0 : dimOrOptions, similarityFunction },
+      properties as string[],
+    ];
   }
 
   async dropTypedIndex(

@@ -19,6 +19,7 @@ import * as UDF_LOAD from './UDF_LOAD';
 import * as UDF_LIST from './UDF_LIST';
 import * as UDF_FLUSH from './UDF_FLUSH';
 import * as UDF_DELETE from './UDF_DELETE';
+import * as SLOWLOG_RESET from './SLOWLOG_RESET';
 
 import { RedisArgument } from '@redis/client';
 import type { QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
@@ -66,6 +67,8 @@ export default {
     udfFlush: UDF_FLUSH,
     UDF_DELETE,
     udfDelete: UDF_DELETE,
+    SLOWLOG_RESET,
+    slowLogReset: SLOWLOG_RESET,
 };
 
 export type { QueryOptions, QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
