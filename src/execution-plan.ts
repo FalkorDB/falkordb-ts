@@ -13,8 +13,10 @@
  */
 
 const INDENT = "    ";
+// Matched against the text after a line's last `|` only: anchored at both
+// ends so it runs in linear time on any input
 const PROFILE_STATS =
-  /\s*\|\s*Records produced: (\d+),\s*Execution time: (\d+(?:\.\d+)?) ms\s*$/;
+  /^\s*Records produced: (\d+),\s*Execution time: (\d+(?:\.\d+)?) ms$/;
 
 /** A single operation of an execution plan and the operations feeding it. */
 export class Operation {
@@ -47,11 +49,12 @@ export class Operation {
     let recordsProduced: number | undefined;
     let executionTime: number | undefined;
 
-    const stats = text.match(PROFILE_STATS);
+    const last = text.lastIndexOf("|");
+    const stats = last === -1 ? null : PROFILE_STATS.exec(text.slice(last + 1));
     if (stats) {
       recordsProduced = parseInt(stats[1], 10);
       executionTime = parseFloat(stats[2]);
-      text = text.slice(0, stats.index);
+      text = text.slice(0, last).trimEnd();
     }
 
     // Names never contain a `|`, while arguments may (e.g. `(a:A|B)`)
