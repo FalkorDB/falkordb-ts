@@ -199,3 +199,11 @@ function queryParamToString(param: QueryParam): string {
 
 // Export UDF types for external use
 export type { UdfListReply, UdfLibraryEntry } from '../types';
+
+/**
+ * Prefixes the query with a `CYPHER` header carrying the params, as
+ * GRAPH.QUERY does. Without params the query is returned unchanged.
+ */
+export function withParamsHeader<T extends RedisArgument>(query: T, params?: QueryParams): T | string {
+    return params ? `CYPHER ${queryParamsToString(params)} ${query}` : query;
+}

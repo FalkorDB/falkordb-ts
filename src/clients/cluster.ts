@@ -15,6 +15,7 @@ import type {
   ClusterGraphConnection,
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   TypedRedisClusterClientOptions,
@@ -115,8 +116,8 @@ export class Cluster implements Client {
     return reply.then(() => {});
   }
 
-  async explain(graph: string, query: string) {
-    return this.#client.falkordb.explain(graph, query);
+  async explain(graph: string, query: string, options?: PlanOptions) {
+    return this.#client.falkordb.explain(graph, query, options);
   }
 
   async list(): Promise<Array<string>> {
@@ -245,8 +246,8 @@ export class Cluster implements Client {
     return (await this.#masterClient()).falkordb.udfDelete(lib);
   }
 
-  async profile<_T>(graph: string, query: string) {
-    return this.#client.falkordb.profile(graph, query);
+  async profile<_T>(graph: string, query: string, options?: PlanOptions) {
+    return this.#client.falkordb.profile(graph, query, options);
   }
 
   async quit() {
