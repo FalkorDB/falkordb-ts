@@ -78,6 +78,8 @@ export interface Client {
 
   slowLog(graph: string): Promise<SlowLogReply>;
 
+  slowLogReset(graph: string): Promise<void>;
+
   constraintCreate(
     graph: string,
     constraintType: ConstraintType,

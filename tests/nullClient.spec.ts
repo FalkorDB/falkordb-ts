@@ -124,6 +124,12 @@ describe("NullClient Tests", () => {
       );
     });
 
+    it("should throw error on slowLogReset", () => {
+      expect(() => nullClient.slowLogReset("test-graph")).toThrow(
+        "Method not implemented."
+      );
+    });
+
     it("should throw error on memoryUsage with no options", () => {
       expect(() => nullClient.memoryUsage("test-graph")).toThrow(
         "Method not implemented."
