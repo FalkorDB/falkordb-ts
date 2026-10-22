@@ -44,6 +44,15 @@ export interface GraphCacheOptions {
   onDelete?: (graph: Graph) => void;
 }
 
+// Unknown value types already warned about, so each is reported only once
+const warnedUnknownValueTypes = new Set<number>();
+
+function warnUnknownValueType(valueType: number): void {
+  if (warnedUnknownValueTypes.has(valueType)) return;
+  warnedUnknownValueTypes.add(valueType);
+  console.warn(`FalkorDB: unknown value type ${valueType} in reply, returning null`);
+}
+
 export default class Graph {
   #client: Client;
   #name: string;
@@ -347,7 +356,10 @@ export default class Graph {
             largestUnit: "years",
           });
       default:
-        throw new Error(`unknown scalar type: ${valueType}`);
+        // A type this client does not know yet (e.g. one added by a newer
+        // server) is read as null rather than failing the whole query
+        warnUnknownValueType(valueType);
+        return null;
     }
   }
 

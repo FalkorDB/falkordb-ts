@@ -113,10 +113,30 @@ function pushTimeout(args: Array<RedisArgument>, timeout: number): void {
 function queryParamsToString(params: QueryParams): string {
     const parts: string[] = [];
     for (const [key, value] of Object.entries(params)) {
-        parts.push(`${key}=${queryParamToString(value)}`);
+        parts.push(`${escapeIdentifier(key, 'parameter name')}=${queryParamToString(value)}`);
     }
     return parts.join(' ');
 }
+
+// Wraps a parameter name or map key in backticks so that names which are not
+// bare identifiers (e.g. `@type`, hyphenated UUIDs) are accepted by the parser.
+// FalkorDB does not support escaped backticks inside identifiers, so names
+// containing one are rejected, as are empty names
+function escapeIdentifier(name: string, kind: string): string {
+    if (name === '') {
+        throw new Error(`Cypher ${kind} cannot be empty`);
+    }
+    if (name.includes('`')) {
+        throw new Error(
+            `Cypher ${kind} cannot contain a backtick: ${JSON.stringify(name)} ` +
+            '(FalkorDB does not support escaped backticks in identifiers)'
+        );
+    }
+    return `\`${name}\``;
+}
+
+// Built-in objects that `Object.entries` would silently turn into `{}`
+const UNSUPPORTED_OBJECT_TYPES = [Date, Map, Set, WeakMap, WeakSet, RegExp, Promise, ArrayBuffer, DataView];
 
 function queryParamToString(param: QueryParam): string {
     if (param === null) {
@@ -128,21 +148,41 @@ function queryParamToString(param: QueryParam): string {
             return `"${param.replace(/["\\]/g, '\\$&')}"`;
 
         case 'number':
+            if (!Number.isFinite(param)) {
+                throw new TypeError(`Unsupported param value ${param}: only finite numbers are supported`);
+            }
+            return param.toString();
+
+        case 'bigint':
         case 'boolean':
             return param.toString();
+
+        case 'object':
+            break;
+
+        default:
+            throw new TypeError(`Unsupported param type ${typeof param}`);
     }
 
     if (Array.isArray(param)) {
         return `[${param.map(queryParamToString).join(',')}]`;
-    } else if (typeof param === 'object') {
-        const body: string[] = [];
-        for (const [key, value] of Object.entries(param)) {
-            body.push(`${key}:${queryParamToString(value)}`);
-        }
-        return `{${body.join(',')}}`;
-    } else {
-        throw new TypeError(`Unexpected param type ${typeof param} ${param}`)
     }
+
+    const unsupported = UNSUPPORTED_OBJECT_TYPES.find(type => param instanceof type);
+    if (unsupported) {
+        throw new TypeError(`Unsupported param type ${unsupported.name}: convert it to a supported value first`);
+    }
+
+    if (ArrayBuffer.isView(param)) {
+        // Typed arrays (e.g. Float32Array vectors) are sent as lists
+        return `[${Array.from(param, queryParamToString).join(',')}]`;
+    }
+
+    const body: string[] = [];
+    for (const [key, value] of Object.entries(param)) {
+        body.push(`${escapeIdentifier(key, 'map key')}:${queryParamToString(value)}`);
+    }
+    return `{${body.join(',')}}`;
 }
 
 // Export UDF types for external use

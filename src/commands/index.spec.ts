@@ -23,7 +23,7 @@ describe('pushQueryArguments', () => {
             object: {a: 0}
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER null=null string="\\"\\\\" number=0 boolean=false array=[0] object={a:0} query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `null`=null `string`="\\"\\\\" `number`=0 `boolean`=false `array`=[0] `object`={`a`:0} query']
       );
     });
 
@@ -53,7 +53,7 @@ describe('pushQueryArguments', () => {
             nested: [1, [2, 3], 4]
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER nested=[1,[2,3],4] query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `nested`=[1,[2,3],4] query']
       );
     });
 
@@ -64,7 +64,7 @@ describe('pushQueryArguments', () => {
             nested: {a: 1, b: {c: 2}}
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER nested={a:1,b:{c:2}} query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `nested`={`a`:1,`b`:{`c`:2}} query']
       );
     });
 
@@ -75,7 +75,7 @@ describe('pushQueryArguments', () => {
             message: 'He said "Hello\\World"'
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER message="He said \\"Hello\\\\World\\"" query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `message`="He said \\"Hello\\\\World\\"" query']
       );
     });
 
@@ -86,7 +86,7 @@ describe('pushQueryArguments', () => {
             mixed: [1, 'hello', true, null, {key: 'value'}]
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER mixed=[1,"hello",true,null,{key:"value"}] query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `mixed`=[1,"hello",true,null,{`key`:"value"}] query']
       );
     });
 
@@ -103,7 +103,7 @@ describe('pushQueryArguments', () => {
             }
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER complex={user:{name:"John",details:{age:30,active:true},tags:["admin","user"]}} query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `complex`={`user`:{`name`:"John",`details`:{`age`:30,`active`:true},`tags`:["admin","user"]}} query']
       );
     });
 
@@ -115,7 +115,7 @@ describe('pushQueryArguments', () => {
             isDeleted: false
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER isActive=true isDeleted=false query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `isActive`=true `isDeleted`=false query']
       );
     });
 
@@ -128,7 +128,7 @@ describe('pushQueryArguments', () => {
             negative: -5
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER age=30 price=99.99 negative=-5 query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `age`=30 `price`=99.99 `negative`=-5 query']
       );
     });
 
@@ -140,7 +140,7 @@ describe('pushQueryArguments', () => {
             emptyObject: {}
           }
         }),
-        ['GRAPH.QUERY', 'graph', 'CYPHER emptyArray=[] emptyObject={} query']
+        ['GRAPH.QUERY', 'graph', 'CYPHER `emptyArray`=[] `emptyObject`={} query']
       );
     });
   });
@@ -192,7 +192,7 @@ describe('pushQueryArguments', () => {
         params: { name: 'test' },
         TIMEOUT: 5
       }, true),
-      ['GRAPH.QUERY', 'graph', 'CYPHER name="test" query', 'TIMEOUT', '5', '--compact']
+      ['GRAPH.QUERY', 'graph', 'CYPHER `name`="test" query', 'TIMEOUT', '5', '--compact']
     );
   });
 
@@ -224,7 +224,7 @@ describe('pushQueryArguments', () => {
       pushQueryArguments(['GRAPH.QUERY'], 'graph', 'query', {
         params: { name: 'test' }
       }, true),
-      ['GRAPH.QUERY', 'graph', 'CYPHER name="test" query', '--compact']
+      ['GRAPH.QUERY', 'graph', 'CYPHER `name`="test" query', '--compact']
     );
   });
 
