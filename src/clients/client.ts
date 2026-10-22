@@ -4,6 +4,7 @@ import FalkorDB from "../falkordb";
 import type {
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   SlowLogReply,
@@ -43,7 +44,11 @@ export interface Client {
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  profile<T>(graph: string, query: RedisArgument): Promise<any>;
+  profile<T>(
+    graph: string,
+    query: RedisArgument,
+    options?: PlanOptions
+  ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
@@ -59,7 +64,7 @@ export interface Client {
 
   delete(graph: string): Promise<void>;
 
-  explain(graph: string, query: string): Promise<any>;
+  explain(graph: string, query: string, options?: PlanOptions): Promise<any>;
 
   memoryUsage(
     graph: string,

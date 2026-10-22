@@ -10,3 +10,8 @@ export interface QueryOptions {
 }
 
 export type QueryOptionsBackwardCompatible = QueryOptions | number;
+
+/** Options for `GRAPH.EXPLAIN` and `GRAPH.PROFILE` */
+export interface PlanOptions {
+    params?: QueryParams;
+}

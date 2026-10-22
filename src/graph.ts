@@ -3,6 +3,7 @@ import { Client } from "./clients/client";
 import { Temporal } from "@js-temporal/polyfill";
 import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
 import { SchemaVersionMismatchError } from "./errors";
+import { ExecutionPlan } from "./execution-plan";
 import type {
   GraphEdge,
   GraphEdgeRawValue,
@@ -16,6 +17,7 @@ import type {
   GraphReply,
   GraphValue,
   MemoryUsageOptions,
+  PlanOptions,
   QueryOptions,
   QueryReply,
 } from "./types";
@@ -114,12 +116,27 @@ export default class Graph {
     this.#metadata = undefined;
   }
 
-  async explain(query: string) {
-    return this.#client.explain(this.#name, query);
+  /** Returns the query's execution plan, one operation per line. */
+  async explain(query: string, options?: PlanOptions) {
+    return this.#client.explain(this.#name, query, options);
   }
 
-  async profile(query: string) {
-    return this.#client.profile(this.#name, query);
+  /**
+   * Runs the query and returns its execution plan, one operation per line,
+   * annotated with each operation's runtime statistics.
+   */
+  async profile(query: string, options?: PlanOptions) {
+    return this.#client.profile(this.#name, query, options);
+  }
+
+  /** Like `explain`, but parses the plan into an operation tree. */
+  async explainPlan(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.explain(query, options));
+  }
+
+  /** Like `profile`, but parses the plan into an operation tree. */
+  async profilePlan(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.profile(query, options));
   }
 
 	async memoryUsage(options?: MemoryUsageOptions) {
