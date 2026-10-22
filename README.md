@@ -60,6 +60,18 @@ db.close()
 
 To learn more about Cypher query language check: https://docs.falkordb.com/cypher/
 
+### Query Parameters
+
+Parameter values can be a `string`, a finite `number`, a `bigint`, a `boolean`, `null`, an array, a typed array
+(e.g. a `Float32Array` vector, sent as a list) or an object (sent as a map). Names that are not plain
+identifiers, such as `my-key` or `@type`, work too: quote them in the query, e.g. `` $`my-key` ``.
+
+```typescript
+await graph.query('RETURN $`my-key`, $vec', {params: {'my-key': 1, vec: new Float32Array([0.1, 0.2])}})
+```
+
+Other values, such as `Date`, `Map`, `Set`, `undefined` or `NaN`, throw a `TypeError`; convert them first.
+
 ### Connection Options
 
 `host` and `port` are the shorthand for a plain TCP connection and default to `localhost:6379`.

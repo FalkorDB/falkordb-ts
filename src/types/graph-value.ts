@@ -37,8 +37,8 @@ export type GraphValue =
   | GraphPath
   | GraphMap
   | {
-      latitude: string;
-      longitude: string;
+      latitude: number;
+      longitude: number;
     }
   | number[]
   | Temporal.PlainDateTime
