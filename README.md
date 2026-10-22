@@ -62,9 +62,9 @@ To learn more about Cypher query language check: https://docs.falkordb.com/cyphe
 
 ### Query Parameters
 
-Parameter values can be strings, finite numbers, bigints, booleans, `null`, arrays, typed arrays
-(e.g. a `Float32Array` vector, sent as a list) and objects (sent as maps). Names that are not plain
-identifiers, such as `my-key` or `@type`, work too: reference them in the query with backticks.
+Parameter values can be a `string`, a finite `number`, a `bigint`, a `boolean`, `null`, an array, a typed array
+(e.g. a `Float32Array` vector, sent as a list) or an object (sent as a map). Names that are not plain
+identifiers, such as `my-key` or `@type`, work too: quote them in the query, e.g. `` $`my-key` ``.
 
 ```typescript
 await graph.query('RETURN $`my-key`, $vec', {params: {'my-key': 1, vec: new Float32Array([0.1, 0.2])}})
