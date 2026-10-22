@@ -50,7 +50,9 @@ const result = await graph.query(`MATCH (r:Rider)-[:rides]->(t:Team)
                             WHERE t.name = $name RETURN r.name`, 
                             {params: {name: 'Yamaha'}})
                             
-console.log(result) // Valentino Rossi
+console.log(result.data)    // [{ 'r.name': 'Valentino Rossi' }]
+console.log(result.headers) // ['r.name']
+console.log(result.stats)   // { nodesCreated: 0, ..., cachedExecution: false, queryInternalExecutionTime: 0.31 }
 
 console.log(await db.list())
 console.log(await db.info())
