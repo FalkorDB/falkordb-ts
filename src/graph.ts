@@ -3,6 +3,7 @@ import { Client } from "./clients/client";
 import { Temporal } from "@js-temporal/polyfill";
 import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
 import { SchemaVersionMismatchError } from "./errors";
+import { parseQueryStatistics } from "./query-statistics";
 import type {
   GraphEdge,
   GraphEdgeRawValue,
@@ -248,17 +249,24 @@ export default class Graph {
   }
 
   async #parseReply<T>(reply: QueryReply): Promise<GraphReply<T>> {
-    if (!reply.data) return reply;
+    const stats = parseQueryStatistics(reply.metadata);
+    if (!reply.data) return { ...reply, stats };
 
+    // Compact replies describe each column as [type, name]
+    const headers = (reply.headers as unknown as Array<[number, string]>).map(
+      ([, name]) => name
+    );
     const promises: Array<Promise<unknown>> = [],
       parsed = {
+        headers,
         metadata: reply.metadata,
+        stats,
         data: reply.data!.map((row) => {
           const data: Record<string, GraphValue> = {};
           if (Array.isArray(row)) {
             for (let i = 0; i < row.length; i++) {
               const value = row[i] as GraphRawValue;
-              data[reply.headers[i][1]] = this.#parseValue(value, promises);
+              data[headers[i]] = this.#parseValue(value, promises);
             }
           }
 

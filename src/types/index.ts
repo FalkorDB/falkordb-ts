@@ -8,6 +8,7 @@ export * from './memory-usage';
 export * from './net-socket-options';
 export * from './query-options';
 export * from './query-reply';
+export * from './query-statistics';
 export * from './single-graph-connection';
 export * from './slow-log';
 export * from './socket-options';
