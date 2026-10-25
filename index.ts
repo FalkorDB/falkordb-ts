@@ -9,3 +9,4 @@ export type { FalkorDBOptions } from './src/types';
 export type { GraphReply, QueryStatistics } from './src/types';
 export { ExecutionPlan, Operation } from './src/execution-plan';
 export type { QueryParam, QueryParams, QueryOptions, QueryOptionsBackwardCompatible, PlanOptions } from './src/types';
+export type { CallProcedureOptions, ConstraintInfo, IndexInfo, VectorIndexOptions } from './src/types';

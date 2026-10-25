@@ -103,6 +103,11 @@ export class Single implements Client {
     return this.run((client) => client.falkordb.slowLog(graph), READ_ONLY);
   }
 
+  async slowLogReset(graph: string) {
+    const reply = this.run((client) => client.falkordb.slowLogReset(graph));
+    return reply.then(() => {});
+  }
+
   async memoryUsage(
     graph: string,
     options?: MemoryUsageOptions

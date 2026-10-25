@@ -189,6 +189,11 @@ export class Cluster implements Client {
     return this.#client.falkordb.slowLog(graph);
   }
 
+  async slowLogReset(graph: string) {
+    const reply = this.#client.falkordb.slowLogReset(graph);
+    return reply.then(() => {});
+  }
+
   async memoryUsage(
     graph: string,
     options?: MemoryUsageOptions

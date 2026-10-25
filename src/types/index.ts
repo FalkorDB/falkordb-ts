@@ -15,3 +15,4 @@ export * from './socket-options';
 export * from './tls-socket-options';
 export * from './typed-redis-client-options';
 export * from './udf-list';
+export * from './procedures';
