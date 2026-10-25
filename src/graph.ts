@@ -25,6 +25,12 @@ export type { GraphReply };
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
+// A read is checked against the schema version on its first attempts, then
+// sent once without a version, so that a schema changing faster than it can
+// be read cannot keep it retrying. Four checked attempts cover a lagging
+// replica's version, the master's, and a further change on the master.
+const MAX_VERSIONED_READS = 5;
+
 // State shared while decoding one reply
 interface ParseContext {
   // Name lookups that had to fetch metadata
@@ -75,23 +81,28 @@ export default class Graph {
   }
 
   async roQuery<T>(query: RedisArgument, options?: QueryOptions) {
-    const version = this.#schema.version;
-    try {
-      const reply = await this.#client.roQuery(this.#name, query, options, true, version);
-      return await this.#parseReply<T>(reply, version);
-    } catch (err) {
-      if (!(err instanceof SchemaVersionMismatchError)) throw err;
+    // Reads may be served by any node until one of them, or the master the
+    // names come from, rejects the schema version
+    let primary = false;
+    for (let attempt = 1; ; attempt++) {
+      const version =
+        attempt < MAX_VERSIONED_READS ? this.#schema.version : undefined;
+      try {
+        const reply = await this.#client.roQuery(this.#name, query, options, true, version, primary);
+        return await this.#parseReply<T>(reply, version);
+      } catch (err) {
+        if (!(err instanceof SchemaVersionMismatchError)) throw err;
 
-      // The node that served the read, or the master the names come from,
-      // has another schema: a replica can lag behind the master, even keep
-      // a graph the master deleted and recreated. Read from the master
-      // instead, whose reply always matches its names. Reads change nothing,
-      // so running one again is safe. Sent without a version so that further
-      // concurrent schema changes cannot make it loop.
-      this.clearMetadataCache();
-      this.#schema.version = err.version;
-      const reply = await this.#client.roQuery(this.#name, query, options, true, undefined, true);
-      return this.#parseReply<T>(reply);
+        // A replica can lag behind the master, even keep a graph the master
+        // deleted and recreated. Read from the master instead, still checked
+        // against the version, so that its reply matches its names even if
+        // the schema changes meanwhile. A version reported by a replica is
+        // replaced by the master's when the master rejects it in turn. Reads
+        // change nothing, so running one again is safe.
+        this.clearMetadataCache();
+        this.#schema.version = err.version;
+        primary = true;
+      }
     }
   }
 

@@ -115,7 +115,8 @@ describe('Graph metadata cache', () => {
             const result = await graph.roQuery<{ n: { labels: string[] } }>('MATCH (n) RETURN n');
 
             expect(result.data?.[0].n.labels).toEqual(['New']);
-            expect(state.sent).toEqual([0, 0, undefined]);
+            // The retry is checked against the reported version
+            expect(state.sent).toEqual([0, 0, 42]);
 
             await graph.roQuery('RETURN 1');
             expect(state.sent[3]).toBe(42);
@@ -207,7 +208,7 @@ describe('Graph metadata cache', () => {
                     };
                 },
             } as unknown as Client;
-            return { client, reads };
+            return { client, reads, nodes };
         }
 
         type Row = { n: { id: number; labels: string[] } };
@@ -219,7 +220,8 @@ describe('Graph metadata cache', () => {
             const result = await graph.roQuery<Row>('MATCH (n) RETURN n');
 
             expect(result.data?.[0].n).toMatchObject({ id: 200, labels: ['New'] });
-            expect(reads).toEqual([{ node: 'master', version: undefined }]);
+            // The master rejected the replica's version and reported its own
+            expect(reads).toEqual([{ node: 'master', version: 2 }]);
         });
 
         it('should read from the master when the names come from another schema', async () => {
@@ -233,8 +235,52 @@ describe('Graph metadata cache', () => {
             expect(result.data?.[0].n).toMatchObject({ id: 200, labels: ['New'] });
             expect(reads).toEqual([
                 { node: 'replica', version: 1 },
-                { node: 'master', version: undefined },
+                { node: 'master', version: 2 },
             ]);
+        });
+
+        it('should check the master read too when the schema changes meanwhile', async () => {
+            const { client, reads, nodes } = laggingReplicaClient(1);
+            const graph = new Graph(client, 'graph', { schema: { generation: 0, version: 2 } });
+            // The master recreates the graph again once it has served a read
+            const masterRead = client.roQuery;
+            let recreated = false;
+            client.roQuery = (async (...args: Parameters<Client['roQuery']>) => {
+                const reply = await masterRead(...args);
+                if (args[5] && !recreated && !args[1].toString().startsWith('CALL')) {
+                    recreated = true;
+                    Object.assign(nodes.master, { version: 3, label: 'Newer', nodeId: 300 });
+                }
+                return reply;
+            }) as Client['roQuery'];
+
+            const result = await graph.roQuery<Row>('MATCH (n) RETURN n');
+
+            // The reply read under version 2 is not decoded with version 3's names
+            expect(result.data?.[0].n).toMatchObject({ id: 300, labels: ['Newer'] });
+            expect(reads).toEqual([
+                { node: 'master', version: 2 },
+                { node: 'master', version: 3 },
+            ]);
+        });
+
+        it('should stop checking the version after repeated rejections', async () => {
+            const { client, reads, nodes } = laggingReplicaClient(1);
+            const graph = new Graph(client, 'graph', { schema: { generation: 0, version: 2 } });
+            // Every rejection is followed by another schema change on the master
+            const read = client.roQuery;
+            client.roQuery = (async (...args: Parameters<Client['roQuery']>) => {
+                try {
+                    return await read(...args);
+                } catch (err) {
+                    nodes.master.version++;
+                    throw err;
+                }
+            }) as Client['roQuery'];
+
+            await graph.roQuery<Row>('MATCH (n) RETURN n');
+
+            expect(reads).toEqual([{ node: 'master', version: undefined }]);
         });
 
         it('should decode a replica reply when its schema matches the master', async () => {
