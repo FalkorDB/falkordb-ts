@@ -178,4 +178,73 @@ describe('Graph metadata cache', () => {
 
         expect(result.data?.[0].n.labels).toEqual(['NewLabel']);
     });
+
+    describe('reads served by a replica that kept a recreated graph', () => {
+        // The master deleted and recreated the graph: label id 0 is now `New`
+        // there, while a lagging replica still holds the old graph, where it
+        // is `Old`. Node ids tell which node's reply was decoded.
+        function laggingReplicaClient(replicaVersion: number) {
+            const nodes = {
+                master: { version: 2, label: 'New', nodeId: 200 },
+                // A replica at the master's version has caught up with it
+                replica: { version: replicaVersion, label: replicaVersion === 2 ? 'New' : 'Old', nodeId: 100 },
+            };
+            const reads: Array<{ node: string; version?: number }> = [];
+            const client = {
+                roQuery: async (_g: string, query: string, _o: unknown, _c: boolean, version?: number, primary?: boolean) => {
+                    const name = primary ? 'master' : 'replica';
+                    const node = nodes[name];
+                    if (version !== undefined && version !== node.version) {
+                        throw new SchemaVersionMismatchError(node.version);
+                    }
+                    if (query === 'CALL db.labels()') return { data: [[node.label]] };
+                    if (query.startsWith('CALL db.')) return { data: [] };
+                    reads.push({ node: name, version });
+                    return {
+                        headers: [[1, 'n']],
+                        data: [[[8, [node.nodeId, [0], []]]]],
+                        metadata: [],
+                    };
+                },
+            } as unknown as Client;
+            return { client, reads };
+        }
+
+        type Row = { n: { id: number; labels: string[] } };
+
+        it('should read from the master when the replica rejects the version', async () => {
+            const { client, reads } = laggingReplicaClient(1);
+            const graph = new Graph(client, 'graph', { schema: { generation: 0, version: 2 } });
+
+            const result = await graph.roQuery<Row>('MATCH (n) RETURN n');
+
+            expect(result.data?.[0].n).toMatchObject({ id: 200, labels: ['New'] });
+            expect(reads).toEqual([{ node: 'master', version: undefined }]);
+        });
+
+        it('should read from the master when the names come from another schema', async () => {
+            // The client still holds the old version, which the replica accepts
+            const { client, reads } = laggingReplicaClient(1);
+            const graph = new Graph(client, 'graph', { schema: { generation: 0, version: 1 } });
+
+            const result = await graph.roQuery<Row>('MATCH (n) RETURN n');
+
+            // Not the replica's node decoded with the master's names
+            expect(result.data?.[0].n).toMatchObject({ id: 200, labels: ['New'] });
+            expect(reads).toEqual([
+                { node: 'replica', version: 1 },
+                { node: 'master', version: undefined },
+            ]);
+        });
+
+        it('should decode a replica reply when its schema matches the master', async () => {
+            const { client, reads } = laggingReplicaClient(2);
+            const graph = new Graph(client, 'graph', { schema: { generation: 0, version: 2 } });
+
+            const result = await graph.roQuery<Row>('MATCH (n) RETURN n');
+
+            expect(result.data?.[0].n).toMatchObject({ id: 100, labels: ['New'] });
+            expect(reads).toEqual([{ node: 'replica', version: 2 }]);
+        });
+    });
 });
