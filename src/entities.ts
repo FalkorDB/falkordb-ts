@@ -3,14 +3,16 @@
  * objects. They match the string forms and equality of the Python client's
  * `Node`, `Edge` and `Path` classes.
  */
+import { isPlainObject } from "lodash";
 import type { GraphEdge, GraphNode, GraphPath, GraphValue } from "./types";
 
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // A label, relationship type or property key, quoted when it is not a plain
-// identifier so that the result stays valid Cypher
+// identifier so that the result stays valid Cypher. A backtick inside is
+// doubled, as openCypher escapes it.
 function nameToString(name: string): string {
-  return IDENTIFIER.test(name) ? name : `\`${name}\``;
+  return IDENTIFIER.test(name) ? name : `\`${name.replace(/`/g, "``")}\``;
 }
 
 function valueToString(value: GraphValue): string {
@@ -21,7 +23,8 @@ function valueToString(value: GraphValue): string {
   if (Array.isArray(value)) {
     return `[${value.map(valueToString).join(",")}]`;
   }
-  if (typeof value === "object" && Object.getPrototypeOf(value) === Object.prototype) {
+  // Also maps with a null prototype or from another realm (e.g. node:vm)
+  if (isPlainObject(value)) {
     const entries = Object.entries(value).map(
       ([key, item]) => `${nameToString(key)}:${valueToString(item as GraphValue)}`
     );
@@ -66,7 +69,8 @@ export function pathToString(path: GraphPath): string {
 }
 
 function valuesEqual(a: unknown, b: unknown): boolean {
-  if (a === b) return true;
+  // Object.is also treats two NaN as equal
+  if (a === b || Object.is(a, b)) return true;
   if (typeof a !== "object" || typeof b !== "object" || a === null || b === null) {
     return false;
   }
@@ -79,8 +83,13 @@ function valuesEqual(a: unknown, b: unknown): boolean {
     );
   }
   // Dates and times (Temporal values) keep their fields in internal slots
-  if (Object.getPrototypeOf(a) !== Object.prototype || Object.getPrototypeOf(b) !== Object.prototype) {
-    return a.constructor === b.constructor && String(a) === String(b);
+  if (!isPlainObject(a) || !isPlainObject(b)) {
+    return (
+      !isPlainObject(a) &&
+      !isPlainObject(b) &&
+      a.constructor === b.constructor &&
+      String(a) === String(b)
+    );
   }
   const keys = Object.keys(a);
   return (

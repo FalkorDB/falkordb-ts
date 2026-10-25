@@ -1,4 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
+import * as vm from 'node:vm';
 import { Temporal } from '@js-temporal/polyfill';
 import { client } from './dbConnection';
 import FalkorDB from '../src/falkordb';
@@ -31,6 +32,18 @@ describe('Entity helpers', () => {
             );
         });
 
+        it('escapes backticks in names and quotes empty ones', () => {
+            const node: GraphNode = { id: 5, labels: ['a`b'], properties: { '': 1 } };
+            expect(nodeToString(node)).toBe('(:`a``b`{``:1})');
+        });
+
+        it('writes maps with a null prototype or from another realm as maps', () => {
+            const bare = Object.assign(Object.create(null), { age: 30 });
+            const foreign = vm.runInNewContext('({ age: 31 })');
+            const node: GraphNode = { id: 6, labels: [], properties: { bare, foreign } };
+            expect(nodeToString(node)).toBe('({bare:{age:30},foreign:{age:31}})');
+        });
+
         it('writes dates and times as their ISO form', () => {
             const node: GraphNode = { id: 4, labels: [], properties: { born: Temporal.PlainDate.from('2000-01-02') } };
             expect(nodeToString(node)).toBe('({born:2000-01-02})');
@@ -56,6 +69,26 @@ describe('Entity helpers', () => {
             expect(nodesEqual(alice, { ...alice, labels: ['Admin'] })).toBe(false);
             expect(nodesEqual(alice, { ...alice, properties: { name: 'Alice', age: 31 } })).toBe(false);
             expect(nodesEqual(alice, { ...alice, properties: { name: 'Alice' } })).toBe(false);
+        });
+
+        it('compares maps by content whatever their prototype or realm', () => {
+            const withMap = (meta: object): GraphNode => ({ id: 0, labels: [], properties: { meta } as GraphNode['properties'] });
+            const bare = (age: number) => Object.assign(Object.create(null), { age });
+            const foreign = (age: number) => vm.runInNewContext(`({ age: ${age} })`);
+            expect(nodesEqual(withMap(bare(30)), withMap(bare(30)))).toBe(true);
+            expect(nodesEqual(withMap(bare(30)), withMap({ age: 30 }))).toBe(true);
+            expect(nodesEqual(withMap(foreign(1)), withMap(foreign(1)))).toBe(true);
+            expect(nodesEqual(withMap(foreign(1)), withMap(foreign(2)))).toBe(false);
+            // Two maps from the same context share a constructor
+            const context = vm.createContext();
+            const [x1, x2] = vm.runInContext('[{ x: 1 }, { x: 2 }]', context);
+            expect(nodesEqual(withMap(x1), withMap(x2))).toBe(false);
+        });
+
+        it('treats NaN as equal to itself', () => {
+            const node: GraphNode = { id: 0, labels: [], properties: { x: NaN } };
+            expect(nodesEqual(node, { ...node, properties: { x: NaN } })).toBe(true);
+            expect(nodesEqual(node, { ...node, properties: { x: 0 } })).toBe(false);
         });
 
         it('compares dates and times by value', () => {
@@ -88,6 +121,8 @@ describe('Entity helpers', () => {
         });
 
         afterAll(async () => {
+            // `db` is unset when connecting failed
+            if (!db) return;
             if ((await db.list()).includes(graphName)) await db.selectGraph(graphName).delete();
             await db.close();
         });
