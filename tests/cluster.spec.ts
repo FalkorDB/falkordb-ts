@@ -340,9 +340,13 @@ describe('Cluster Client through a replica', () => {
     it('reads the slowlog from the master that ran the query', async () => {
         const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
         const longQuery = 'UNWIND range (0, 1000000) AS x RETURN max(x)';
-        await graph.query(longQuery);
-        const result = await graph.slowLog();
-        expect(result[0].query).toBe(longQuery);
+        try {
+            await graph.query(longQuery);
+            const result = await graph.slowLog();
+            expect(result[0].query).toBe(longQuery);
+        } finally {
+            await graph.delete();
+        }
     });
 
     it('profiles a write query', async () => {
