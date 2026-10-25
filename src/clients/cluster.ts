@@ -6,6 +6,7 @@ import {
   RedisScripts,
 } from "@redis/client";
 import commands from "../commands";
+import * as RO_QUERY from "../commands/RO_QUERY";
 import { createCluster } from "@redis/client";
 import FalkorDB from "../falkordb";
 import { RedisClusterClientOptions } from "@redis/client/dist/lib/cluster";
@@ -14,6 +15,7 @@ import type {
   ClusterGraphConnection,
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   TypedRedisClusterClientOptions,
@@ -22,13 +24,23 @@ import type {
 
 export type { ClusterGraphConnection };
 
+export interface ClusterOptions {
+  /**
+   * Serve read-only commands (e.g. `GRAPH.RO_QUERY`) from replicas as well as
+   * masters. Replica connections are sent
+   * [`READONLY`](https://redis.io/docs/latest/commands/readonly/) so they
+   * answer reads instead of redirecting them; writes still go to the masters.
+   */
+  useReplicas?: boolean;
+}
+
 /**
  * A client that connects to a Redis Cluster.
  */
 export class Cluster implements Client {
   #client: ClusterGraphConnection;
 
-  constructor(client: SingleGraphConnection) {
+  constructor(client: SingleGraphConnection, { useReplicas = false }: ClusterOptions = {}) {
     // Convert the single client options to a cluster client options
     const redisClusterOption = client.options as TypedRedisClusterClientOptions;
     redisClusterOption.rootNodes = [
@@ -41,6 +53,7 @@ export class Cluster implements Client {
 
     redisClusterOption.defaults = defaults;
     redisClusterOption.maxCommandRedirections = 100000;
+    redisClusterOption.useReplicas = useReplicas;
     client.disconnect();
     this.#client = createCluster<
       { falkordb: typeof commands },
@@ -51,7 +64,15 @@ export class Cluster implements Client {
   }
 
   async getConnection() {
-    const connection = this.#client.nodeClient(this.#client.getRandomNode());
+    return this.#masterClient();
+  }
+
+  // Keyless commands are routed to a random node, which can be a replica when
+  // `useReplicas` is on, so writes without a key are sent to a master instead.
+  async #masterClient() {
+    const { masters } = this.#client;
+    const master = masters[Math.floor(Math.random() * masters.length)];
+    const connection = this.#client.nodeClient(master);
     return connection instanceof Promise ? await connection : connection;
   }
 
@@ -78,8 +99,15 @@ export class Cluster implements Client {
     query: RedisArgument,
     options?: QueryOptions,
     compact = true,
-    version?: number
+    version?: number,
+    primary = false
   ) {
+    if (primary) {
+      // Still GRAPH.RO_QUERY, so read-only users can run it, but routed to the
+      // slot's master as a write would be
+      const args = RO_QUERY.transformArguments(graph, query, options, compact, version);
+      return RO_QUERY.transformReply(await this.#client.sendCommand(graph, false, args));
+    }
     return this.#client.falkordb.roQuery(graph, query, options, compact, version);
   }
 
@@ -88,8 +116,8 @@ export class Cluster implements Client {
     return reply.then(() => {});
   }
 
-  async explain(graph: string, query: string) {
-    return this.#client.falkordb.explain(graph, query);
+  async explain(graph: string, query: string, options?: PlanOptions) {
+    return this.#client.falkordb.explain(graph, query, options);
   }
 
   async list(): Promise<Array<string>> {
@@ -145,7 +173,7 @@ export class Cluster implements Client {
   }
 
   async configSet(configKey: string, value: number | string) {
-    const reply = this.#client.falkordb.configSet(configKey, value);
+    const reply = (await this.#masterClient()).falkordb.configSet(configKey, value);
     return reply.then(() => {});
   }
 
@@ -159,6 +187,11 @@ export class Cluster implements Client {
 
   slowLog(graph: string) {
     return this.#client.falkordb.slowLog(graph);
+  }
+
+  async slowLogReset(graph: string) {
+    const reply = this.#client.falkordb.slowLogReset(graph);
+    return reply.then(() => {});
   }
 
   async memoryUsage(
@@ -203,7 +236,7 @@ export class Cluster implements Client {
   }
 
   async udfLoad(name: string, script: string | Function, replace: boolean = false) {
-    return this.#client.falkordb.udfLoad(name, script, replace);
+    return (await this.#masterClient()).falkordb.udfLoad(name, script, replace);
   }
 
   async udfList(lib?: string, withCode: boolean = false): Promise<UdfListReply> {
@@ -211,15 +244,15 @@ export class Cluster implements Client {
   }
 
   async udfFlush() {
-    return this.#client.falkordb.udfFlush();
+    return (await this.#masterClient()).falkordb.udfFlush();
   }
 
   async udfDelete(lib: string) {
-    return this.#client.falkordb.udfDelete(lib);
+    return (await this.#masterClient()).falkordb.udfDelete(lib);
   }
 
-  async profile<_T>(graph: string, query: string) {
-    return this.#client.falkordb.profile(graph, query);
+  async profile<_T>(graph: string, query: string, options?: PlanOptions) {
+    return this.#client.falkordb.profile(graph, query, options);
   }
 
   async quit() {

@@ -265,7 +265,8 @@ describe('Command Transformation Functions', () => {
       
       MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph');
       
-      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE');
+      expect(mockParser.pushKey).toHaveBeenCalledWith('mygraph');
       expect(mockParser.push).toHaveBeenCalledTimes(1);
     });
 
@@ -286,7 +287,8 @@ describe('Command Transformation Functions', () => {
       
       MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph', { SAMPLES: 10 });
       
-      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE');
+      expect(mockParser.pushKey).toHaveBeenCalledWith('mygraph');
       expect(mockParser.push).toHaveBeenCalledWith('10');
       expect(mockParser.push).toHaveBeenCalledTimes(2);
     });
@@ -410,7 +412,7 @@ describe('Command Transformation Functions', () => {
 
     it('should transform arguments with params option', () => {
       const result = QUERY.transformArguments('mygraph', 'MATCH (n) RETURN n', { params: { name: 'John' } });
-      expect(result).toEqual(['GRAPH.QUERY', 'mygraph', 'CYPHER name="John" MATCH (n) RETURN n']);
+      expect(result).toEqual(['GRAPH.QUERY', 'mygraph', 'CYPHER `name`="John" MATCH (n) RETURN n']);
     });
 
     it('should transform arguments with number (backward compatible)', () => {
@@ -452,7 +454,7 @@ describe('Command Transformation Functions', () => {
 
     it('should transform arguments with params option', () => {
       const result = RO_QUERY.transformArguments('testgraph', 'MATCH (n) RETURN n', { params: { id: 123 } });
-      expect(result).toEqual(['GRAPH.RO_QUERY', 'testgraph', 'CYPHER id=123 MATCH (n) RETURN n']);
+      expect(result).toEqual(['GRAPH.RO_QUERY', 'testgraph', 'CYPHER `id`=123 MATCH (n) RETURN n']);
     });
 
     it('should transform arguments without options', () => {

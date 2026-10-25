@@ -269,7 +269,7 @@ describe("FalkorDB Execute Query", () => {
     const firstResult = await graph.query(query);
     expect(firstResult.data).not.toBeNull();
     const secondResult = await graph.query(query);
-    expect(secondResult.metadata[0]).toContain("Cached execution: 1");
+    expect(secondResult.stats.cachedExecution).toBe(true);
     await graph.delete();
   });
   
@@ -393,7 +393,7 @@ describe("FalkorDB Execute Query", () => {
     );
 
     // Rust names the combining operation "Union"; C names it "Join".
-    const normalized = result.map((line) =>
+    const normalized = result.steps.map((line) =>
       operationName(line) === "Union" ? line.replace("Union", "Join") : line
     );
     expectPlanShape(normalized, [
@@ -425,8 +425,10 @@ describe("FalkorDB Execute Query", () => {
       "User",
       "name"
     );
-    await srcGraph.copy(copyGraphName);
-    const destGraph = clientInstance.selectGraph(copyGraphName);
+    const destGraph = await srcGraph.copy(copyGraphName);
+    // The copy is the instance selectGraph returns, sharing its cached metadata
+    expect(destGraph).toBe(clientInstance.selectGraph(copyGraphName));
+    expect(destGraph.name).toBe(copyGraphName);
 
     // Validate entities
     const entityQuery = "MATCH (n) RETURN n ORDER BY ID(n)";
@@ -455,7 +457,7 @@ describe("FalkorDB Execute Query", () => {
     const destIndicesRes = await destGraph.explain(
       "CALL DB.INDEXES() YIELD label, properties, types, language, stopwords, entitytype, status RETURN *"
     );
-    expect(srcIndicesRes.data).toEqual(destIndicesRes.data);
+    expect(srcIndicesRes.steps).toEqual(destIndicesRes.steps);
 
     await srcGraph.delete();
     await destGraph.delete();

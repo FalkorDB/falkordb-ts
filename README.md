@@ -10,6 +10,8 @@
 
 `falkordb` is a [FalkorDB](https://www.falkordb.com) client for Node.js.
 
+> **Upgrading from v6?** Version 7 has breaking changes; see the [migration guide](MIGRATION.md).
+
 ## Installation
 
 Start a falkordb via docker:
@@ -50,7 +52,9 @@ const result = await graph.query(`MATCH (r:Rider)-[:rides]->(t:Team)
                             WHERE t.name = $name RETURN r.name`, 
                             {params: {name: 'Yamaha'}})
                             
-console.log(result) // Valentino Rossi
+console.log(result.data)    // [{ 'r.name': 'Valentino Rossi' }]
+console.log(result.headers) // ['r.name']
+console.log(result.stats)   // { nodesCreated: 0, ..., cachedExecution: false, queryInternalExecutionTime: 0.31 }
 
 console.log(await db.list())
 console.log(await db.info())
@@ -59,6 +63,44 @@ db.close()
 ```
 
 To learn more about Cypher query language check: https://docs.falkordb.com/cypher/
+
+### Query Parameters
+
+Parameter values can be a `string`, a finite `number`, a `bigint`, a `boolean`, `null`, an array, a typed array
+(e.g. a `Float32Array` vector, sent as a list) or a plain object (sent as a map). Names that are not plain
+identifiers, such as `my-key` or `@type`, work too: quote them in the query, e.g. `` $`my-key` ``.
+An empty name, or one containing the `` ` `` character, throws a `TypeError`, since FalkorDB cannot
+represent it.
+
+```typescript
+await graph.query('RETURN $`my-key`, $vec', {params: {'my-key': 1, vec: new Float32Array([0.1, 0.2])}})
+```
+
+A plain object is an object literal or one made with `Object.create(null)`. Any other object, such as a
+class instance, `Date`, `Map` or `Set`, throws a `TypeError`, as do `undefined` and `NaN`; convert such
+values first:
+
+```typescript
+await graph.query('CREATE (:User $props)', {params: {props: {...user, createdAt: user.createdAt.toISOString()}}})
+```
+
+A `bigint` is sent exactly, but integers in query results are returned as a `number`, so values beyond
+`Number.MAX_SAFE_INTEGER` come back rounded (see [#676](https://github.com/FalkorDB/falkordb-ts/issues/676)).
+
+### Query Replies
+
+`graph.query`, `graph.roQuery` and the index helpers (such as `graph.createNodeRangeIndex`) resolve to `{ headers?, data?, stats }`:
+`headers` and `data` are present when the query returns columns, and `stats` always holds the server's statistics as numbers (a counter the server did not report is `0`).
+
+```typescript
+const { stats } = await graph.query(`CREATE (:Rider {name:'Jorge Lorenzo'})`)
+
+console.log(stats.nodesCreated)               // 1
+console.log(stats.queryInternalExecutionTime) // milliseconds, e.g. 0.42
+console.log(stats.cachedExecution)            // false
+```
+
+Version 7 removed the raw `metadata` lines (such as `"Nodes created: 1"`) from these replies; read the matching `stats` field instead.
 
 ### Connection Options
 

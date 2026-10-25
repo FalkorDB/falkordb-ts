@@ -4,6 +4,7 @@ import FalkorDB from "../falkordb";
 import type {
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   SlowLogReply,
@@ -43,15 +44,24 @@ export interface Client {
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  profile<T>(graph: string, query: RedisArgument): Promise<any>;
+  profile<T>(
+    graph: string,
+    query: RedisArgument,
+    options?: PlanOptions
+  ): Promise<any>;
 
+  /**
+   * @param primary Run on the graph's master even where reads may be served
+   * by replicas, for a reply that must be at least as new as the master's
+   */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
     compact?: boolean,
-    version?: number
+    version?: number,
+    primary?: boolean
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -59,7 +69,7 @@ export interface Client {
 
   delete(graph: string): Promise<void>;
 
-  explain(graph: string, query: string): Promise<any>;
+  explain(graph: string, query: string, options?: PlanOptions): Promise<any>;
 
   memoryUsage(
     graph: string,
@@ -67,6 +77,8 @@ export interface Client {
   ): Promise<MemoryUsageReply>;
 
   slowLog(graph: string): Promise<SlowLogReply>;
+
+  slowLogReset(graph: string): Promise<void>;
 
   constraintCreate(
     graph: string,

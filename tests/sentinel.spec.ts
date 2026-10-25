@@ -339,8 +339,7 @@ describe('Sentinel Integration Tests', () => {
             
             const result = await graph.query('CREATE (n:StatNode {value: 42}) RETURN n');
             
-            expect(result.metadata).toBeDefined();
-            expect(result.metadata).toEqual(expect.objectContaining({}));
+            expect(result.stats).toMatchObject({ nodesCreated: 1, propertiesSet: 1 });
             
             await graph.delete();
         } catch (error) {

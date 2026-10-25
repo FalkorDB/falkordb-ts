@@ -55,7 +55,11 @@ async function clientFactory(client: SingleGraphConnection, sentinelOptions: Sen
     if (info.includes("redis_mode:sentinel")) {
         return new Sentinel(client, sentinelOptions)
     } else if (info.includes("redis_mode:cluster")) {
-        return new Cluster(client);
+        // Connecting through a replica (or asking for `readonly`) opts in to
+        // serving read-only commands from replicas, see `Cluster`.
+        const replication = await client.info("replication");
+        const useReplicas = client.options?.readonly === true || /^role:slave\r?$/m.test(replication);
+        return new Cluster(client, { useReplicas });
     }
     return new Single(client)
 }
@@ -156,8 +160,20 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         // Create FalkorDB client wrapper
-        const client = await clientFactory(redisClient, { retryWritesOnConnectionLoss });
-        await client.init(falkordb);
+        let client: Client | undefined;
+        try {
+            client = await clientFactory(redisClient, { retryWritesOnConnectionLoss });
+            await client.init(falkordb);
+        } catch (err) {
+            // The caller gets no instance to close, so close what is open here
+            try {
+                if (client) await client.disconnect();
+                else redisClient.destroy();
+            } catch {
+                // Already closed
+            }
+            throw err;
+        }
         connected = true;
 
         // Set the client to the FalkorDB instance after it was initialized
@@ -190,6 +206,7 @@ export default class FalkorDB extends EventEmitter {
                         this.#graphs.delete(graphId);
                     }
                 },
+                selectGraph: (name) => this.selectGraph(name),
             });
         }
         this.#graphs.set(graphId, graph);

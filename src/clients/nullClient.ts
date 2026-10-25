@@ -5,6 +5,7 @@ import { Client } from "./client";
 import type {
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   SlowLogReply,
@@ -48,7 +49,7 @@ export class NullClient implements Client {
   query<_T>(_graph: string, _query: RedisArgument, _options?: QueryOptions): Promise<any> {
       throw new Error("Method not implemented.");
   }
-  profile<_T>(_graph: string, _query: RedisArgument): Promise<any> {
+  profile<_T>(_graph: string, _query: RedisArgument, _options?: PlanOptions): Promise<any> {
       throw new Error("Method not implemented.");
   }
   roQuery<_T>(_graph: string, _query: RedisArgument, _options?: QueryOptions): Promise<any> {
@@ -60,10 +61,13 @@ export class NullClient implements Client {
   delete(_graph: string): Promise<void> {
       throw new Error("Method not implemented.");
   }
-  explain(_graph: string, _query: string): Promise<any> {
+  explain(_graph: string, _query: string, _options?: PlanOptions): Promise<any> {
       throw new Error("Method not implemented.");
   }
   slowLog(_graph: string): Promise<SlowLogReply> {
+    throw new Error("Method not implemented.");
+  }
+  slowLogReset(_graph: string): Promise<void> {
     throw new Error("Method not implemented.");
   }
   memoryUsage(

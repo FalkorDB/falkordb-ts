@@ -5,6 +5,7 @@ import FalkorDB from "../falkordb";
 import type {
   MemoryUsageOptions,
   MemoryUsageReply,
+  PlanOptions,
   QueryOptions,
   SingleGraphConnection,
   UdfListReply,
@@ -66,12 +67,15 @@ export class Single implements Client {
     return reply.then(() => {});
   }
 
-  async explain(graph: string, query: string) {
-    return this.run((client) => client.falkordb.explain(graph, query), READ_ONLY);
+  async explain(graph: string, query: string, options?: PlanOptions) {
+    return this.run(
+      (client) => client.falkordb.explain(graph, query, options),
+      READ_ONLY
+    );
   }
 
-  async profile<_T>(graph: string, query: string) {
-    return this.run((client) => client.falkordb.profile(graph, query));
+  async profile<_T>(graph: string, query: string, options?: PlanOptions) {
+    return this.run((client) => client.falkordb.profile(graph, query, options));
   }
 
   async list() {
@@ -97,6 +101,11 @@ export class Single implements Client {
 
   async slowLog(graph: string) {
     return this.run((client) => client.falkordb.slowLog(graph), READ_ONLY);
+  }
+
+  async slowLogReset(graph: string) {
+    const reply = this.run((client) => client.falkordb.slowLogReset(graph));
+    return reply.then(() => {});
   }
 
   async memoryUsage(

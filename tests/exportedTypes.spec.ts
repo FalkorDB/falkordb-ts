@@ -43,7 +43,7 @@ describe('Exported Types', () => {
 
     const args = pushQueryArguments([], 'g', 'RETURN $name', options);
 
-    expect(args).toEqual(['g', 'CYPHER name="test" RETURN $name', 'TIMEOUT', '5000']);
+    expect(args).toEqual(['g', 'CYPHER `name`="test" RETURN $name', 'TIMEOUT', '5000']);
   });
 
   it('QueryOptionsBackwardCompatible accepts a timeout number or an options object', () => {
