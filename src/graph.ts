@@ -66,7 +66,7 @@ function validateConstraintName(kind: "Label" | "Property", name: string): void 
   if (!CONSTRAINT_NAME.test(name)) {
     throw new TypeError(
       `${kind} name ${JSON.stringify(name)} is invalid for a constraint: ` +
-        "use letters, digits, _ and $, not starting with a digit"
+        "start with a letter or _, followed by letters, digits, _ or $"
     );
   }
 }

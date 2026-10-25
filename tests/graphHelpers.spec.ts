@@ -339,7 +339,7 @@ describe('Graph helpers', () => {
             await graph.query("CREATE (:`Product Type` {`sku-id`: 1})");
 
             await expect(graph.createNodeUniqueConstraint('Product Type', 'id')).rejects.toThrow(new TypeError(
-                'Label name "Product Type" is invalid for a constraint: use letters, digits, _ and $, not starting with a digit'
+                'Label name "Product Type" is invalid for a constraint: start with a letter or _, followed by letters, digits, _ or $'
             ));
             await expect(graph.createEdgeMandatoryConstraint('R', 'sku-id')).rejects.toThrow(
                 'Property name "sku-id" is invalid for a constraint'
