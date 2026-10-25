@@ -160,8 +160,20 @@ export default class FalkorDB extends EventEmitter {
             .connect();
 
         // Create FalkorDB client wrapper
-        const client = await clientFactory(redisClient, { retryWritesOnConnectionLoss });
-        await client.init(falkordb);
+        let client: Client | undefined;
+        try {
+            client = await clientFactory(redisClient, { retryWritesOnConnectionLoss });
+            await client.init(falkordb);
+        } catch (err) {
+            // The caller gets no instance to close, so close what is open here
+            try {
+                if (client) await client.disconnect();
+                else redisClient.destroy();
+            } catch {
+                // Already closed
+            }
+            throw err;
+        }
         connected = true;
 
         // Set the client to the FalkorDB instance after it was initialized

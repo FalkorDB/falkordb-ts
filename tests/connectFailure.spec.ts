@@ -35,11 +35,8 @@ function bulkString(value: string) {
     return `$${Buffer.byteLength(value)}\r\n${value}\r\n`;
 }
 
-/**
- * Answers just enough RESP for `FalkorDB.connect()` to treat the server as a
- * cluster node whose only shard lives on `shardPort`. Everything else gets `+OK`.
- */
-function fakeClusterNode(socket: net.Socket, shardPort: number) {
+/** Calls `reply` with the arguments of each RESP command the socket receives. */
+function onCommand(socket: net.Socket, reply: (command: string) => string) {
     let buffer = '';
     socket.on('data', data => {
         buffer += data.toString();
@@ -57,16 +54,24 @@ function fakeClusterNode(socket: net.Socket, shardPort: number) {
                 offset += Number(length[1]) + 2;
             }
             buffer = buffer.slice(offset);
-
-            const command = args.join(' ').toUpperCase();
-            if (command.startsWith('INFO')) {
-                socket.write(bulkString('# Server\r\nredis_mode:cluster\r\n'));
-            } else if (command.startsWith('CLUSTER SLOTS')) {
-                socket.write(`*1\r\n*3\r\n:0\r\n:16383\r\n*3\r\n${bulkString('127.0.0.1')}:${shardPort}\r\n${bulkString('shard')}`);
-            } else {
-                socket.write('+OK\r\n');
-            }
+            socket.write(reply(args.join(' ').toUpperCase()));
         }
+    });
+}
+
+/**
+ * Answers just enough RESP for `FalkorDB.connect()` to treat the server as a
+ * cluster node whose only shard lives on `shardPort`. Everything else gets `+OK`.
+ */
+function fakeClusterNode(socket: net.Socket, shardPort: number) {
+    onCommand(socket, command => {
+        if (command.startsWith('INFO')) {
+            return bulkString('# Server\r\nredis_mode:cluster\r\n');
+        }
+        if (command.startsWith('CLUSTER SLOTS')) {
+            return `*1\r\n*3\r\n:0\r\n:16383\r\n*3\r\n${bulkString('127.0.0.1')}:${shardPort}\r\n${bulkString('shard')}`;
+        }
+        return '+OK\r\n';
     });
 }
 
@@ -192,6 +197,20 @@ describe('FalkorDB.connect failures', () => {
             await graph.delete();
             await db.close();
         }
+    });
+
+    it('closes the connection when setup fails after connecting', async () => {
+        let closed!: () => void;
+        const socketClosed = new Promise<void>(resolve => (closed = resolve));
+        const port = await listen(socket => {
+            socket.on('close', () => closed());
+            // Accept the handshake, then fail the server detection
+            onCommand(socket, command => command.startsWith('INFO') ? '-ERR info failed\r\n' : '+OK\r\n');
+        });
+
+        await expect(FalkorDB.connect({ socket: { host: '127.0.0.1', port } }))
+            .rejects.toThrow('info failed');
+        await socketClosed;
     });
 
     it('rejects when a cluster shard discovered while connecting is unreachable', async () => {
