@@ -144,6 +144,7 @@ immediately with a clear message.
   properties. These checks also hold for values created in another realm, such as a `vm` context.
 
 - **`NaN` and `Infinity` throw** a `TypeError` instead of producing a query the server rejects.
+- **`undefined` still throws**, as in v6, now as a `TypeError` naming it. Omit the key or pass `null` instead.
 - **Parameter names and map keys are quoted**, so names such as `my-key` or `@type` now work
   (reference them in the query as `` $`my-key` ``). An empty name, or one that contains the `` ` `` character, throws a
   `TypeError`, because the server cannot represent it. If you compare the generated `CYPHER ...` header text in your own
