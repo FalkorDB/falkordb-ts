@@ -278,6 +278,28 @@ describe('Cluster Client through a replica', () => {
         await replicaClient?.close();
     });
 
+    it("returns integers exactly with integers: 'bigint'", async () => {
+        const exact = await FalkorDB.connect({
+            socket: { host: 'localhost', port: REPLICA_PORT, connectTimeout: 10000 },
+            integers: 'bigint',
+        });
+        const graph = exact.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+        try {
+            const written = await graph.query<{ v: bigint }>('CREATE (n:Big {v: 9007199254740993}) RETURN n.v AS v');
+            expect(written.data).toEqual([{ v: 9007199254740993n }]);
+            // Served by a replica, through a client mapped to exact integers
+            const read = await eventually(async () => {
+                const reply = await graph.roQuery<{ v: bigint }>('MATCH (n:Big) RETURN n.v AS v');
+                if (!reply.data?.length) throw new Error('not replicated yet');
+                return reply;
+            });
+            expect(read.data).toEqual([{ v: 9007199254740993n }]);
+        } finally {
+            await graph.delete();
+            await exact.close();
+        }
+    });
+
     it('writes through the masters and reads the replicated data', async () => {
         const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
         await graph.query('CREATE (:Person {id: 1})');

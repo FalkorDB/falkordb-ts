@@ -25,6 +25,15 @@ export interface FalkorDBOptions {
     port?: number;
 
     /**
+     * How integers in query results are returned. `'number'` rounds those
+     * beyond `Number.MAX_SAFE_INTEGER` (2^53 - 1); `'bigint'` returns every
+     * integer value exactly, as a `bigint`. Node and edge ids stay numbers.
+     * Note that `JSON.stringify` throws on a `bigint`.
+     * @default 'number'
+     */
+    integers?: 'number' | 'bigint';
+
+    /**
      * Sentinel only. Resend write commands to the new master when the
      * connection is lost while waiting for their reply, e.g. during a master
      * hand-over. The old master may have already run them, so a write can be

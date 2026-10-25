@@ -57,7 +57,8 @@ export function transformReply(reply: QueryRawReply): QueryReply {
     const [first, second] = reply as unknown[];
     if (first instanceof Error) {
         if (VERSION_MISMATCH.test(first.message)) {
-            throw new SchemaVersionMismatchError(second as number);
+            // A string when integers are returned as their exact digits
+            throw new SchemaVersionMismatchError(Number(second));
         }
         throw first;
     }

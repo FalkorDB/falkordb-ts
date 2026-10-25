@@ -84,8 +84,21 @@ values first:
 await graph.query('CREATE (:User $props)', {params: {props: {...user, createdAt: user.createdAt.toISOString()}}})
 ```
 
-A `bigint` is sent exactly, but integers in query results are returned as a `number`, so values beyond
-`Number.MAX_SAFE_INTEGER` come back rounded (see [#676](https://github.com/FalkorDB/falkordb-ts/issues/676)).
+A `bigint` is sent exactly. Integers in query results are returned as a `number` by default, so values beyond
+`Number.MAX_SAFE_INTEGER` come back rounded; see [Large Integers](#large-integers) to read them exactly.
+
+### Large Integers
+
+To read every integer in query results exactly, connect with `integers: 'bigint'`. Integer values then come
+back as a `bigint`, including small ones; node and edge ids stay a `number`.
+
+```typescript
+const db = await FalkorDB.connect({ socket: { host: 'localhost', port: 6379 }, integers: 'bigint' })
+const { data } = await db.selectGraph('g').query('RETURN 9007199254740993 AS n')
+console.log(data) // [{ n: 9007199254740993n }]
+```
+
+`JSON.stringify` throws on a `bigint`, so convert such values before serializing them.
 
 ### Query Replies
 

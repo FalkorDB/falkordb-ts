@@ -232,3 +232,4 @@ These additions need no changes to existing code:
 - `headers` on query replies
 - `nodeToString`, `edgeToString`, `pathToString` and `nodesEqual`, `edgesEqual`, `pathsEqual` for the nodes,
   edges and paths in query results
+- `integers: 'bigint'` in `FalkorDB.connect` options, to read integers beyond `Number.MAX_SAFE_INTEGER` exactly

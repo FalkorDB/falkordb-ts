@@ -1,4 +1,4 @@
-import { Client } from "./client";
+import { Client, EXACT_INTEGERS } from "./client";
 import { ConstraintType, EntityType } from "../enums";
 import {
   RedisArgument,
@@ -88,9 +88,14 @@ export class Cluster implements Client {
     query: RedisArgument,
     options?: QueryOptions,
     compact = true,
-    version?: number
+    version?: number,
+    exactIntegers = false
   ) {
-    return this.#client.falkordb.query(graph, query, options, compact, version);
+    return this.#withIntegers(exactIntegers).falkordb.query(graph, query, options, compact, version);
+  }
+
+  #withIntegers(exactIntegers: boolean) {
+    return exactIntegers ? this.#client.withTypeMapping(EXACT_INTEGERS) : this.#client;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -100,15 +105,20 @@ export class Cluster implements Client {
     options?: QueryOptions,
     compact = true,
     version?: number,
-    primary = false
+    primary = false,
+    exactIntegers = false
   ) {
     if (primary) {
       // Still GRAPH.RO_QUERY, so read-only users can run it, but routed to the
       // slot's master as a write would be
       const args = RO_QUERY.transformArguments(graph, query, options, compact, version);
-      return RO_QUERY.transformReply(await this.#client.sendCommand(graph, false, args));
+      return RO_QUERY.transformReply(
+        exactIntegers
+          ? await this.#client.sendCommand(graph, false, args, { typeMapping: EXACT_INTEGERS })
+          : await this.#client.sendCommand(graph, false, args)
+      );
     }
-    return this.#client.falkordb.roQuery(graph, query, options, compact, version);
+    return this.#withIntegers(exactIntegers).falkordb.roQuery(graph, query, options, compact, version);
   }
 
   async delete(graph: string) {

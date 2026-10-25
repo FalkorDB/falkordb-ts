@@ -114,6 +114,8 @@ export interface GraphCacheOptions {
   onDelete?: (graph: Graph) => void;
   // Returns the instance for another graph, e.g. the one `copy` creates
   selectGraph?: (name: string) => Graph;
+  // How integers in query results are returned, see `FalkorDBOptions`
+  integers?: "number" | "bigint";
 }
 
 // Unknown value types already warned about, so each is reported only once
@@ -132,6 +134,8 @@ export default class Graph {
   #schema: GraphSchemaState;
   #onDelete?: (graph: Graph) => void;
   #selectGraph?: (name: string) => Graph;
+  // Integers are read from their exact digits and returned as bigint
+  #exactIntegers: boolean;
 
   constructor(client: Client, name: string, cache?: GraphCacheOptions) {
     this.#client = client;
@@ -139,6 +143,7 @@ export default class Graph {
     this.#schema = cache?.schema ?? { generation: 0, version: 0 };
     this.#onDelete = cache?.onDelete;
     this.#selectGraph = cache?.selectGraph;
+    this.#exactIntegers = cache?.integers === "bigint";
   }
 
   /** The graph's name (its Redis key) */
@@ -148,7 +153,7 @@ export default class Graph {
 
   async query<T>(query: RedisArgument, options?: QueryOptions) {
     const reply = await this.#withSchemaVersion((version) =>
-      this.#client.query(this.#name, query, options, true, version)
+      this.#client.query(this.#name, query, options, true, version, this.#exactIntegers)
     );
     return this.#parseReply<T>(reply);
   }
@@ -161,7 +166,15 @@ export default class Graph {
       const version =
         attempt < MAX_VERSIONED_READS ? this.#schema.version : undefined;
       try {
-        const reply = await this.#client.roQuery(this.#name, query, options, true, version, primary);
+        const reply = await this.#client.roQuery(
+          this.#name,
+          query,
+          options,
+          true,
+          version,
+          primary,
+          this.#exactIntegers
+        );
         return await this.#parseReply<T>(reply, version);
       } catch (err) {
         if (!(err instanceof SchemaVersionMismatchError)) throw err;
@@ -621,17 +634,26 @@ export default class Graph {
     return parsed;
   }
 
+  // With exact integers every integer in a reply, type codes and ids
+  // included, arrives as a string of its digits; Number() undoes that and
+  // leaves a number unchanged.
   #parseValue(
     [valueType, value]: GraphRawValue,
     ctx: ParseContext
   ): GraphValue {
+    if (typeof valueType === "string") {
+      return this.#parseValue([Number(valueType), value] as GraphRawValue, ctx);
+    }
     switch (valueType) {
       case GraphValueTypes.NULL:
         return null;
 
       case GraphValueTypes.STRING:
-      case GraphValueTypes.INTEGER:
         return value;
+
+      case GraphValueTypes.INTEGER:
+        // Digits only arrive as a string when integers are read exactly
+        return typeof value === "string" ? BigInt(value as string) : value;
 
       case GraphValueTypes.BOOLEAN:
         return value === "true";
@@ -676,19 +698,19 @@ export default class Graph {
         return value.map((x) => Number(x));
 
       case GraphValueTypes.DATETIME:
-        return Temporal.Instant.fromEpochMilliseconds(value * 1000)
+        return Temporal.Instant.fromEpochMilliseconds(Number(value) * 1000)
           .toZonedDateTimeISO("UTC")
           .toPlainDateTime();
       case GraphValueTypes.DATE:
-        return Temporal.Instant.fromEpochMilliseconds(value * 1000)
+        return Temporal.Instant.fromEpochMilliseconds(Number(value) * 1000)
           .toZonedDateTimeISO("UTC")
           .toPlainDate();
       case GraphValueTypes.TIME:
-        return Temporal.Instant.fromEpochMilliseconds(value * 1000)
+        return Temporal.Instant.fromEpochMilliseconds(Number(value) * 1000)
           .toZonedDateTimeISO("UTC")
           .toPlainTime();
       case GraphValueTypes.DURATION:
-        const time = Temporal.Instant.fromEpochMilliseconds(value * 1000);
+        const time = Temporal.Instant.fromEpochMilliseconds(Number(value) * 1000);
         const epoch = Temporal.Instant.fromEpochMilliseconds(0);
 
         return epoch
@@ -715,15 +737,15 @@ export default class Graph {
     ctx: ParseContext
   ): GraphEdge {
     const edge = {
-      id,
-      sourceId,
-      destinationId,
+      id: Number(id),
+      sourceId: Number(sourceId),
+      destinationId: Number(destinationId),
       properties: this.#parseProperties(properties, ctx),
     } as GraphEdge;
 
     const relationshipType = this.#getMetadata(
       "relationshipTypes",
-      relationshipTypeId,
+      Number(relationshipTypeId),
       ctx.version
     );
     if (relationshipType instanceof Promise) {
@@ -743,7 +765,7 @@ export default class Graph {
   ): GraphNode {
     const labels = new Array<string>(labelIds.length);
     for (let i = 0; i < labelIds.length; i++) {
-      const value = this.#getMetadata("labels", labelIds[i], ctx.version);
+      const value = this.#getMetadata("labels", Number(labelIds[i]), ctx.version);
       if (value instanceof Promise) {
         ctx.promises.push(value.then((value) => (labels[i] = value)));
       } else {
@@ -752,7 +774,7 @@ export default class Graph {
     }
 
     return {
-      id,
+      id: Number(id),
       labels,
       properties: this.#parseProperties(properties, ctx),
     };
@@ -768,7 +790,7 @@ export default class Graph {
           [type, value] as GraphRawValue,
           ctx
         ),
-        key = this.#getMetadata("propertyKeys", id, ctx.version);
+        key = this.#getMetadata("propertyKeys", Number(id), ctx.version);
       if (key instanceof Promise) {
         ctx.promises.push(key.then((key) => (parsed[key] = parsedValue)));
       } else {
