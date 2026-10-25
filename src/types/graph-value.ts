@@ -1,5 +1,5 @@
 import type { Temporal } from '@js-temporal/polyfill';
-import type { QueryReply } from './query-reply';
+import type { QueryStatistics } from './query-statistics';
 
 export type GraphEntityProperties = Record<string, GraphValue>;
 
@@ -46,6 +46,13 @@ export type GraphValue =
   | Temporal.PlainTime
   | Temporal.Duration;
 
-export type GraphReply<T> = Omit<QueryReply, "headers" | "data"> & {
+/**
+ * The reply to a graph query: the returned columns and rows, if any, and the
+ * statistics the server reported for it.
+ */
+export type GraphReply<T> = {
+  // Column names in order, present when the query returns columns
+  headers?: Array<string>;
   data?: Array<T>;
+  stats: QueryStatistics;
 };

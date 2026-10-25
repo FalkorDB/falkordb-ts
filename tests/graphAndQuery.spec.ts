@@ -269,7 +269,7 @@ describe("FalkorDB Execute Query", () => {
     const firstResult = await graph.query(query);
     expect(firstResult.data).not.toBeNull();
     const secondResult = await graph.query(query);
-    expect(secondResult.metadata[0]).toContain("Cached execution: 1");
+    expect(secondResult.stats.cachedExecution).toBe(true);
     await graph.delete();
   });
   
