@@ -1,4 +1,4 @@
-import { RedisArgument } from "@redis/client";
+import { RedisArgument, RESP_TYPES } from "@redis/client";
 import { ConstraintType, EntityType } from "../enums";
 import FalkorDB from "../falkordb";
 import type {
@@ -10,6 +10,12 @@ import type {
   SlowLogReply,
   UdfListReply,
 } from "../types";
+
+/**
+ * Returns integer replies as their exact digits, for graphs whose integers
+ * are read as `bigint`: a `number` would round any beyond 2^53.
+ */
+export const EXACT_INTEGERS = { [RESP_TYPES.NUMBER]: String } as const;
 
 // A generic client interface for Redis clients
 export interface Client {
@@ -34,13 +40,18 @@ export interface Client {
 
   info(section?: string): Promise<(string | string[])[]>;
 
+  /**
+   * @param exactIntegers Return integer replies as strings of their exact
+   * digits (see `EXACT_INTEGERS`)
+   */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   query<T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
     compact?: boolean,
-    version?: number
+    version?: number,
+    exactIntegers?: boolean
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -53,6 +64,8 @@ export interface Client {
   /**
    * @param primary Run on the graph's master even where reads may be served
    * by replicas, for a reply that must be at least as new as the master's
+   * @param exactIntegers Return integer replies as strings of their exact
+   * digits (see `EXACT_INTEGERS`)
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
@@ -61,7 +74,8 @@ export interface Client {
     options?: QueryOptions,
     compact?: boolean,
     version?: number,
-    primary?: boolean
+    primary?: boolean,
+    exactIntegers?: boolean
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

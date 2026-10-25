@@ -30,6 +30,8 @@ export type GraphValue =
   | null
   | string
   | number
+  // An integer, with `integers: 'bigint'`
+  | bigint
   | boolean
   | Array<GraphValue>
   | GraphEdge

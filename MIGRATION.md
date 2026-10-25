@@ -230,3 +230,7 @@ These additions need no changes to existing code:
   `createEdgeMandatoryConstraint` and the matching `drop...` helpers
 - `graph.slowLogReset()`
 - `headers` on query replies
+- `nodeToString`, `edgeToString`, `pathToString` and `nodesEqual`, `edgesEqual`, `pathsEqual` for the nodes,
+  edges and paths in query results
+- `integers: 'bigint'` in `FalkorDB.connect` options, to read every integer in query results as an exact
+  `bigint`, small ones included (node and edge ids stay a `number`)

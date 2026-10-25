@@ -328,4 +328,20 @@ describe('Graph metadata cache', () => {
         expect(copy).toBe(dest);
         expect((await copy.query<{ n: { labels: string[] } }>('MATCH (n) RETURN n')).data?.[0].n.labels).toEqual(['New']);
     });
+
+    it('should keep exact integers for the copy when made without FalkorDB', async () => {
+        const exactFlags: unknown[] = [];
+        const client = {
+            copy: async () => 'OK',
+            query: async (...args: unknown[]) => {
+                exactFlags.push(args[5]);
+                return { metadata: [] };
+            },
+        } as unknown as Client;
+
+        const copy = await new Graph(client, 'source', { integers: 'bigint' }).copy('dest');
+        await copy.query('RETURN 1');
+
+        expect(exactFlags).toEqual([true]);
+    });
 });

@@ -72,6 +72,7 @@ const MAX_CACHED_GRAPHS = 1000;
 export default class FalkorDB extends EventEmitter {
 
     #client: Client = new NullClient();
+    #integers: 'number' | 'bigint' = 'number';
     #graphs = new Map<string, Graph>();
     // Shared by every instance for a graph id, including ones evicted from
     // #graphs that callers still hold. Weakly held, so an entry lives only as
@@ -84,8 +85,12 @@ export default class FalkorDB extends EventEmitter {
     });
 
     static async connect(options?: FalkorDBOptions) {
-        const { host, port, retryWritesOnConnectionLoss, ...rest } = options ?? {};
+        const { host, port, retryWritesOnConnectionLoss, integers = 'number', ...rest } = options ?? {};
         const redisOption = rest as TypedRedisClientOptions;
+
+        if (integers !== 'number' && integers !== 'bigint') {
+            throw new TypeError(`integers must be 'number' or 'bigint', not ${JSON.stringify(integers)}`);
+        }
 
         // Support the top-level `host`/`port` shorthand used by the other FalkorDB
         // clients by folding them into the socket options node-redis expects.
@@ -178,6 +183,7 @@ export default class FalkorDB extends EventEmitter {
 
         // Set the client to the FalkorDB instance after it was initialized
         falkordb.#client = client;  
+        falkordb.#integers = integers;
 
         return falkordb
     }
@@ -207,6 +213,7 @@ export default class FalkorDB extends EventEmitter {
                     }
                 },
                 selectGraph: (name) => this.selectGraph(name),
+                integers: this.#integers,
             });
         }
         this.#graphs.set(graphId, graph);
