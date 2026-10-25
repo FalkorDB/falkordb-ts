@@ -278,27 +278,38 @@ describe('Cluster Client through a replica', () => {
         await replicaClient?.close();
     });
 
-    it("returns integers exactly with integers: 'bigint'", async () => {
-        const exact = await FalkorDB.connect({
-            socket: { host: 'localhost', port: REPLICA_PORT, connectTimeout: 10000 },
-            integers: 'bigint',
-        });
-        const graph = exact.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
+    it("returns integers exactly with integers: 'bigint', from replicas too", async () => {
+        const reads = await replicaReads();
+        let exact: FalkorDB | undefined;
         try {
+            exact = await FalkorDB.connect({
+                socket: { host: 'localhost', port: REPLICA_PORT, connectTimeout: 10000 },
+                integers: 'bigint',
+            });
+            const graph = exact.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
             const written = await graph.query<{ v: bigint }>('CREATE (n:Big {v: 9007199254740993}) RETURN n.v AS v');
             expect(written.data).toEqual([{ v: 9007199254740993n }]);
-            // Served by a replica, through a client mapped to exact integers
-            const read = await eventually(async () => {
+
+            const readExact = async () => {
                 const reply = await graph.roQuery<{ v: bigint }>('MATCH (n:Big) RETURN n.v AS v');
                 if (!reply.data?.length) throw new Error('not replicated yet');
-                return reply;
-            });
-            expect(read.data).toEqual([{ v: 9007199254740993n }]);
-        } finally {
+                expect(reply.data).toEqual([{ v: 9007199254740993n }]);
+            };
+            await eventually(readExact);
+
+            const before = await reads.count();
+            // Each read picks the master or its replica at random; every one
+            // must decode exactly, and some must have come from a replica
+            for (let i = 0; i < 20; i++) {
+                await eventually(readExact);
+            }
+            expect(await reads.count()).toBeGreaterThan(before);
             await graph.delete();
-            await exact.close();
+        } finally {
+            await exact?.close();
+            reads.close();
         }
-    });
+    }, 45000);
 
     it('writes through the masters and reads the replicated data', async () => {
         const graph = replicaClient!.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
@@ -308,12 +319,13 @@ describe('Cluster Client through a replica', () => {
         await graph.delete();
     });
 
-    it('serves reads from the replicas', async () => {
-        // Count GRAPH.RO_QUERY calls on every replica node. A replica only
-        // answers reads after READONLY, so any count proves both.
+    // Connects to every node once the cluster lists a replica for each shard,
+    // and counts the GRAPH.RO_QUERY calls the replicas served. A replica only
+    // answers reads after READONLY, so any count proves both.
+    async function replicaReads() {
         const nodes = [17000, 17001, 17002, 17003, 17004, 17005].map(port =>
             createClient({ socket: { host: 'localhost', port, reconnectStrategy: false } }));
-        let client: FalkorDB | undefined;
+        const close = () => nodes.forEach(node => node.destroy());
         try {
             await Promise.all(nodes.map(node => node.connect()));
             // A new cluster reports itself ready before CLUSTER SLOTS lists the
@@ -325,14 +337,13 @@ describe('Cluster Client through a replica', () => {
                     throw new Error('CLUSTER SLOTS does not list a replica for every shard yet');
                 }
             }, 30000);
-            client = await FalkorDB.connect({ socket: { host: 'localhost', port: REPLICA_PORT } });
 
             const replicas = [];
             for (const node of nodes) {
                 if ((await node.info('replication')).includes('role:slave')) replicas.push(node);
             }
             expect(replicas.length).toBeGreaterThan(0);
-            const roQueryCalls = async () => {
+            const count = async () => {
                 let calls = 0;
                 for (const replica of replicas) {
                     const stats = /cmdstat_graph\.RO_QUERY:calls=(\d+)/i.exec(await replica.info('commandstats'));
@@ -340,22 +351,34 @@ describe('Cluster Client through a replica', () => {
                 }
                 return calls;
             };
+            // Safe on clients that failed to connect, unlike close()
+            return { count, close };
+        } catch (err) {
+            close();
+            throw err;
+        }
+    }
+
+    it('serves reads from the replicas', async () => {
+        const reads = await replicaReads();
+        let client: FalkorDB | undefined;
+        try {
+            client = await FalkorDB.connect({ socket: { host: 'localhost', port: REPLICA_PORT } });
 
             const graph = client.selectGraph(`cluster-replica-test-${getRandomNumber()}`);
             await graph.query('CREATE (:Person {id: 1})');
             await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
 
-            const before = await roQueryCalls();
+            const before = await reads.count();
             // Each read picks the master or its replica at random
             for (let i = 0; i < 20; i++) {
                 await eventually(() => graph.roQuery('MATCH (n) RETURN n'));
             }
-            expect(await roQueryCalls()).toBeGreaterThan(before);
+            expect(await reads.count()).toBeGreaterThan(before);
             await graph.delete();
         } finally {
             await client?.close();
-            // Safe on clients that failed to connect, unlike close()
-            nodes.forEach(node => node.destroy());
+            reads.close();
         }
     }, 45000);
 

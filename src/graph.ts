@@ -490,7 +490,11 @@ export default class Graph {
   async copy(destGraph: string): Promise<Graph> {
     await this.#client.copy(this.#name, destGraph);
     const copy = this.#selectGraph?.(destGraph);
-    if (!copy) return new Graph(this.#client, destGraph);
+    if (!copy) {
+      return new Graph(this.#client, destGraph, {
+        integers: this.#exactIntegers ? "bigint" : "number",
+      });
+    }
     // Names cached for a graph that had this name before do not apply
     copy.clearMetadataCache();
     return copy;
