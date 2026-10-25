@@ -25,6 +25,21 @@ export type { GraphReply };
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
+// A read is checked against the schema version on its first attempts, then
+// sent once without a version, so that a schema changing faster than it can
+// be read cannot keep it retrying. Four checked attempts cover a lagging
+// replica's version, the master's, and a further change on the master.
+const MAX_VERSIONED_READS = 5;
+
+// State shared while decoding one reply
+interface ParseContext {
+  // Name lookups that had to fetch metadata
+  promises: Array<Promise<unknown>>;
+  // The schema version the server checked the reply against, if any: the
+  // names used to decode it must come from that same schema
+  version?: number;
+}
+
 /**
  * What the client knows about a graph's schema. Every `Graph` instance for the
  * same graph shares one, so a change seen through any of them invalidates the
@@ -47,7 +62,7 @@ export interface GraphCacheOptions {
 export default class Graph {
   #client: Client;
   #name: string;
-  #metadata?: { generation: number; names: GraphMetadata };
+  #metadata?: { generation: number; version?: number; names: GraphMetadata };
   #schema: GraphSchemaState;
   #onDelete?: (graph: Graph) => void;
 
@@ -66,10 +81,29 @@ export default class Graph {
   }
 
   async roQuery<T>(query: RedisArgument, options?: QueryOptions) {
-    const reply = await this.#withSchemaVersion((version) =>
-      this.#client.roQuery(this.#name, query, options, true, version)
-    );
-    return this.#parseReply<T>(reply);
+    // Reads may be served by any node until one of them, or the master the
+    // names come from, rejects the schema version
+    let primary = false;
+    for (let attempt = 1; ; attempt++) {
+      const version =
+        attempt < MAX_VERSIONED_READS ? this.#schema.version : undefined;
+      try {
+        const reply = await this.#client.roQuery(this.#name, query, options, true, version, primary);
+        return await this.#parseReply<T>(reply, version);
+      } catch (err) {
+        if (!(err instanceof SchemaVersionMismatchError)) throw err;
+
+        // A replica can lag behind the master, even keep a graph the master
+        // deleted and recreated. Read from the master instead, still checked
+        // against the version, so that its reply matches its names even if
+        // the schema changes meanwhile. A version reported by a replica is
+        // replaced by the master's when the master rejects it in turn. Reads
+        // change nothing, so running one again is safe.
+        this.clearMetadataCache();
+        this.#schema.version = err.version;
+        primary = true;
+      }
+    }
   }
 
   async #withSchemaVersion(
@@ -166,15 +200,24 @@ export default class Graph {
     return this.#client.copy(this.#name, destGraph);
   }
 
-  #pendingMetadata?: { generation: number; promise: Promise<GraphMetadata> };
+  #pendingMetadata?: {
+    generation: number;
+    version?: number;
+    promise: Promise<GraphMetadata>;
+  };
 
-  #updateMetadata(): Promise<GraphMetadata> {
+  #updateMetadata(version?: number): Promise<GraphMetadata> {
     const generation = this.#schema.generation;
-    // A fetch started before the metadata was invalidated is not joined
-    if (this.#pendingMetadata?.generation !== generation) {
+    // A fetch started before the metadata was invalidated, or for another
+    // schema version, is not joined
+    if (
+      this.#pendingMetadata?.generation !== generation ||
+      this.#pendingMetadata.version !== version
+    ) {
       const pending = {
         generation,
-        promise: this.#setMetadata(generation).finally(() => {
+        version,
+        promise: this.#setMetadata(generation, version).finally(() => {
           if (this.#pendingMetadata === pending) {
             this.#pendingMetadata = undefined;
           }
@@ -186,20 +229,31 @@ export default class Graph {
   }
 
   // DO NOT use directly, use #updateMetadata instead
-  async #setMetadata(generation: number): Promise<GraphMetadata> {
+  async #setMetadata(
+    generation: number,
+    version?: number
+  ): Promise<GraphMetadata> {
+    // Fetched from the master: a reply served by it (every write's) can use
+    // names a lagging replica does not have yet. With a version, the master
+    // rejects the fetch unless its schema is the one the reply was checked
+    // against, e.g. one a replica served from a graph since recreated.
     const [labels, relationshipTypes, propertyKeys] = await Promise.all([
-      this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false),
+      this.#client.roQuery(this.#name, "CALL db.labels()", undefined, false, version, true),
       this.#client.roQuery(
         this.#name,
         "CALL db.relationshipTypes()",
         undefined,
-        false
+        false,
+        version,
+        true
       ),
       this.#client.roQuery(
         this.#name,
         "CALL db.propertyKeys()",
         undefined,
-        false
+        false,
+        version,
+        true
       ),
     ]);
 
@@ -216,7 +270,7 @@ export default class Graph {
     // The caller's reply predates any reset, so it still gets these names,
     // but they are only cached if the graph was not deleted meanwhile
     if (generation === this.#schema.generation) {
-      this.#metadata = { generation, names: metadata };
+      this.#metadata = { generation, version, names: metadata };
     }
     return metadata;
   }
@@ -227,30 +281,36 @@ export default class Graph {
 
   #getMetadata<T extends keyof GraphMetadata>(
     key: T,
-    id: number
+    id: number,
+    version?: number
   ): GraphMetadata[T][number] | Promise<GraphMetadata[T][number]> {
     const metadata =
-      this.#metadata?.generation === this.#schema.generation
+      this.#metadata?.generation === this.#schema.generation &&
+      (version === undefined || this.#metadata.version === version)
         ? this.#metadata.names
         : undefined;
-    return metadata?.[key][id] ?? this.#getMetadataAsync(key, id);
+    return metadata?.[key][id] ?? this.#getMetadataAsync(key, id, version);
   }
 
   // DO NOT use directly, use #getMetadata instead
   async #getMetadataAsync<T extends keyof GraphMetadata>(
     key: T,
-    id: number
+    id: number,
+    version?: number
   ): Promise<GraphMetadata[T][number]> {
-    const value = (await this.#updateMetadata())[key][id];
+    const value = (await this.#updateMetadata(version))[key][id];
     if (value === undefined)
       throw new Error(`Cannot find value from ${key}[${id}]`);
     return value;
   }
 
-  async #parseReply<T>(reply: QueryReply): Promise<GraphReply<T>> {
+  async #parseReply<T>(
+    reply: QueryReply,
+    version?: number
+  ): Promise<GraphReply<T>> {
     if (!reply.data) return reply;
 
-    const promises: Array<Promise<unknown>> = [],
+    const ctx: ParseContext = { promises: [], version },
       parsed = {
         metadata: reply.metadata,
         data: reply.data!.map((row) => {
@@ -258,7 +318,7 @@ export default class Graph {
           if (Array.isArray(row)) {
             for (let i = 0; i < row.length; i++) {
               const value = row[i] as GraphRawValue;
-              data[reply.headers[i][1]] = this.#parseValue(value, promises);
+              data[reply.headers[i][1]] = this.#parseValue(value, ctx);
             }
           }
 
@@ -266,14 +326,14 @@ export default class Graph {
         }),
       };
 
-    if (promises.length) await Promise.all(promises);
+    if (ctx.promises.length) await Promise.all(ctx.promises);
 
     return parsed;
   }
 
   #parseValue(
     [valueType, value]: GraphRawValue,
-    promises: Array<Promise<unknown>>
+    ctx: ParseContext
   ): GraphValue {
     switch (valueType) {
       case GraphValueTypes.NULL:
@@ -290,18 +350,18 @@ export default class Graph {
         return parseFloat(value);
 
       case GraphValueTypes.ARRAY:
-        return value.map((x) => this.#parseValue(x, promises));
+        return value.map((x) => this.#parseValue(x, ctx));
 
       case GraphValueTypes.EDGE:
-        return this.#parseEdge(value, promises);
+        return this.#parseEdge(value, ctx);
 
       case GraphValueTypes.NODE:
-        return this.#parseNode(value, promises);
+        return this.#parseNode(value, ctx);
 
       case GraphValueTypes.PATH:
         return {
-          nodes: value[0][1].map(([, node]) => this.#parseNode(node, promises)),
-          edges: value[1][1].map(([, edge]) => this.#parseEdge(edge, promises)),
+          nodes: value[0][1].map(([, node]) => this.#parseNode(node, ctx)),
+          edges: value[1][1].map(([, edge]) => this.#parseEdge(edge, ctx)),
         };
 
       case GraphValueTypes.MAP: {
@@ -309,7 +369,7 @@ export default class Graph {
         for (let i = 0; i < value.length; i++) {
           map[value[i++] as string] = this.#parseValue(
             value[i] as GraphRawValue,
-            promises
+            ctx
           );
         }
 
@@ -359,21 +419,22 @@ export default class Graph {
       destinationId,
       properties,
     ]: GraphEdgeRawValue[1],
-    promises: Array<Promise<unknown>>
+    ctx: ParseContext
   ): GraphEdge {
     const edge = {
       id,
       sourceId,
       destinationId,
-      properties: this.#parseProperties(properties, promises),
+      properties: this.#parseProperties(properties, ctx),
     } as GraphEdge;
 
     const relationshipType = this.#getMetadata(
       "relationshipTypes",
-      relationshipTypeId
+      relationshipTypeId,
+      ctx.version
     );
     if (relationshipType instanceof Promise) {
-      promises.push(
+      ctx.promises.push(
         relationshipType.then((value) => (edge.relationshipType = value))
       );
     } else {
@@ -385,13 +446,13 @@ export default class Graph {
 
   #parseNode(
     [id, labelIds, properties]: GraphNodeRawValue[1],
-    promises: Array<Promise<unknown>>
+    ctx: ParseContext
   ): GraphNode {
     const labels = new Array<string>(labelIds.length);
     for (let i = 0; i < labelIds.length; i++) {
-      const value = this.#getMetadata("labels", labelIds[i]);
+      const value = this.#getMetadata("labels", labelIds[i], ctx.version);
       if (value instanceof Promise) {
-        promises.push(value.then((value) => (labels[i] = value)));
+        ctx.promises.push(value.then((value) => (labels[i] = value)));
       } else {
         labels[i] = value;
       }
@@ -400,23 +461,23 @@ export default class Graph {
     return {
       id,
       labels,
-      properties: this.#parseProperties(properties, promises),
+      properties: this.#parseProperties(properties, ctx),
     };
   }
 
   #parseProperties(
     raw: GraphEntityRawProperties,
-    promises: Array<Promise<unknown>>
+    ctx: ParseContext
   ): GraphEntityProperties {
     const parsed: GraphEntityProperties = {};
     for (const [id, type, value] of raw) {
       const parsedValue = this.#parseValue(
           [type, value] as GraphRawValue,
-          promises
+          ctx
         ),
-        key = this.#getMetadata("propertyKeys", id);
+        key = this.#getMetadata("propertyKeys", id, ctx.version);
       if (key instanceof Promise) {
-        promises.push(key.then((key) => (parsed[key] = parsedValue)));
+        ctx.promises.push(key.then((key) => (parsed[key] = parsedValue)));
       } else {
         parsed[key] = parsedValue;
       }

@@ -265,7 +265,8 @@ describe('Command Transformation Functions', () => {
       
       MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph');
       
-      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE');
+      expect(mockParser.pushKey).toHaveBeenCalledWith('mygraph');
       expect(mockParser.push).toHaveBeenCalledTimes(1);
     });
 
@@ -286,7 +287,8 @@ describe('Command Transformation Functions', () => {
       
       MEMORY_USAGE.parseCommand(mockParser as any, 'mygraph', { SAMPLES: 10 });
       
-      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE', 'mygraph');
+      expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE');
+      expect(mockParser.pushKey).toHaveBeenCalledWith('mygraph');
       expect(mockParser.push).toHaveBeenCalledWith('10');
       expect(mockParser.push).toHaveBeenCalledTimes(2);
     });

@@ -15,14 +15,18 @@ export function parseCommand(
     compact?: boolean,
     version?: number
 ): void {
-    const args = pushQueryArguments(
-        ['GRAPH.QUERY'],
+    // The graph is pushed as a key so that cluster clients route the command
+    // to the graph's shard rather than a random node
+    const [, ...args] = pushQueryArguments(
+        [],
         graph,
         query,
         options,
         compact,
         version
     );
+    parser.push('GRAPH.QUERY');
+    parser.pushKey(graph);
     parser.push(...args);
 }
 
