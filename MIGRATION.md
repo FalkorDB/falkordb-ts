@@ -15,6 +15,7 @@ change, why it was made, and what to change.
 | 7 | [Unknown value types are returned as `null`](#7-unknown-value-types-are-returned-as-null) | rely on queries failing with `unknown scalar type` |
 | 8 | [Index helpers quote label and property names](#8-index-helpers-quote-label-and-property-names) | pass names wrapped in `` ` `` to the index helpers |
 | 9 | [`copy` returns the new `Graph`](#9-copy-returns-the-new-graph) | use the value `graph.copy` resolves to |
+| 10 | [Cluster reads can be served by replicas](#10-cluster-reads-can-be-served-by-replicas) | connect to a cluster through a replica, or with `readonly: true` |
 
 ## 1. Query replies: `metadata` replaced by `stats`
 
@@ -218,6 +219,26 @@ const backup = await graph.copy('backup')
 
 Code that compares the result with `'OK'`, or sends it on as a value (for example from an API route, where
 `JSON.stringify` turns a `Graph` into `{}`), needs updating; a failed copy still rejects.
+
+## 10. Cluster reads can be served by replicas
+
+When you connect to a cluster through a replica, or pass `readonly: true`, read-only queries (`graph.roQuery`)
+may now be answered by replicas as well as masters. Writes still go to the masters. Connecting through a master
+without `readonly` behaves as before.
+
+**Why:** in v6 a client connected through a replica sent every command, reads included, to the masters, so the
+replicas never served a query.
+
+Replicas can lag behind their master, so a read that follows a write may not see it yet. If a read must see a
+write that was just made, connect through a master, or run the read with `graph.query`, which always goes to the
+master.
+
+## Fixed in v7
+
+- `graph.memoryUsage({ SAMPLES })` sends the `SAMPLES` keyword the server requires; in v6 every call with the
+  option was rejected.
+- Graph commands in a cluster go straight to the graph's shard instead of a random node that redirects them.
+- `FalkorDB.connect` closes its connection when setup fails after connecting, instead of leaving it open.
 
 ## New in v7
 
