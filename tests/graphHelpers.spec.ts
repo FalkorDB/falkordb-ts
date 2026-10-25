@@ -2,6 +2,7 @@ import { describe, it, beforeAll, afterAll, afterEach, expect } from '@jest/glob
 import { client } from './dbConnection';
 import FalkorDB from '../src/falkordb';
 import Graph, { ConstraintType, EntityType } from '../src/graph';
+import type { Client } from '../src/clients/client';
 import * as SLOWLOG_RESET from '../src/commands/SLOWLOG_RESET';
 import type { ConstraintInfo, IndexInfo, VectorIndexOptions } from '../index';
 
@@ -95,17 +96,21 @@ describe('Graph helpers', () => {
             expect(reply.data![0].node.properties.title).toBe('The Jungle Book');
         });
 
+        // Checked against a stub client: write procedures and their
+        // signatures differ between server versions
         it('is read-only by default', async () => {
-            const graph = selectGraph('proc');
-            await graph.query('CREATE (:Movie {title: "Heat"})');
+            const reply = { headers: undefined, data: undefined, metadata: [] };
+            const calls: string[] = [];
+            const stub = {
+                roQuery: async () => { calls.push('roQuery'); return reply; },
+                query: async () => { calls.push('query'); return reply; },
+            } as unknown as Client;
+            const graph = new Graph(stub, 'proc');
 
-            await expect(
-                graph.callProcedure('db.idx.fulltext.createNodeIndex', ['Movie', 'title'])
-            ).rejects.toThrow();
-            await graph.callProcedure('db.idx.fulltext.createNodeIndex', ['Movie', 'title'], { readOnly: false });
+            await graph.callProcedure('db.labels');
+            await graph.callProcedure('db.labels', [], { readOnly: false });
 
-            const [index] = await graph.listIndices();
-            expect(index.types.title).toEqual(['FULLTEXT']);
+            expect(calls).toEqual(['roQuery', 'query']);
         });
     });
 
