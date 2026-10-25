@@ -243,6 +243,11 @@ describe('Command Transformation Functions', () => {
       expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph', 'SAMPLES', '10']);
     });
 
+    it('should send an explicit SAMPLES of 0 for the server to clamp', () => {
+      const result = MEMORY_USAGE.transformArguments('mygraph', { SAMPLES: 0 });
+      expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph', 'SAMPLES', '0']);
+    });
+
     it('should transform arguments without SAMPLES option', () => {
       const result = MEMORY_USAGE.transformArguments('mygraph', {});
       expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph']);
