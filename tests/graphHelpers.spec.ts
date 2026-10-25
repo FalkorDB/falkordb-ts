@@ -1,4 +1,4 @@
-import { describe, it, beforeAll, afterAll, afterEach, expect } from '@jest/globals';
+import { jest, describe, it, beforeAll, afterAll, afterEach, expect } from '@jest/globals';
 import { client } from './dbConnection';
 import FalkorDB from '../src/falkordb';
 import Graph, { ConstraintType, EntityType } from '../src/graph';
@@ -39,8 +39,10 @@ describe('Graph helpers', () => {
     });
 
     afterEach(async () => {
+        // Only a graph the test never created may be missing
+        const existing = await db.list();
         for (const graph of created) {
-            await graph.delete().catch(() => {});
+            if (existing.includes(graph.name)) await graph.delete();
         }
         created.clear();
     });
@@ -115,6 +117,24 @@ describe('Graph helpers', () => {
     });
 
     describe('listIndices', () => {
+        it('lists indexes on labels and properties that need quoting', async () => {
+            const graph = selectGraph('indices');
+            await graph.query("CREATE (:`Product Type` {`sku-id`: 1})-[:`made by` {`sku-id`: 2}]->(:A)");
+
+            await graph.createNodeRangeIndex('Product Type', 'sku-id');
+            await graph.createEdgeRangeIndex('made by', 'sku-id');
+
+            const indexes = await graph.listIndices();
+            expect(indexes.map(i => [i.label, i.properties])).toEqual(expect.arrayContaining([
+                ['Product Type', ['sku-id']],
+                ['made by', ['sku-id']],
+            ]));
+
+            await graph.dropNodeRangeIndex('Product Type', 'sku-id');
+            await graph.dropEdgeRangeIndex('made by', 'sku-id');
+            expect(await graph.listIndices()).toEqual([]);
+        });
+
         it('returns an empty list when there are no indexes', async () => {
             const graph = selectGraph('indices');
             await graph.query('CREATE (:A)');
@@ -166,10 +186,12 @@ describe('Graph helpers', () => {
             expect(await graph.listIndices()).toEqual([]);
         });
 
-        it('requires a dimension', () => {
+        it('requires a dimension', async () => {
             // @ts-expect-error dimension is required
             const options: VectorIndexOptions = { similarityFunction: 'cosine' };
-            expect(options).toBeDefined();
+            const graph = selectGraph('vector');
+            await expect(graph.createNodeVectorIndex('A', options, 'v'))
+                .rejects.toThrow(new TypeError('Vector index options must include a numeric dimension'));
         });
 
         it('accepts an options object with HNSW parameters', async () => {
@@ -297,12 +319,33 @@ describe('Graph helpers', () => {
         });
 
         it('rethrows index errors other than "already indexed"', async () => {
-            const graph = selectGraph('constraints');
-            await graph.query('CREATE (:Person)');
+            const error = new Error('index creation failed');
+            const constraintCreate = jest.fn();
+            const stub = {
+                query: async (_graph: string, query: string) => {
+                    if (query.startsWith('CREATE INDEX')) throw error;
+                    return { metadata: [] };
+                },
+                constraintCreate,
+            } as unknown as Client;
+            const graph = new Graph(stub, 'constraints');
 
-            // An invalid property name makes CREATE INDEX fail to parse
-            await expect(graph.createNodeUniqueConstraint('Person', 'bad name')).rejects.toThrow();
-            expect(await graph.listConstraints()).toEqual([]);
+            await expect(graph.createNodeUniqueConstraint('Person', 'name')).rejects.toBe(error);
+            expect(constraintCreate).not.toHaveBeenCalled();
+        });
+
+        it('rejects names the server does not accept for a constraint', async () => {
+            const graph = selectGraph('constraints');
+            await graph.query("CREATE (:`Product Type` {`sku-id`: 1})");
+
+            await expect(graph.createNodeUniqueConstraint('Product Type', 'id')).rejects.toThrow(new TypeError(
+                'Label name "Product Type" is invalid for a constraint: use letters, digits, _ and $, not starting with a digit'
+            ));
+            await expect(graph.createEdgeMandatoryConstraint('R', 'sku-id')).rejects.toThrow(
+                'Property name "sku-id" is invalid for a constraint'
+            );
+            // Rejected before any supporting index was created
+            expect(await graph.listIndices()).toEqual([]);
         });
 
         it('still rejects a duplicate unique constraint', async () => {

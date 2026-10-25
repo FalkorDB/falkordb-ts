@@ -5,6 +5,7 @@ import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
 import { SchemaVersionMismatchError } from "./errors";
 import { parseQueryStatistics } from "./query-statistics";
 import { ExecutionPlan } from "./execution-plan";
+import { escapeIdentifier } from "./commands";
 import type {
   CallProcedureOptions,
   ConstraintInfo,
@@ -46,12 +47,35 @@ function vectorIndexOptions(
       "Vector index options must be an object, e.g. { dimension: 768, similarityFunction: 'cosine' }"
     );
   }
+  if (typeof options.dimension !== "number") {
+    throw new TypeError("Vector index options must include a numeric dimension");
+  }
   const { similarityFunction = "euclidean", ...rest } = options;
   const result: Record<string, string | number> = { similarityFunction };
   for (const [key, value] of Object.entries(rest)) {
     if (value !== undefined) result[key] = value;
   }
   return result;
+}
+
+// The names GRAPH.CONSTRAINT accepts (`PROPERTY_NAME_PATTERN` in FalkorDB's
+// src/commands/cmd_constraint.c), stricter than what Cypher can quote
+const CONSTRAINT_NAME = /^[a-zA-Z_][a-zA-Z0-9_$]*$/;
+
+function validateConstraintName(kind: "Label" | "Property", name: string): void {
+  if (!CONSTRAINT_NAME.test(name)) {
+    throw new TypeError(
+      `${kind} name ${JSON.stringify(name)} is invalid for a constraint: ` +
+        "use letters, digits, _ and $, not starting with a digit"
+    );
+  }
+}
+
+// The pattern an index is defined on, with the label quoted so that names
+// such as `Product Type` work
+function indexPattern(entityType: "NODE" | "EDGE", label: string): string {
+  const name = escapeIdentifier(label, "label");
+  return entityType === "NODE" ? `(e:${name})` : `()-[e:${name}]->()`;
 }
 
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
@@ -266,7 +290,9 @@ export default class Graph {
 
   /** Lists the graph's constraints and their status (`CALL db.constraints()`) */
   async listConstraints(): Promise<ConstraintInfo[]> {
-    type Row = Omit<ConstraintInfo, "entityType"> & { entitytype: string };
+    type Row = Omit<ConstraintInfo, "entityType"> & {
+      entitytype: ConstraintInfo["entityType"];
+    };
     const reply = await this.callProcedure<Row>("db.constraints");
     return (reply.data ?? []).map(({ entitytype, ...constraint }) => ({
       ...constraint,
@@ -292,6 +318,11 @@ export default class Graph {
     label: string,
     ...properties: string[]
   ) {
+    // Checked before the supporting indexes are created, so that a name the
+    // server rejects for a constraint leaves no index behind
+    validateConstraintName("Label", label);
+    properties.forEach((property) => validateConstraintName("Property", property));
+
     if (constraintType === ConstraintType.UNIQUE) {
       await this.#ensureRangeIndexes(
         entityType === EntityType.RELATIONSHIP ? "EDGE" : "NODE",
@@ -742,8 +773,7 @@ export default class Graph {
     properties: string[],
     options?: Record<string, string | number | boolean>
   ): Promise<GraphReply<never>> {
-    const pattern =
-      entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
+    const pattern = indexPattern(entityType, label);
 
     if (idxType === "RANGE") {
       idxType = "";
@@ -752,7 +782,7 @@ export default class Graph {
     let query = `CREATE ${
       idxType ? idxType + " " : ""
     }INDEX FOR ${pattern} ON (${properties
-      .map((prop) => `e.${prop}`)
+      .map((prop) => `e.${escapeIdentifier(prop, "property name")}`)
       .join(", ")})`;
 
     if (options) {
@@ -837,8 +867,7 @@ export default class Graph {
     label: string,
     attribute: string
   ): Promise<GraphReply<never>> {
-    const pattern =
-      entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
+    const pattern = indexPattern(entityType, label);
 
     if (idxType === "RANGE") {
       idxType = "";
@@ -846,7 +875,7 @@ export default class Graph {
 
     let query = `DROP ${
       idxType ? idxType + " " : ""
-    }INDEX FOR ${pattern} ON (e.${attribute})`;
+    }INDEX FOR ${pattern} ON (e.${escapeIdentifier(attribute, "property name")})`;
 
     return this.query<never>(query);
   }

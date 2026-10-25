@@ -19,14 +19,13 @@ export interface IndexInfo {
 
 /** A row of `CALL db.constraints()` */
 export interface ConstraintInfo {
-    /** `'UNIQUE'` or `'MANDATORY'` */
-    type: string;
+    type: 'UNIQUE' | 'MANDATORY';
     label: string;
     properties: string[];
-    /** `'NODE'` or `'RELATIONSHIP'` (the server's `entitytype` column) */
-    entityType: string;
+    /** The server's `entitytype` column */
+    entityType: 'NODE' | 'RELATIONSHIP';
     /** `'UNDER CONSTRUCTION'` while existing data is validated, then `'OPERATIONAL'` or `'FAILED'` */
-    status: string;
+    status: 'UNDER CONSTRUCTION' | 'OPERATIONAL' | 'FAILED';
 }
 
 /** Options of a vector index, see https://docs.falkordb.com/cypher/indexing/vector-index */

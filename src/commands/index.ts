@@ -127,11 +127,11 @@ function queryParamsToString(params: QueryParams): string {
     return parts.join(' ');
 }
 
-// Wraps a parameter name or map key in backticks so that names which are not
-// bare identifiers (e.g. `@type`, hyphenated UUIDs) are accepted by the parser.
-// FalkorDB does not support escaped backticks inside identifiers, so names
-// containing one are rejected, as are empty names
-function escapeIdentifier(name: string, kind: string): string {
+// Wraps a name (a parameter, map key, label or property) in backticks so that
+// names which are not bare identifiers (e.g. `@type`, `Product Type`) are
+// accepted by the parser. FalkorDB does not support escaped backticks inside
+// identifiers, so names containing one are rejected, as are empty names
+export function escapeIdentifier(name: string, kind: string): string {
     if (name === '') {
         throw new TypeError(`Cypher ${kind} cannot be empty`);
     }
