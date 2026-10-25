@@ -1,4 +1,5 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
+import * as vm from 'node:vm';
 import * as QUERY from '../src/commands/QUERY';
 import FalkorDB from '../src/falkordb';
 import { client } from './dbConnection';
@@ -185,7 +186,7 @@ describe('Query Parameters', () => {
     });
 
     it('should reject an empty parameter name', () => {
-      expect(() => toCypher({ '': 1 })).toThrow('Cypher parameter name cannot be empty');
+      expect(() => toCypher({ '': 1 })).toThrow(new TypeError('Cypher parameter name cannot be empty'));
     });
 
     it('should reject a parameter name containing a backtick', () => {
@@ -193,7 +194,7 @@ describe('Query Parameters', () => {
     });
 
     it('should reject an empty map key', () => {
-      expect(() => toCypher({ m: { '': 1 } })).toThrow('Cypher map key cannot be empty');
+      expect(() => toCypher({ m: { '': 1 } })).toThrow(new TypeError('Cypher map key cannot be empty'));
     });
 
     it('should reject a map key containing a backtick', () => {
@@ -281,6 +282,30 @@ describe('Query Parameters', () => {
         constructor(public x: number, public y: number) {}
       }
       expect(toCypher({ p: { ...new Point(1, 2) } })).toBe('CYPHER `p`={`x`:1,`y`:2} RETURN 1');
+    });
+  });
+
+  // Values made in another realm, e.g. a `vm` context, have their own
+  // built-in prototypes, so `instanceof` and prototype identity do not hold
+  describe('Values From Another Realm', () => {
+    const foreign = (code: string) => vm.runInNewContext(code);
+
+    it('should serialize a plain object as a map', () => {
+      expect(toCypher({ m: foreign('({ a: 1 })') })).toBe('CYPHER `m`={`a`:1} RETURN 1');
+    });
+
+    it('should serialize a typed array as a list', () => {
+      expect(toCypher({ v: foreign('new Float32Array([0.5, 2])') })).toBe('CYPHER `v`=[0.5,2] RETURN 1');
+    });
+
+    it.each([
+      ['Date', 'new Date(0)'],
+      ['Map', 'new Map([[1, 2]])'],
+      ['DataView', 'new DataView(new ArrayBuffer(2))'],
+    ])('should reject a %s', (name, code) => {
+      expect(() => toCypher({ v: foreign(code) })).toThrow(new TypeError(
+        `Unsupported param type ${name}: convert it to a plain object or another supported value first`
+      ));
     });
   });
 

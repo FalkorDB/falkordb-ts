@@ -20,6 +20,8 @@ import * as UDF_LIST from './UDF_LIST';
 import * as UDF_FLUSH from './UDF_FLUSH';
 import * as UDF_DELETE from './UDF_DELETE';
 
+import { types } from 'node:util';
+import { isPlainObject } from 'lodash';
 import { RedisArgument } from '@redis/client';
 import type { QueryOptionsBackwardCompatible, QueryParam, QueryParams } from '../types';
 
@@ -124,10 +126,10 @@ function queryParamsToString(params: QueryParams): string {
 // containing one are rejected, as are empty names
 function escapeIdentifier(name: string, kind: string): string {
     if (name === '') {
-        throw new Error(`Cypher ${kind} cannot be empty`);
+        throw new TypeError(`Cypher ${kind} cannot be empty`);
     }
     if (name.includes('`')) {
-        throw new Error(
+        throw new TypeError(
             `Cypher ${kind} cannot contain a backtick: ${JSON.stringify(name)} ` +
             '(FalkorDB does not support escaped backticks in identifiers)'
         );
@@ -172,15 +174,16 @@ function queryParamToString(param: QueryParam): string {
         return `[${param.map(queryParamToString).join(',')}]`;
     }
 
-    if (ArrayBuffer.isView(param) && !(param instanceof DataView)) {
+    // The checks below also recognise values from another realm (e.g. a `vm`
+    // context), where `instanceof` and prototype identity do not hold
+    if (types.isTypedArray(param)) {
         // Typed arrays (e.g. Float32Array vectors) are sent as lists
-        return `[${Array.from(param, queryParamToString).join(',')}]`;
+        return `[${Array.from(param as ArrayLike<number | bigint>, queryParamToString).join(',')}]`;
     }
 
     // Only plain objects are sent as maps: any other object (a class instance,
     // Date, Map, ...) would lose its meaning when reduced to its own properties
-    const proto = Object.getPrototypeOf(param);
-    if (proto !== Object.prototype && proto !== null) {
+    if (!isPlainObject(param)) {
         throw new TypeError(
             `Unsupported param type ${objectTypeName(param)}: ` +
             'convert it to a plain object or another supported value first'

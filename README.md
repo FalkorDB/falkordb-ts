@@ -65,6 +65,8 @@ To learn more about Cypher query language check: https://docs.falkordb.com/cyphe
 Parameter values can be a `string`, a finite `number`, a `bigint`, a `boolean`, `null`, an array, a typed array
 (e.g. a `Float32Array` vector, sent as a list) or a plain object (sent as a map). Names that are not plain
 identifiers, such as `my-key` or `@type`, work too: quote them in the query, e.g. `` $`my-key` ``.
+An empty name, or one containing the `` ` `` character, throws a `TypeError`, since FalkorDB cannot
+represent it.
 
 ```typescript
 await graph.query('RETURN $`my-key`, $vec', {params: {'my-key': 1, vec: new Float32Array([0.1, 0.2])}})
@@ -77,6 +79,9 @@ values first:
 ```typescript
 await graph.query('CREATE (:User $props)', {params: {props: {...user, createdAt: user.createdAt.toISOString()}}})
 ```
+
+A `bigint` is sent exactly, but integers in query results are returned as a `number`, so values beyond
+`Number.MAX_SAFE_INTEGER` come back rounded (see [#676](https://github.com/FalkorDB/falkordb-ts/issues/676)).
 
 ### Connection Options
 
