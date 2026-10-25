@@ -4,6 +4,7 @@ import {
   expectPlanShape,
   expectProfile,
 } from "./planHelpers";
+import { ExecutionPlan } from "../src/execution-plan";
 
 const UNION_PLAN = [
   "Distinct",
@@ -59,5 +60,12 @@ describe("plan helpers", () => {
 
     expect(() => expectProfile(childHasFourRecords, 2, 4)).toThrow();
     expect(() => expectProfile(rootHasFourRecords, 2, 4)).not.toThrow();
+  });
+
+  it("accepts a parsed ExecutionPlan as well as raw lines", () => {
+    const plan = new ExecutionPlan(UNION_PLAN);
+    expect(() => expectExecutionPlan(plan, 10)).not.toThrow();
+    expect(() => expectPlanShape(plan, UNION_SHAPE)).not.toThrow();
+    expect(() => expectPlanShape(plan, UNION_SHAPE.slice(0, 7))).toThrow();
   });
 });

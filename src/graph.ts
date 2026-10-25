@@ -4,6 +4,7 @@ import { Temporal } from "@js-temporal/polyfill";
 import { ConstraintType, EntityType, GraphValueTypes } from "./enums";
 import { SchemaVersionMismatchError } from "./errors";
 import { parseQueryStatistics } from "./query-statistics";
+import { ExecutionPlan } from "./execution-plan";
 import type {
   GraphEdge,
   GraphEdgeRawValue,
@@ -17,6 +18,7 @@ import type {
   GraphReply,
   GraphValue,
   MemoryUsageOptions,
+  PlanOptions,
   QueryOptions,
   QueryReply,
 } from "./types";
@@ -158,12 +160,21 @@ export default class Graph {
     this.#metadata = undefined;
   }
 
-  async explain(query: string) {
-    return this.#client.explain(this.#name, query);
+  /**
+   * Returns the query's execution plan as an operation tree, without running
+   * the query. The lines the server returned are kept in `steps`.
+   */
+  async explain(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.#client.explain(this.#name, query, options));
   }
 
-  async profile(query: string) {
-    return this.#client.profile(this.#name, query);
+  /**
+   * Runs the query and returns its execution plan as an operation tree, each
+   * operation annotated with its `recordsProduced` and `executionTime`. The
+   * lines the server returned are kept in `steps`.
+   */
+  async profile(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.#client.profile(this.#name, query, options));
   }
 
 	async memoryUsage(options?: MemoryUsageOptions) {
