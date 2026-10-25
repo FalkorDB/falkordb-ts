@@ -293,4 +293,20 @@ describe('Graph metadata cache', () => {
             expect(reads).toEqual([{ node: 'replica', version: 2 }]);
         });
     });
+
+    it('should return a graph for the copy when made without FalkorDB', async () => {
+        const copies: Array<[string, string]> = [];
+        const client = {
+            copy: async (src: string, dest: string) => {
+                copies.push([src, dest]);
+                return 'OK';
+            },
+        } as unknown as Client;
+
+        const copy = await new Graph(client, 'source').copy('dest');
+
+        expect(copies).toEqual([['source', 'dest']]);
+        expect(copy).toBeInstanceOf(Graph);
+        expect(copy.name).toBe('dest');
+    });
 });

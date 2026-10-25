@@ -112,6 +112,8 @@ export interface GraphSchemaState {
 export interface GraphCacheOptions {
   schema?: GraphSchemaState;
   onDelete?: (graph: Graph) => void;
+  // Returns the instance for another graph, e.g. the one `copy` creates
+  selectGraph?: (name: string) => Graph;
 }
 
 // Unknown value types already warned about, so each is reported only once
@@ -129,12 +131,14 @@ export default class Graph {
   #metadata?: { generation: number; version?: number; names: GraphMetadata };
   #schema: GraphSchemaState;
   #onDelete?: (graph: Graph) => void;
+  #selectGraph?: (name: string) => Graph;
 
   constructor(client: Client, name: string, cache?: GraphCacheOptions) {
     this.#client = client;
     this.#name = name;
     this.#schema = cache?.schema ?? { generation: 0, version: 0 };
     this.#onDelete = cache?.onDelete;
+    this.#selectGraph = cache?.selectGraph;
   }
 
   /** The graph's name (its Redis key) */
@@ -466,8 +470,13 @@ export default class Graph {
     }
   }
 
-  async copy(destGraph: string) {
-    return this.#client.copy(this.#name, destGraph);
+  /**
+   * Copies the graph to `destGraph` (`GRAPH.COPY`) and returns the copy, the
+   * same instance `selectGraph(destGraph)` returns.
+   */
+  async copy(destGraph: string): Promise<Graph> {
+    await this.#client.copy(this.#name, destGraph);
+    return this.#selectGraph?.(destGraph) ?? new Graph(this.#client, destGraph);
   }
 
   #pendingMetadata?: {

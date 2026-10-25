@@ -14,6 +14,7 @@ change, why it was made, and what to change.
 | 6 | [Point coordinates are typed as numbers](#6-point-coordinates-are-typed-as-numbers) | read `latitude`/`longitude` of a point as a `string` |
 | 7 | [Unknown value types are returned as `null`](#7-unknown-value-types-are-returned-as-null) | rely on queries failing with `unknown scalar type` |
 | 8 | [Index helpers quote label and property names](#8-index-helpers-quote-label-and-property-names) | pass names wrapped in `` ` `` to the index helpers |
+| 9 | [`copy` returns the new `Graph`](#9-copy-returns-the-new-graph) | use the value `graph.copy` resolves to |
 
 ## 1. Query replies: `metadata` replaced by `stats`
 
@@ -196,6 +197,26 @@ await graph.createNodeRangeIndex('Product Type', 'sku-id')
 ```
 
 A name containing the `` ` `` character, such as one you quoted yourself, now throws a `TypeError`.
+
+## 9. `copy` returns the new `Graph`
+
+`graph.copy(name)` now resolves to the `Graph` for the copy, the same instance `db.selectGraph(name)` returns,
+instead of the server's `'OK'`.
+
+**Why:** the reply carried no information, so every caller had to select the new graph themselves before using
+it.
+
+```typescript
+// v6
+await graph.copy('backup')
+const backup = db.selectGraph('backup')
+
+// v7
+const backup = await graph.copy('backup')
+```
+
+Code that compares the result with `'OK'`, or sends it on as a value (for example from an API route, where
+`JSON.stringify` turns a `Graph` into `{}`), needs updating; a failed copy still rejects.
 
 ## New in v7
 
