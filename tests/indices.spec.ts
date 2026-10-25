@@ -105,7 +105,7 @@ describe('Indices Tests', () => {
         await graphName.query('CREATE (:label1)');
         await graphName.createNodeRangeIndex('label1', 'property1');
         await graphName.createNodeFulltextIndex('label1', 'property1');
-        await graphName.createNodeVectorIndex('label1', 32, 'euclidean', 'property1');
+        await graphName.createNodeVectorIndex('label1', { dimension: 32, similarityFunction: 'euclidean' }, 'property1');
       
         const indicesAfterAddition: any = await graphName.roQuery('CALL db.indexes() YIELD label, properties, types, entitytype, status');
         const indices = indicesAfterAddition.data;
@@ -124,7 +124,7 @@ describe('Indices Tests', () => {
         await graphName.query('CREATE (:label1)-[:edgeLabel1 { property1: "value" }]->(:label2)');
         await graphName.createEdgeRangeIndex('edgeLabel1', 'property1');
         await graphName.createEdgeFulltextIndex('edgeLabel1', 'property1');
-        await graphName.createEdgeVectorIndex('edgeLabel1', 32, 'euclidean', 'property1');
+        await graphName.createEdgeVectorIndex('edgeLabel1', { dimension: 32, similarityFunction: 'euclidean' }, 'property1');
 
         const indicesAfterAddition: any = await graphName.roQuery('CALL db.indexes()');
         const edgeIndex = indicesAfterAddition.data[0];

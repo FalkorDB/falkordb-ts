@@ -35,6 +35,25 @@ export type { GraphReply };
 // The error `CREATE INDEX` fails with when a property is already indexed
 const ALREADY_INDEXED = /^Attribute '.*' is already indexed$/;
 
+// Turns create{Node,Edge}VectorIndex's options into the index's OPTIONS map
+function vectorIndexOptions(
+  options: VectorIndexOptions
+): Record<string, string | number> {
+  // Catches the positional `(label, dimension, similarityFunction, ...)` form
+  // removed in v7, which plain JavaScript callers could still use
+  if (options === null || typeof options !== "object") {
+    throw new TypeError(
+      "Vector index options must be an object, e.g. { dimension: 768, similarityFunction: 'cosine' }"
+    );
+  }
+  const { similarityFunction = "euclidean", ...rest } = options;
+  const result: Record<string, string | number> = { similarityFunction };
+  for (const [key, value] of Object.entries(rest)) {
+    if (value !== undefined) result[key] = value;
+  }
+  return result;
+}
+
 // export type GraphConnection = SingleGraphConnection | ClusterGraphConnection;
 
 // A read is checked against the schema version on its first attempts, then
@@ -255,12 +274,31 @@ export default class Graph {
     }));
   }
 
+  /**
+   * Creates a constraint (`GRAPH.CONSTRAINT CREATE`).
+   *
+   * A unique constraint requires a range index on each of its properties, so
+   * for `ConstraintType.UNIQUE` this first creates that index on every
+   * property that is not indexed yet (an existing index is reused). Mandatory
+   * constraints need no index and create none.
+   *
+   * The constraint is enforced asynchronously: the server accepts it before
+   * checking the existing data, so poll `listConstraints()` until its status
+   * is `OPERATIONAL` (or `FAILED` if existing entities violate it).
+   */
   async constraintCreate(
     constraintType: ConstraintType,
     entityType: EntityType,
     label: string,
     ...properties: string[]
   ) {
+    if (constraintType === ConstraintType.UNIQUE) {
+      await this.#ensureRangeIndexes(
+        entityType === EntityType.RELATIONSHIP ? "EDGE" : "NODE",
+        label,
+        properties
+      );
+    }
     return this.#client.constraintCreate(
       this.#name,
       constraintType,
@@ -286,15 +324,10 @@ export default class Graph {
   }
 
   /**
-   * Creates a unique constraint on nodes, first creating the range index it
-   * requires on each property that is not indexed yet.
-   *
-   * The constraint is enforced asynchronously: the server accepts it before
-   * checking the existing data, so poll `listConstraints()` until its status
-   * is `OPERATIONAL` (or `FAILED` if existing nodes violate it).
+   * Creates a unique constraint on nodes, together with the range index it
+   * requires on each property. Enforced asynchronously, see `constraintCreate`.
    */
   async createNodeUniqueConstraint(label: string, ...properties: string[]) {
-    await this.#ensureRangeIndexes("NODE", label, properties);
     return this.constraintCreate(
       ConstraintType.UNIQUE,
       EntityType.NODE,
@@ -304,13 +337,11 @@ export default class Graph {
   }
 
   /**
-   * Creates a unique constraint on relationships, first creating the range
-   * index it requires on each property that is not indexed yet.
-   *
-   * Enforced asynchronously, see `createNodeUniqueConstraint`.
+   * Creates a unique constraint on relationships, together with the range
+   * index it requires on each property. Enforced asynchronously, see
+   * `constraintCreate`.
    */
   async createEdgeUniqueConstraint(relation: string, ...properties: string[]) {
-    await this.#ensureRangeIndexes("EDGE", relation, properties);
     return this.constraintCreate(
       ConstraintType.UNIQUE,
       EntityType.RELATIONSHIP,
@@ -321,7 +352,7 @@ export default class Graph {
 
   /**
    * Creates a mandatory constraint on nodes. Enforced asynchronously, see
-   * `createNodeUniqueConstraint`.
+   * `constraintCreate`.
    */
   async createNodeMandatoryConstraint(label: string, ...properties: string[]) {
     return this.constraintCreate(
@@ -334,7 +365,7 @@ export default class Graph {
 
   /**
    * Creates a mandatory constraint on relationships. Enforced asynchronously,
-   * see `createNodeUniqueConstraint`.
+   * see `constraintCreate`.
    */
   async createEdgeMandatoryConstraint(
     relation: string,
@@ -751,35 +782,20 @@ export default class Graph {
   }
 
   /**
-   * Creates a vector index, either as
-   * `createNodeVectorIndex(label, { dimension, similarityFunction, M, efConstruction, efRuntime }, ...properties)`
-   * or, for backward compatibility, as
-   * `createNodeVectorIndex(label, dimension, similarityFunction, ...properties)`.
+   * Creates a vector index, e.g.
+   * `createNodeVectorIndex(label, { dimension: 768, similarityFunction: 'cosine' }, 'embedding')`.
    */
   async createNodeVectorIndex(
     label: string,
     options: VectorIndexOptions,
     ...properties: string[]
-  ): Promise<GraphReply<never>>;
-  async createNodeVectorIndex(
-    label: string,
-    dim?: number,
-    similarityFunction?: string,
-    ...properties: string[]
-  ): Promise<GraphReply<never>>;
-  async createNodeVectorIndex(
-    label: string,
-    dimOrOptions?: number | VectorIndexOptions,
-    ...rest: Array<string | undefined>
   ): Promise<GraphReply<never>> {
-    const [options, properties] = this.#vectorIndexArguments(dimOrOptions, rest);
-
-    return await this.createTypedIndex(
+    return this.createTypedIndex(
       "VECTOR",
       "NODE",
       label,
       properties,
-      options
+      vectorIndexOptions(options)
     );
   }
 
@@ -798,62 +814,21 @@ export default class Graph {
   }
 
   /**
-   * Creates a vector index, either as
-   * `createEdgeVectorIndex(label, { dimension, similarityFunction, M, efConstruction, efRuntime }, ...properties)`
-   * or, for backward compatibility, as
-   * `createEdgeVectorIndex(label, dimension, similarityFunction, ...properties)`.
+   * Creates a vector index, e.g.
+   * `createEdgeVectorIndex(label, { dimension: 768, similarityFunction: 'cosine' }, 'embedding')`.
    */
   async createEdgeVectorIndex(
     label: string,
     options: VectorIndexOptions,
     ...properties: string[]
-  ): Promise<GraphReply<never>>;
-  async createEdgeVectorIndex(
-    label: string,
-    dim?: number,
-    similarityFunction?: string,
-    ...properties: string[]
-  ): Promise<GraphReply<never>>;
-  async createEdgeVectorIndex(
-    label: string,
-    dimOrOptions?: number | VectorIndexOptions,
-    ...rest: Array<string | undefined>
   ): Promise<GraphReply<never>> {
-    const [options, properties] = this.#vectorIndexArguments(dimOrOptions, rest);
-
-    return await this.createTypedIndex(
+    return this.createTypedIndex(
       "VECTOR",
       "EDGE",
       label,
       properties,
-      options
+      vectorIndexOptions(options)
     );
-  }
-
-  // Resolves both forms of create{Node,Edge}VectorIndex's arguments
-  #vectorIndexArguments(
-    dimOrOptions: number | VectorIndexOptions | undefined,
-    rest: Array<string | undefined>
-  ): [Record<string, string | number>, string[]] {
-    if (dimOrOptions !== null && typeof dimOrOptions === "object") {
-      const { dimension, similarityFunction = "euclidean", ...hnsw } =
-        dimOrOptions;
-      const options: Record<string, string | number> = {
-        dimension,
-        similarityFunction,
-      };
-      for (const [key, value] of Object.entries(hnsw)) {
-        if (value !== undefined) options[key] = value;
-      }
-      return [options, rest as string[]];
-    }
-
-    const [similarityFunction = "euclidean", ...properties] = rest;
-    return [
-      // `dim = 0` in the original signature defaulted only `undefined`
-      { dimension: dimOrOptions === undefined ? 0 : dimOrOptions, similarityFunction },
-      properties as string[],
-    ];
   }
 
   async dropTypedIndex(

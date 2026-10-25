@@ -1,7 +1,7 @@
 import { describe, it, beforeAll, afterAll, afterEach, expect } from '@jest/globals';
 import { client } from './dbConnection';
 import FalkorDB from '../src/falkordb';
-import Graph from '../src/graph';
+import Graph, { ConstraintType, EntityType } from '../src/graph';
 import * as SLOWLOG_RESET from '../src/commands/SLOWLOG_RESET';
 import type { ConstraintInfo, IndexInfo, VectorIndexOptions } from '../index';
 
@@ -149,29 +149,22 @@ describe('Graph helpers', () => {
     });
 
     describe('vector index options', () => {
-        it('keeps the positional form working', async () => {
+        it('rejects the positional form removed in v7', async () => {
             const graph = selectGraph('vector');
             await graph.query('CREATE (:A)-[:R]->(:A)');
-            await graph.createNodeVectorIndex('A', 4, 'cosine', 'v1', 'v2');
-            await graph.createEdgeVectorIndex('R', 2, 'euclidean', 'v');
 
-            const indices = await graph.listIndices();
-            const node = indices.find(i => i.entityType === 'NODE')!;
-            const edge = indices.find(i => i.entityType === 'RELATIONSHIP')!;
-            expect(node.properties).toEqual(['v1', 'v2']);
-            expect(node.options.v1).toEqual(expect.objectContaining({ dimension: 4, similarityFunction: 'cosine' }));
-            expect(edge.options.v).toEqual(expect.objectContaining({ dimension: 2, similarityFunction: 'euclidean' }));
+            // Plain JavaScript callers still get a clear error instead of a malformed query
+            // @ts-expect-error the (label, dimension, similarityFunction, ...properties) form is gone
+            await expect(graph.createNodeVectorIndex('A', 4, 'cosine', 'v')).rejects.toThrow(TypeError);
+            // @ts-expect-error the (label, dimension, similarityFunction, ...properties) form is gone
+            await expect(graph.createEdgeVectorIndex('R', 4, 'cosine', 'v')).rejects.toThrow(TypeError);
+            expect(await graph.listIndices()).toEqual([]);
         });
 
-        it('keeps the positional defaults', async () => {
-            const graph = selectGraph('vector');
-            await graph.query('CREATE (:A)');
-            // dim defaults to 0, which the server rejects as before
-            await expect(graph.createNodeVectorIndex('A')).rejects.toThrow();
-            await graph.createNodeVectorIndex('A', 8, undefined, 'v');
-
-            const [index] = await graph.listIndices();
-            expect(index.options.v).toEqual(expect.objectContaining({ dimension: 8, similarityFunction: 'euclidean' }));
+        it('requires a dimension', () => {
+            // @ts-expect-error dimension is required
+            const options: VectorIndexOptions = { similarityFunction: 'cosine' };
+            expect(options).toBeDefined();
         });
 
         it('accepts an options object with HNSW parameters', async () => {
@@ -255,6 +248,37 @@ describe('Graph helpers', () => {
             expect(constraints.map(c => c.status)).toEqual(['OPERATIONAL', 'OPERATIONAL']);
             const person = (await graph.listIndices()).find(i => i.label === 'Person')!;
             expect(person.types).toEqual({ name: ['RANGE'], id: ['RANGE'] });
+        });
+
+        it('constraintCreate(UNIQUE) creates the range indexes it requires', async () => {
+            const graph = selectGraph('constraints');
+            await graph.query(`CREATE (:Person {name: 'Alice', id: 1})-[:KNOWS {since: 1}]->(:Person {name: 'Bob', id: 2})`);
+            // One property already indexed, the others not
+            await graph.createNodeRangeIndex('Person', 'id');
+
+            await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.NODE, 'Person', 'name', 'id');
+            await graph.constraintCreate(ConstraintType.UNIQUE, EntityType.RELATIONSHIP, 'KNOWS', 'since');
+
+            const constraints = await waitForConstraints(graph, 2);
+            expect(constraints.map(c => c.status)).toEqual(['OPERATIONAL', 'OPERATIONAL']);
+            const indices = await graph.listIndices();
+            expect(indices.find(i => i.label === 'Person')!.types).toEqual({ id: ['RANGE'], name: ['RANGE'] });
+            expect(indices.find(i => i.label === 'KNOWS')).toEqual(expect.objectContaining({
+                entityType: 'RELATIONSHIP',
+                types: { since: ['RANGE'] },
+            }));
+        });
+
+        it('constraintCreate(MANDATORY) creates no index', async () => {
+            const graph = selectGraph('constraints');
+            await graph.query(`CREATE (:Person {name: 'Alice'})-[:KNOWS {since: 1}]->(:Person {name: 'Bob'})`);
+
+            await graph.constraintCreate(ConstraintType.MANDATORY, EntityType.NODE, 'Person', 'name');
+            await graph.constraintCreate(ConstraintType.MANDATORY, EntityType.RELATIONSHIP, 'KNOWS', 'since');
+
+            const constraints = await waitForConstraints(graph, 2);
+            expect(constraints.map(c => c.status)).toEqual(['OPERATIONAL', 'OPERATIONAL']);
+            expect(await graph.listIndices()).toEqual([]);
         });
 
         it('reports a constraint the existing data violates as FAILED', async () => {
