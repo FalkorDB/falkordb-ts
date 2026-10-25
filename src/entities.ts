@@ -9,8 +9,10 @@ import type { GraphEdge, GraphNode, GraphPath, GraphValue } from "./types";
 const IDENTIFIER = /^[A-Za-z_][A-Za-z0-9_]*$/;
 
 // A label, relationship type or property key, quoted when it is not a plain
-// identifier so that the result stays valid Cypher. A backtick inside is
-// doubled, as openCypher escapes it.
+// identifier, as the query would write it. FalkorDB cannot parse a backtick
+// inside a name, so no name it returns has one; should one appear anyway, it
+// is doubled as openCypher escapes it, since this only formats a value for
+// display and should not throw.
 function nameToString(name: string): string {
   return IDENTIFIER.test(name) ? name : `\`${name.replace(/`/g, "``")}\``;
 }
