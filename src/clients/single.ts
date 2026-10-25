@@ -1,4 +1,4 @@
-import { Client } from "./client";
+import { Client, EXACT_INTEGERS } from "./client";
 import { ConstraintType, EntityType } from "../enums";
 import { RedisArgument } from "@redis/client";
 import FalkorDB from "../falkordb";
@@ -19,6 +19,10 @@ export interface RunOptions {
 }
 
 const READ_ONLY: RunOptions = { readOnly: true };
+
+function withIntegers(client: SingleGraphConnection, exactIntegers: boolean) {
+  return exactIntegers ? client.withTypeMapping(EXACT_INTEGERS) : client;
+}
 
 export class Single implements Client {
   protected client: SingleGraphConnection;
@@ -47,19 +51,29 @@ export class Single implements Client {
     query: RedisArgument,
     options?: QueryOptions,
     compact = true,
-    version?: number
+    version?: number,
+    exactIntegers = false
   ) {
-    return await this.run((client) => client.falkordb.query(graph, query, options, compact, version));
+    return await this.run((client) =>
+      withIntegers(client, exactIntegers).falkordb.query(graph, query, options, compact, version)
+    );
   }
 
+  // A single node serves every read, so `primary` needs no handling
   async roQuery<_T>(
     graph: string,
     query: RedisArgument,
     options?: QueryOptions,
     compact = true,
-    version?: number
+    version?: number,
+    _primary = false,
+    exactIntegers = false
   ) {
-    return await this.run((client) => client.falkordb.roQuery(graph, query, options, compact, version), READ_ONLY);
+    return await this.run(
+      (client) =>
+        withIntegers(client, exactIntegers).falkordb.roQuery(graph, query, options, compact, version),
+      READ_ONLY
+    );
   }
 
   async delete(graph: string) {

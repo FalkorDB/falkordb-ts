@@ -3,6 +3,7 @@ import * as net from 'net';
 import * as redisClient from '@redis/client';
 import FalkorDB from '../src/falkordb';
 import { Cluster } from '../src/clients/cluster';
+import { EXACT_INTEGERS } from '../src/clients/client';
 import type { SingleGraphConnection } from '../src/clients/single';
 
 type FakeNode = { id: string; falkordb: Record<string, jest.Mock> };
@@ -144,6 +145,17 @@ describe('Cluster replicas', () => {
       'graph', false, ['GRAPH.RO_QUERY', 'graph', 'CALL db.labels()']);
     expect(replica.falkordb.roQuery).not.toHaveBeenCalled();
     expect(reply.data).toEqual([[[2, 'NewLabel']]]);
+  });
+
+  it('maps integers to their digits on a primary roQuery for exact integers', async () => {
+    const { cluster: redisCluster } = mockCluster();
+    const cluster = new Cluster(fakeConnection(), { useReplicas: true });
+
+    await cluster.roQuery('graph', 'RETURN 1', undefined, true, undefined, true, true);
+
+    expect(redisCluster.sendCommand).toHaveBeenCalledWith(
+      'graph', false, ['GRAPH.RO_QUERY', 'graph', 'RETURN 1', '--compact'],
+      { typeMapping: EXACT_INTEGERS });
   });
 
   it('returns a master as the connection', async () => {
