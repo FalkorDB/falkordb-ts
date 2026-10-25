@@ -290,18 +290,20 @@ describe('Cluster Client through a replica', () => {
             const written = await graph.query<{ v: bigint }>('CREATE (n:Big {v: 9007199254740993}) RETURN n.v AS v');
             expect(written.data).toEqual([{ v: 9007199254740993n }]);
 
-            const readExact = async () => {
+            // Retries only until the node serving the read has the data, so
+            // that a reply decoded wrongly fails instead of being retried
+            const read = () => eventually(async () => {
                 const reply = await graph.roQuery<{ v: bigint }>('MATCH (n:Big) RETURN n.v AS v');
                 if (!reply.data?.length) throw new Error('not replicated yet');
-                expect(reply.data).toEqual([{ v: 9007199254740993n }]);
-            };
-            await eventually(readExact);
+                return reply.data;
+            });
+            await read();
 
             const before = await reads.count();
             // Each read picks the master or its replica at random; every one
             // must decode exactly, and some must have come from a replica
             for (let i = 0; i < 20; i++) {
-                await eventually(readExact);
+                expect(await read()).toEqual([{ v: 9007199254740993n }]);
             }
             expect(await reads.count()).toBeGreaterThan(before);
             await graph.delete();
