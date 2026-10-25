@@ -85,6 +85,21 @@ await graph.query('CREATE (:User $props)', {params: {props: {...user, createdAt:
 A `bigint` is sent exactly, but integers in query results are returned as a `number`, so values beyond
 `Number.MAX_SAFE_INTEGER` come back rounded (see [#676](https://github.com/FalkorDB/falkordb-ts/issues/676)).
 
+### Query Replies
+
+`graph.query`, `graph.roQuery` and the index helpers (such as `graph.createNodeRangeIndex`) resolve to `{ headers?, data?, stats }`:
+`headers` and `data` are present when the query returns columns, and `stats` always holds the server's statistics as numbers (a counter the server did not report is `0`).
+
+```typescript
+const { stats } = await graph.query(`CREATE (:Rider {name:'Jorge Lorenzo'})`)
+
+console.log(stats.nodesCreated)               // 1
+console.log(stats.queryInternalExecutionTime) // milliseconds, e.g. 0.42
+console.log(stats.cachedExecution)            // false
+```
+
+Version 7 removed the raw `metadata` lines (such as `"Nodes created: 1"`) from these replies; read the matching `stats` field instead.
+
 ### Connection Options
 
 `host` and `port` are the shorthand for a plain TCP connection and default to `localhost:6379`.

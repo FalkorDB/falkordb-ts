@@ -48,7 +48,8 @@ describe('Query statistics and headers', () => {
       relationshipsDeleted: 0,
     });
     expect(result.data).toEqual([{ name: 'Alice' }]);
-    expect(result.metadata).toEqual(expect.arrayContaining(['Nodes created: 2']));
+    expect(Object.keys(result).sort()).toEqual(['data', 'headers', 'stats']);
+    expect(result).not.toHaveProperty('metadata');
   });
 
   it('reports set, removed and deleted counts', async () => {
@@ -113,14 +114,46 @@ describe('Query statistics and headers', () => {
     expect(result.stats.queryInternalExecutionTime).toBeGreaterThan(0);
   });
 
-  it('adds statistics to a write without RETURN and keeps its raw shape', async () => {
+  it('replies to a write without RETURN with only statistics', async () => {
     const graph = newGraph();
     const result = await graph.query("CREATE (:Person {name: 'Alice'})");
 
     expect(result.stats).toMatchObject({ nodesCreated: 1, labelsAdded: 1, propertiesSet: 1 });
     expect(result.headers).toBeUndefined();
     expect(result.data).toBeUndefined();
-    expect(Object.keys(result)).toEqual(expect.arrayContaining(['headers', 'data', 'metadata', 'stats']));
-    expect(result.metadata).toEqual(expect.arrayContaining(['Nodes created: 1']));
+    expect(Object.keys(result)).toEqual(['stats']);
+    expect(result).not.toHaveProperty('metadata');
+  });
+
+  it('does not expose raw metadata on roQuery replies', async () => {
+    const graph = newGraph();
+    await graph.query("CREATE (:Person {name: 'Alice'})");
+
+    const result = await graph.roQuery('MATCH (n:Person) RETURN count(n) AS count');
+    expect(result).not.toHaveProperty('metadata');
+    expect(result.data).toEqual([{ count: 1 }]);
+  });
+
+  it('replies to the index helpers with statistics', async () => {
+    const graph = newGraph();
+    await graph.query("CREATE (:Person {name: 'Alice'})-[:KNOWS {since: 2020}]->(:Person {name: 'Bob'})");
+
+    const replies = [
+      [await graph.createNodeRangeIndex('Person', 'name'), 'indicesCreated'],
+      [await graph.createNodeFulltextIndex('Person', 'bio'), 'indicesCreated'],
+      [await graph.createNodeVectorIndex('Person', 3, 'euclidean', 'embedding'), 'indicesCreated'],
+      [await graph.createEdgeRangeIndex('KNOWS', 'since'), 'indicesCreated'],
+      [await graph.dropNodeRangeIndex('Person', 'name'), 'indicesDeleted'],
+      [await graph.dropNodeFulltextIndex('Person', 'bio'), 'indicesDeleted'],
+      [await graph.dropNodeVectorIndex('Person', 'embedding'), 'indicesDeleted'],
+      [await graph.dropEdgeRangeIndex('KNOWS', 'since'), 'indicesDeleted'],
+    ] as const;
+
+    for (const [reply, counter] of replies) {
+      expect(Object.keys(reply)).toEqual(['stats']);
+      expect(reply).not.toHaveProperty('metadata');
+      expect(reply.stats[counter]).toBe(1);
+      expect(reply.stats.queryInternalExecutionTime).toBeGreaterThan(0);
+    }
   });
 });

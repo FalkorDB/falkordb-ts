@@ -7,4 +7,4 @@ export { ConstraintType, EntityType } from './src/enums';
 export { FalkorDB } from './src/falkordb';
 export type { FalkorDBOptions } from './src/types';
 export type { QueryParam, QueryParams, QueryOptions, QueryOptionsBackwardCompatible } from './src/types';
-export type { QueryStatistics } from './src/types';
+export type { GraphReply, QueryStatistics } from './src/types';

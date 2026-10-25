@@ -1,6 +1,6 @@
 /**
- * Statistics the server reports for a query, parsed from the reply's
- * `metadata` lines. A counter the server did not report is 0.
+ * Statistics the server reports for a query, parsed from the statistic lines
+ * it sends with every reply. A counter the server did not report is 0.
  */
 export interface QueryStatistics {
   labelsAdded: number;

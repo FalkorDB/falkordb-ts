@@ -318,8 +318,9 @@ export default class Graph {
     reply: QueryReply,
     version?: number
   ): Promise<GraphReply<T>> {
+    // The raw statistic lines are replaced by their parsed form
     const stats = parseQueryStatistics(reply.metadata);
-    if (!reply.data) return { ...reply, stats };
+    if (!reply.data) return { stats };
 
     // Compact replies describe each column as [type, name]
     const headers = (reply.headers as unknown as Array<[number, string]>).map(
@@ -328,7 +329,6 @@ export default class Graph {
     const ctx: ParseContext = { promises: [], version },
       parsed = {
         headers,
-        metadata: reply.metadata,
         stats,
         data: reply.data!.map((row) => {
           const data: Record<string, GraphValue> = {};
@@ -512,7 +512,7 @@ export default class Graph {
     label: string,
     properties: string[],
     options?: Record<string, string | number | boolean>
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     const pattern =
       entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
 
@@ -535,20 +535,20 @@ export default class Graph {
       query += ` OPTIONS {${optionsMap}}`;
     }
 
-    return this.#client.query(this.#name, query);
+    return this.query<never>(query);
   }
 
   async createNodeRangeIndex(
     label: string,
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.createTypedIndex("RANGE", "NODE", label, properties);
   }
 
   async createNodeFulltextIndex(
     label: string,
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.createTypedIndex("FULLTEXT", "NODE", label, properties);
   }
 
@@ -557,7 +557,7 @@ export default class Graph {
     dim: number = 0,
     similarityFunction: string = "euclidean",
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     const options = {
       dimension: dim,
       similarityFunction: similarityFunction,
@@ -575,14 +575,14 @@ export default class Graph {
   async createEdgeRangeIndex(
     label: string,
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.createTypedIndex("RANGE", "EDGE", label, properties);
   }
 
   async createEdgeFulltextIndex(
     label: string,
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.createTypedIndex("FULLTEXT", "EDGE", label, properties);
   }
 
@@ -591,7 +591,7 @@ export default class Graph {
     dim: number = 0,
     similarityFunction: string = "euclidean",
     ...properties: string[]
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     const options = {
       dimension: dim,
       similarityFunction: similarityFunction,
@@ -611,7 +611,7 @@ export default class Graph {
     entityType: "NODE" | "EDGE",
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     const pattern =
       entityType === "NODE" ? `(e:${label})` : `()-[e:${label}]->()`;
 
@@ -623,48 +623,48 @@ export default class Graph {
       idxType ? idxType + " " : ""
     }INDEX FOR ${pattern} ON (e.${attribute})`;
 
-    return this.#client.query(this.#name, query);
+    return this.query<never>(query);
   }
 
   async dropNodeRangeIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("RANGE", "NODE", label, attribute);
   }
 
   async dropNodeFulltextIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("FULLTEXT", "NODE", label, attribute);
   }
 
   async dropNodeVectorIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("VECTOR", "NODE", label, attribute);
   }
 
   async dropEdgeRangeIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("RANGE", "EDGE", label, attribute);
   }
 
   async dropEdgeFulltextIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("FULLTEXT", "EDGE", label, attribute);
   }
 
   async dropEdgeVectorIndex(
     label: string,
     attribute: string
-  ): Promise<QueryReply> {
+  ): Promise<GraphReply<never>> {
     return this.dropTypedIndex("VECTOR", "EDGE", label, attribute);
   }
 }
