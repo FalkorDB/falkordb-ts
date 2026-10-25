@@ -145,7 +145,7 @@ describe('Query statistics and headers', () => {
     const replies = [
       [await graph.createNodeRangeIndex('Person', 'name'), 'indicesCreated'],
       [await graph.createNodeFulltextIndex('Person', 'bio'), 'indicesCreated'],
-      [await graph.createNodeVectorIndex('Person', 3, 'euclidean', 'embedding'), 'indicesCreated'],
+      [await graph.createNodeVectorIndex('Person', { dimension: 3 }, 'embedding'), 'indicesCreated'],
       [await graph.createEdgeRangeIndex('KNOWS', 'since'), 'indicesCreated'],
       [await graph.dropNodeRangeIndex('Person', 'name'), 'indicesDeleted'],
       [await graph.dropNodeFulltextIndex('Person', 'bio'), 'indicesDeleted'],
