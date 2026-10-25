@@ -10,6 +10,8 @@
 
 `falkordb` is a [FalkorDB](https://www.falkordb.com) client for Node.js.
 
+> **Upgrading from v6?** Version 7 has breaking changes; see the [migration guide](MIGRATION.md).
+
 ## Installation
 
 Start a falkordb via docker:
