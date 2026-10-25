@@ -8,5 +8,7 @@ export { FalkorDB } from './src/falkordb';
 export type { FalkorDBOptions } from './src/types';
 export type { GraphReply, QueryStatistics } from './src/types';
 export { ExecutionPlan, Operation } from './src/execution-plan';
+export { nodeToString, edgeToString, pathToString, nodesEqual, edgesEqual, pathsEqual } from './src/entities';
+export type { GraphNode, GraphEdge, GraphPath, GraphValue } from './src/types';
 export type { QueryParam, QueryParams, QueryOptions, QueryOptionsBackwardCompatible, PlanOptions } from './src/types';
 export type { CallProcedureOptions, ConstraintInfo, IndexInfo, VectorIndexOptions } from './src/types';
