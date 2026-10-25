@@ -1,11 +1,18 @@
 /**
- * Assertions for the raw execution-plan arrays returned by the client.
+ * Assertions for execution plans, given either as the `ExecutionPlan` that
+ * `Graph.explain`/`Graph.profile` return or as raw plan lines.
  *
  * Prefer expectPlanShape wherever both engines produce the same operation
  * tree. Keep expectExecutionPlan for documented engine-specific plans.
  */
 
 import { expect } from "@jest/globals";
+import { ExecutionPlan } from "../src/execution-plan";
+
+export type PlanLines = readonly string[] | ExecutionPlan;
+
+const linesOf = (plan: PlanLines): readonly string[] =>
+  plan instanceof ExecutionPlan ? plan.steps : plan;
 
 const INDENT = "    ";
 const ENGINE_ROOT_OPERATIONS = new Set(["Results", "Commit"]);
@@ -24,7 +31,8 @@ function operationLine(line: string): string {
 }
 
 /** Asserts the reply is a well formed execution plan. */
-export function expectExecutionPlan(plan: string[], minOperations = 1): void {
+export function expectExecutionPlan(input: PlanLines, minOperations = 1): void {
+  const plan = linesOf(input);
   expect(Array.isArray(plan)).toBe(true);
   expect(plan.length).toBeGreaterThanOrEqual(minOperations);
 
@@ -51,7 +59,8 @@ export function expectExecutionPlan(plan: string[], minOperations = 1): void {
  * Asserts operation names and nesting exactly, and arguments on expected lines
  * that include them after a `|`. Engine-only driver roots are ignored.
  */
-export function expectPlanShape(plan: string[], expected: readonly string[]): void {
+export function expectPlanShape(input: PlanLines, expected: readonly string[]): void {
+  const plan = linesOf(input);
   expectExecutionPlan(plan);
   expect(expected.length).toBeGreaterThan(0);
 
@@ -82,10 +91,11 @@ export function expectPlanShape(plan: string[], expected: readonly string[]): vo
 
 /** Asserts the reply is a well formed profile, statistics included. */
 export function expectProfile(
-  plan: string[],
+  input: PlanLines,
   minOperations = 1,
   recordsProduced?: number
 ): void {
+  const plan = linesOf(input);
   expectExecutionPlan(plan, minOperations);
 
   const counts = plan.map((line) => {
@@ -108,7 +118,7 @@ export function expectProfile(
 
 /** Asserts an exact profile plan while retaining all profile-stat checks. */
 export function expectProfileShape(
-  plan: string[],
+  plan: PlanLines,
   expected: readonly string[],
   recordsProduced?: number
 ): void {

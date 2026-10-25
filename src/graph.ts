@@ -160,27 +160,21 @@ export default class Graph {
     this.#metadata = undefined;
   }
 
-  /** Returns the query's execution plan, one operation per line. */
-  async explain(query: string, options?: PlanOptions) {
-    return this.#client.explain(this.#name, query, options);
+  /**
+   * Returns the query's execution plan as an operation tree, without running
+   * the query. The lines the server returned are kept in `steps`.
+   */
+  async explain(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.#client.explain(this.#name, query, options));
   }
 
   /**
-   * Runs the query and returns its execution plan, one operation per line,
-   * annotated with each operation's runtime statistics.
+   * Runs the query and returns its execution plan as an operation tree, each
+   * operation annotated with its `recordsProduced` and `executionTime`. The
+   * lines the server returned are kept in `steps`.
    */
-  async profile(query: string, options?: PlanOptions) {
-    return this.#client.profile(this.#name, query, options);
-  }
-
-  /** Like `explain`, but parses the plan into an operation tree. */
-  async explainPlan(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
-    return new ExecutionPlan(await this.explain(query, options));
-  }
-
-  /** Like `profile`, but parses the plan into an operation tree. */
-  async profilePlan(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
-    return new ExecutionPlan(await this.profile(query, options));
+  async profile(query: string, options?: PlanOptions): Promise<ExecutionPlan> {
+    return new ExecutionPlan(await this.#client.profile(this.#name, query, options));
   }
 
 	async memoryUsage(options?: MemoryUsageOptions) {

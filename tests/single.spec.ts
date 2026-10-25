@@ -3,6 +3,7 @@ import FalkorDB from "../src/falkordb";
 import { Single } from "../src/clients/single";
 import Graph, { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
+import { ExecutionPlan } from "../src/execution-plan";
 
 function getRandomNumber(): number {
   return Math.floor(Math.random() * 999999);
@@ -115,9 +116,8 @@ describe("Single Client Tests", () => {
         // Create some data first for a meaningful explain
         await graph.query('CREATE (n:Person {name: "Alice"})');
         const result = await graph.explain("MATCH (n:Person) RETURN n");
-        expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBeGreaterThan(0);
+        expect(result).toBeInstanceOf(ExecutionPlan);
+        expect(result.steps.length).toBeGreaterThan(0);
         await graph.delete();
       })
     );
@@ -131,9 +131,8 @@ describe("Single Client Tests", () => {
         // Create some data first for a meaningful profile
         await graph.query('CREATE (n:Person {name: "Alice"})');
         const result = await graph.profile("MATCH (n:Person) RETURN n");
-        expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBeGreaterThan(0);
+        expect(result).toBeInstanceOf(ExecutionPlan);
+        expect(result.steps.length).toBeGreaterThan(0);
         await graph.delete();
       })
     );
@@ -558,9 +557,8 @@ describe("Single Client Tests", () => {
         // Create some data first for a meaningful explain
         await graph.query('CREATE (n:Person {name: "Alice"})');
         const result = await graph.explain("MATCH (n:Person) RETURN n");
-        expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBeGreaterThan(0);
+        expect(result).toBeInstanceOf(ExecutionPlan);
+        expect(result.steps.length).toBeGreaterThan(0);
         await graph.delete();
       })
     );
@@ -574,9 +572,8 @@ describe("Single Client Tests", () => {
         // Create some data first for a meaningful profile
         await graph.query('CREATE (n:Person {name: "Alice"})');
         const result = await graph.profile("MATCH (n:Person) RETURN n");
-        expect(result).toBeDefined();
-        expect(Array.isArray(result)).toBe(true);
-        expect(result.length).toBeGreaterThan(0);
+        expect(result).toBeInstanceOf(ExecutionPlan);
+        expect(result.steps.length).toBeGreaterThan(0);
         await graph.delete();
       })
     );

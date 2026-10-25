@@ -172,18 +172,20 @@ describe('explain and profile against the server', () => {
         await db.close();
     });
 
-    test('explain and profile without params return the raw lines', async () => {
+    test('explain and profile without params return a parsed plan', async () => {
         const explained = await graph.explain('MATCH (a:A) RETURN a');
+        expect(explained).toBeInstanceOf(ExecutionPlan);
         expectPlanShape(explained, ['Project', '    Node By Label Scan | (a:A)']);
 
         const profiled = await graph.profile('MATCH (a:A) RETURN a');
+        expect(profiled).toBeInstanceOf(ExecutionPlan);
         expectProfile(profiled, 2, 2);
     });
 
     test('explain and profile accept params', async () => {
         const explained = await graph.explain(QUERY, { params: { v: 1 } });
         expectExecutionPlan(explained, 4);
-        expect(explained.some((line: string) => line.includes('Cartesian Product'))).toBe(true);
+        expect(explained.steps.some((line) => line.includes('Cartesian Product'))).toBe(true);
 
         const profiled = await graph.profile(QUERY, { params: { v: 1 } });
         // Only the first A matches, joined with the single B
@@ -194,11 +196,13 @@ describe('explain and profile against the server', () => {
         await expect(graph.profile(QUERY)).rejects.toThrow();
     });
 
-    test('explainPlan parses the plan with params', async () => {
-        const plan = await graph.explainPlan(QUERY, { params: { v: 1 } });
+    test('explain parses the plan into an operation tree', async () => {
+        const plan = await graph.explain(QUERY, { params: { v: 1 } });
 
-        expect(plan).toBeInstanceOf(ExecutionPlan);
-        expect(plan.steps).toEqual(await graph.explain(QUERY, { params: { v: 1 } }));
+        // The raw lines stay available exactly as the command replied them
+        const connection = await db.connection;
+        const lines = await connection.falkordb.explain(graphName, QUERY, { params: { v: 1 } });
+        expect(plan.steps).toEqual(lines);
 
         const [cartesian] = plan.collectOperations('Cartesian Product');
         expect(cartesian.children.length).toBeGreaterThanOrEqual(2);
@@ -211,8 +215,8 @@ describe('explain and profile against the server', () => {
         }
     });
 
-    test('profilePlan parses statistics as numbers', async () => {
-        const plan = await graph.profilePlan(QUERY, { params: { v: 1 } });
+    test('profile parses statistics as numbers', async () => {
+        const plan = await graph.profile(QUERY, { params: { v: 1 } });
 
         expect(plan.root.recordsProduced).toBe(1);
         for (const op of plan) {

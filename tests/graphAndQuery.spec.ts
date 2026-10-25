@@ -393,7 +393,7 @@ describe("FalkorDB Execute Query", () => {
     );
 
     // Rust names the combining operation "Union"; C names it "Join".
-    const normalized = result.map((line) =>
+    const normalized = result.steps.map((line) =>
       operationName(line) === "Union" ? line.replace("Union", "Join") : line
     );
     expectPlanShape(normalized, [
@@ -455,7 +455,7 @@ describe("FalkorDB Execute Query", () => {
     const destIndicesRes = await destGraph.explain(
       "CALL DB.INDEXES() YIELD label, properties, types, language, stopwords, entitytype, status RETURN *"
     );
-    expect(srcIndicesRes.data).toEqual(destIndicesRes.data);
+    expect(srcIndicesRes.steps).toEqual(destIndicesRes.steps);
 
     await srcGraph.delete();
     await destGraph.delete();

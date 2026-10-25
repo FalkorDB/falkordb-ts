@@ -71,7 +71,7 @@ export class Operation {
   }
 }
 
-/** The operation tree of a query, as returned by `explainPlan`/`profilePlan`. */
+/** The operation tree of a query, as returned by `Graph.explain`/`Graph.profile`. */
 export class ExecutionPlan implements Iterable<Operation> {
   /** The plan lines exactly as the server returned them */
   readonly steps: readonly string[];
