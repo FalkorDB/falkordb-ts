@@ -63,14 +63,20 @@ To learn more about Cypher query language check: https://docs.falkordb.com/cyphe
 ### Query Parameters
 
 Parameter values can be a `string`, a finite `number`, a `bigint`, a `boolean`, `null`, an array, a typed array
-(e.g. a `Float32Array` vector, sent as a list) or an object (sent as a map). Names that are not plain
+(e.g. a `Float32Array` vector, sent as a list) or a plain object (sent as a map). Names that are not plain
 identifiers, such as `my-key` or `@type`, work too: quote them in the query, e.g. `` $`my-key` ``.
 
 ```typescript
 await graph.query('RETURN $`my-key`, $vec', {params: {'my-key': 1, vec: new Float32Array([0.1, 0.2])}})
 ```
 
-Other values, such as `Date`, `Map`, `Set`, `undefined` or `NaN`, throw a `TypeError`; convert them first.
+A plain object is an object literal or one made with `Object.create(null)`. Any other object, such as a
+class instance, `Date`, `Map` or `Set`, throws a `TypeError`, as do `undefined` and `NaN`; convert such
+values first:
+
+```typescript
+await graph.query('CREATE (:User $props)', {params: {props: {...user, createdAt: user.createdAt.toISOString()}}})
+```
 
 ### Connection Options
 

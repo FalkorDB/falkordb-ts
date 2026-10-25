@@ -135,8 +135,12 @@ function escapeIdentifier(name: string, kind: string): string {
     return `\`${name}\``;
 }
 
-// Built-in objects that `Object.entries` would silently turn into `{}`
-const UNSUPPORTED_OBJECT_TYPES = [Date, Map, Set, WeakMap, WeakSet, RegExp, Promise, ArrayBuffer, DataView];
+// Names the type of a non-plain object for error messages, e.g. `Date` or a class name
+function objectTypeName(value: object): string {
+    const proto = Object.getPrototypeOf(value);
+    const name = Object.hasOwn(proto, 'constructor') ? proto.constructor?.name : undefined;
+    return name || 'object with a custom prototype';
+}
 
 function queryParamToString(param: QueryParam): string {
     if (param === null) {
@@ -168,14 +172,19 @@ function queryParamToString(param: QueryParam): string {
         return `[${param.map(queryParamToString).join(',')}]`;
     }
 
-    const unsupported = UNSUPPORTED_OBJECT_TYPES.find(type => param instanceof type);
-    if (unsupported) {
-        throw new TypeError(`Unsupported param type ${unsupported.name}: convert it to a supported value first`);
-    }
-
-    if (ArrayBuffer.isView(param)) {
+    if (ArrayBuffer.isView(param) && !(param instanceof DataView)) {
         // Typed arrays (e.g. Float32Array vectors) are sent as lists
         return `[${Array.from(param, queryParamToString).join(',')}]`;
+    }
+
+    // Only plain objects are sent as maps: any other object (a class instance,
+    // Date, Map, ...) would lose its meaning when reduced to its own properties
+    const proto = Object.getPrototypeOf(param);
+    if (proto !== Object.prototype && proto !== null) {
+        throw new TypeError(
+            `Unsupported param type ${objectTypeName(param)}: ` +
+            'convert it to a plain object or another supported value first'
+        );
     }
 
     const body: string[] = [];

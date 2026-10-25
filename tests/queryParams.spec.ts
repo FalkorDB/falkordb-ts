@@ -2,7 +2,6 @@ import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import * as QUERY from '../src/commands/QUERY';
 import FalkorDB from '../src/falkordb';
 import { client } from './dbConnection';
-import type { QueryParam } from '../src/types';
 
 const toCypher = (params: Record<string, unknown>): string =>
   QUERY.transformArguments('graph', 'RETURN 1', { params: params as never })[2] as string;
@@ -230,19 +229,36 @@ describe('Query Parameters', () => {
   });
 
   describe('Unsupported Values', () => {
+    const unsupportedMessage = (name: string) =>
+      `Unsupported param type ${name}: convert it to a plain object or another supported value first`;
+
+    class Point {
+      constructor(public x: number, public y: number) {}
+    }
+
     it.each([
       ['Date', new Date(0)],
       ['Map', new Map([['a', 1]])],
       ['Set', new Set([1])],
+      ['WeakMap', new WeakMap()],
       ['RegExp', /a/],
       ['Promise', Promise.resolve(1)],
       ['ArrayBuffer', new ArrayBuffer(4)],
       ['DataView', new DataView(new ArrayBuffer(4))],
+      ['Error', new Error('e')],
+      ['Number', Object(1)],
+      ['String', Object('s')],
+      ['Point', new Point(1, 2)],
     ])('should reject a %s with a TypeError', (name, value) => {
-      expect(() => toCypher({ x: value })).toThrow(new TypeError(
-        `Unsupported param type ${name}: convert it to a supported value first`
-      ));
+      expect(() => toCypher({ x: value })).toThrow(new TypeError(unsupportedMessage(name)));
       expect(() => toCypher({ x: { nested: [value] } })).toThrow(TypeError);
+    });
+
+    it('should reject an object created from a custom prototype', () => {
+      const withProto = Object.create({ greet: () => 'hi' });
+      withProto.a = 1;
+      expect(() => toCypher({ x: withProto }))
+        .toThrow(new TypeError(unsupportedMessage('object with a custom prototype')));
     });
 
     it.each([
@@ -252,13 +268,19 @@ describe('Query Parameters', () => {
     ])('should reject a %s with a TypeError', (type, value) => {
       expect(() => toCypher({ x: value })).toThrow(new TypeError(`Unsupported param type ${type}`));
     });
+  });
 
-    it('should keep serializing the own enumerable properties of class instances', () => {
+  describe('Plain Object Parameters', () => {
+    it('should serialize an object with a null prototype as a map', () => {
+      const bare = Object.assign(Object.create(null), { a: 1, 'b-c': 'x' });
+      expect(toCypher({ m: bare })).toBe('CYPHER `m`={`a`:1,`b-c`:"x"} RETURN 1');
+    });
+
+    it('should serialize a class instance once spread into a plain object', () => {
       class Point {
         constructor(public x: number, public y: number) {}
       }
-      expect(toCypher({ p: new Point(1, 2) as unknown as QueryParam }))
-        .toBe('CYPHER `p`={`x`:1,`y`:2} RETURN 1');
+      expect(toCypher({ p: { ...new Point(1, 2) } })).toBe('CYPHER `p`={`x`:1,`y`:2} RETURN 1');
     });
   });
 
