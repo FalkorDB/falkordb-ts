@@ -1,0 +1,44 @@
+name: Polish release notes
+
+# Rewrites each published release's auto-generated notes into user-facing ones,
+# using FalkorDB's shared workflow; its header explains what it does. Needs the
+# OPENAI_API_KEY secret and the AZURE_OPENAI_ENDPOINT variable, set on the
+# organization or this repository. It follows main, so changes merged in
+# FalkorDB/.github apply here on the next release.
+
+on:
+  release:
+    types: [published]
+
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to rewrite (e.g. 6.9.2), or the newest one of a range'
+        required: true
+      from_tag:
+        description: 'Oldest release tag of a range (e.g. 6.7.0); every published release from it through tag is rewritten. Leave empty for tag alone.'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Print the new notes without updating the release'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  polish:
+    permissions:
+      contents: write       # edit the release
+      pull-requests: read   # read the PRs it lists
+      id-token: write       # lets the shared workflow find its own commit
+    uses: FalkorDB/.github/.github/workflows/release-notes.yml@main
+    with:
+      product: FalkorDB TypeScript client
+      product-description: the Node.js and TypeScript client library for FalkorDB graph databases
+      tag: ${{ inputs.tag }}
+      from-tag: ${{ inputs.from_tag }}
+      dry-run: ${{ inputs.dry_run || false }}
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
