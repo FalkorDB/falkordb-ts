@@ -127,8 +127,8 @@ Keeping your own `CREATE INDEX` is harmless: an existing index is reused. Droppi
 index, as before. Constraints are still enforced in the background; use `graph.listConstraints()` to wait for
 the status `OPERATIONAL`.
 
-The server accepts only labels and properties made of letters, digits, `_` and `$`, not starting with a digit,
-in a constraint. `constraintCreate` now checks this before creating any index and throws a `TypeError`, where
+In a constraint, the server accepts only labels and properties that start with a letter or `_`, followed by
+letters, digits, `_` or `$`. `constraintCreate` now checks this before creating any index and throws a `TypeError`, where
 v6 sent the command and the server rejected it.
 
 ## 5. Stricter query parameters
