@@ -21,6 +21,9 @@ const COUNTERS: Record<string, CounterKey> = {
   "Query internal execution time": "queryInternalExecutionTime",
 };
 
+// e.g. "1", "0.123456 milliseconds"
+const STAT_VALUE = /^(\d+(?:\.\d+)?)(?: milliseconds)?$/;
+
 /**
  * Parses the statistic lines of a query reply's metadata, e.g.
  * `"Nodes created: 1"`. Unknown or malformed lines are ignored.
@@ -51,9 +54,11 @@ export function parseQueryStatistics(
     if (separator === -1) continue;
 
     const name = line.slice(0, separator).trim(),
-      // parseFloat ignores a trailing unit such as " milliseconds"
-      value = parseFloat(line.slice(separator + 1));
-    if (!Number.isFinite(value)) continue;
+      // The whole value must be a number, optionally followed by the unit of
+      // the execution time, so that a malformed line is ignored
+      match = STAT_VALUE.exec(line.slice(separator + 1).trim());
+    if (!match) continue;
+    const value = Number(match[1]);
 
     if (name === "Cached execution") {
       stats.cachedExecution = value !== 0;

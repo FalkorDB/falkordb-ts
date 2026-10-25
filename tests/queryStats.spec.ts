@@ -9,12 +9,13 @@ function getRandomNumber(): number {
 
 describe('Query statistics and headers', () => {
   let clientInstance: FalkorDB;
-  const created: Graph[] = [];
+    const created: Array<[string, Graph]> = [];
 
   // Graphs used here are prefixed so they never collide with other suites
   function newGraph(): Graph {
-    const graph = clientInstance.selectGraph(`pr-stats-${getRandomNumber()}`);
-    created.push(graph);
+    const name = `pr-stats-${getRandomNumber()}`;
+    const graph = clientInstance.selectGraph(name);
+    created.push([name, graph]);
     return graph;
   }
 
@@ -23,8 +24,10 @@ describe('Query statistics and headers', () => {
   });
 
   afterEach(async () => {
-    for (const graph of created.splice(0)) {
-      await graph.delete().catch(() => undefined);
+    // Only a graph the test never created may be missing
+    const existing = await clientInstance.list();
+    for (const [name, graph] of created.splice(0)) {
+      if (existing.includes(name)) await graph.delete();
     }
   });
 
