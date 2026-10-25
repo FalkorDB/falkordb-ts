@@ -92,6 +92,7 @@ export class ExecutionPlan implements Iterable<Operation> {
       const spaces = line.length - line.trimStart().length;
       const level = spaces / INDENT.length;
       const valid =
+        line.trim() !== "" &&
         Number.isInteger(level) &&
         (index === 0 ? level === 0 : level > 0 && level <= stack.length);
       if (!valid) {

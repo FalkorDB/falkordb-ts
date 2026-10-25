@@ -86,11 +86,7 @@ export function pushQueryArguments(
         args.push(query);
         pushTimeout(args, options);
     } else {
-        args.push(
-            options?.params ?
-                `CYPHER ${queryParamsToString(options.params)} ${query}` :
-                query
-        );
+        args.push(withParamsHeader(query, options?.params));
 
         if (options?.TIMEOUT !== undefined) {
             pushTimeout(args, options.TIMEOUT);
@@ -106,6 +102,14 @@ export function pushQueryArguments(
     }
 
     return args;
+}
+
+/**
+ * Prefixes the query with a `CYPHER` header carrying the params. Without
+ * params the query is returned unchanged.
+ */
+export function withParamsHeader<T extends RedisArgument>(query: T, params?: QueryParams): T | string {
+    return params ? `CYPHER ${queryParamsToString(params)} ${query}` : query;
 }
 
 function pushTimeout(args: Array<RedisArgument>, timeout: number): void {
@@ -199,11 +203,3 @@ function queryParamToString(param: QueryParam): string {
 
 // Export UDF types for external use
 export type { UdfListReply, UdfLibraryEntry } from '../types';
-
-/**
- * Prefixes the query with a `CYPHER` header carrying the params, as
- * GRAPH.QUERY does. Without params the query is returned unchanged.
- */
-export function withParamsHeader<T extends RedisArgument>(query: T, params?: QueryParams): T | string {
-    return params ? `CYPHER ${queryParamsToString(params)} ${query}` : query;
-}

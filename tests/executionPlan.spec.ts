@@ -135,6 +135,9 @@ describe('ExecutionPlan parser', () => {
         expect(() => new ExecutionPlan(['Results', '        Project'])).toThrow();
         expect(() => new ExecutionPlan(['Results', '  Project'])).toThrow();
         expect(() => new ExecutionPlan(['Results', 'Project'])).toThrow();
+        // Blank lines are not operations
+        expect(() => new ExecutionPlan([''])).toThrow();
+        expect(() => new ExecutionPlan(['Results', '    '])).toThrow();
     });
 });
 
