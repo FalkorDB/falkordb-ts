@@ -240,7 +240,7 @@ describe('Command Transformation Functions', () => {
 
     it('should transform arguments with SAMPLES option', () => {
       const result = MEMORY_USAGE.transformArguments('mygraph', { SAMPLES: 10 });
-      expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph', '10']);
+      expect(result).toEqual(['GRAPH.MEMORY', 'USAGE', 'mygraph', 'SAMPLES', '10']);
     });
 
     it('should transform arguments without SAMPLES option', () => {
@@ -289,7 +289,7 @@ describe('Command Transformation Functions', () => {
       
       expect(mockParser.push).toHaveBeenCalledWith('GRAPH.MEMORY', 'USAGE');
       expect(mockParser.pushKey).toHaveBeenCalledWith('mygraph');
-      expect(mockParser.push).toHaveBeenCalledWith('10');
+      expect(mockParser.push).toHaveBeenCalledWith('SAMPLES', '10');
       expect(mockParser.push).toHaveBeenCalledTimes(2);
     });
 

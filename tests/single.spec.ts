@@ -240,6 +240,23 @@ describe("Single Client Tests", () => {
     );
 
     it(
+      "should get memory usage with SAMPLES through single client",
+      skipIfNoClient(async () => {
+        const graph = singleClient.selectGraph(
+          `test-single-memoryusage-samples-${getRandomNumber()}`
+        );
+        await graph.query("UNWIND range(1, 10) AS x CREATE (n:n)-[e:e]->(m:m)");
+
+        // The server rejects the count unless it follows the SAMPLES keyword
+        const memoryList = await graph.memoryUsage({ SAMPLES: 500 });
+
+        expect(memoryList[0]).toBe("total_graph_sz_mb");
+        expect(memoryList.length % 2).toBe(0);
+        await graph.delete();
+      })
+    );
+
+    it(
       "should get slow log through single client",
       skipIfNoClient(async () => {
         const graph = singleClient.selectGraph(
