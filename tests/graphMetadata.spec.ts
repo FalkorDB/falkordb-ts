@@ -293,4 +293,39 @@ describe('Graph metadata cache', () => {
             expect(reads).toEqual([{ node: 'replica', version: 2 }]);
         });
     });
+
+    it('should return a graph for the copy when made without FalkorDB', async () => {
+        const copies: Array<[string, string]> = [];
+        const client = {
+            copy: async (src: string, dest: string) => {
+                copies.push([src, dest]);
+                return 'OK';
+            },
+        } as unknown as Client;
+
+        const copy = await new Graph(client, 'source').copy('dest');
+
+        expect(copies).toEqual([['source', 'dest']]);
+        expect(copy).toBeInstanceOf(Graph);
+        expect(copy.name).toBe('dest');
+    });
+
+    it('should drop names cached for an earlier graph with the copy\'s name', async () => {
+        let label = 'Old';
+        const client = {
+            query: async () => nodeReply,
+            roQuery: async (_g: string, query: string) =>
+                ({ data: query === 'CALL db.labels()' ? [[label]] : [] }),
+            copy: async () => 'OK',
+        } as unknown as Client;
+        const dest = new Graph(client, 'dest');
+        expect((await dest.query<{ n: { labels: string[] } }>('MATCH (n) RETURN n')).data?.[0].n.labels).toEqual(['Old']);
+
+        // The copy replaces `dest`, whose label id 0 is now another label
+        label = 'New';
+        const copy = await new Graph(client, 'src', { selectGraph: () => dest }).copy('dest');
+
+        expect(copy).toBe(dest);
+        expect((await copy.query<{ n: { labels: string[] } }>('MATCH (n) RETURN n')).data?.[0].n.labels).toEqual(['New']);
+    });
 });
