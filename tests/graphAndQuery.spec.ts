@@ -425,8 +425,10 @@ describe("FalkorDB Execute Query", () => {
       "User",
       "name"
     );
-    await srcGraph.copy(copyGraphName);
-    const destGraph = clientInstance.selectGraph(copyGraphName);
+    const destGraph = await srcGraph.copy(copyGraphName);
+    // The copy is the instance selectGraph returns, sharing its cached metadata
+    expect(destGraph).toBe(clientInstance.selectGraph(copyGraphName));
+    expect(destGraph.name).toBe(copyGraphName);
 
     // Validate entities
     const entityQuery = "MATCH (n) RETURN n ORDER BY ID(n)";

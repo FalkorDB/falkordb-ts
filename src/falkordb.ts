@@ -206,6 +206,7 @@ export default class FalkorDB extends EventEmitter {
                         this.#graphs.delete(graphId);
                     }
                 },
+                selectGraph: (name) => this.selectGraph(name),
             });
         }
         this.#graphs.set(graphId, graph);
