@@ -35,13 +35,14 @@ describe('Query statistics and headers', () => {
   it('reports created nodes, relationships, labels and properties', async () => {
     const graph = newGraph();
     const result = await graph.query(
-      "CREATE (a:Person:Admin {name: 'Alice', age: 30})-[:KNOWS {since: 2020}]->(b:Person {name: 'Bob'}) RETURN a.name AS name"
+      "CREATE (a:Person:Admin {name: 'Alice', age: 30})-[:KNOWS {since: 2020}]->(b:Company {name: 'Acme'}) RETURN a.name AS name"
     );
 
     expect(result.stats).toMatchObject({
       nodesCreated: 2,
       relationshipsCreated: 1,
-      // every label on every new node counts
+      // Each label is used once: servers differ on whether a label repeated
+      // across new nodes counts once or per node
       labelsAdded: 3,
       propertiesSet: 4,
       nodesDeleted: 0,
