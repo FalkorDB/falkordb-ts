@@ -230,8 +230,8 @@ without `readonly` behaves as before.
 replicas never served a query.
 
 Replicas can lag behind their master, so a read that follows a write may not see it yet. If a read must see a
-write that was just made, connect through a master, or run the read with `graph.query`, which always goes to the
-master.
+write that was just made, connect through a master without `readonly: true`, or run the read with `graph.query`,
+which always goes to the master.
 
 ## Fixed in v7
 
