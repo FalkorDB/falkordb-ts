@@ -143,21 +143,23 @@ immediately with a clear message.
   In v6 a `Date`, `Map` or `Set` was silently sent as `{}`, and a class instance lost its computed and inherited
   properties. These checks also hold for values created in another realm, such as a `vm` context.
 
-  ```typescript
-  // v6: sent {name: "Alice", createdAt: {}}
-  await graph.query('CREATE (:User $props)', { params: { props: user } })
-
-  // v7
-  await graph.query('CREATE (:User $props)', {
-    params: { props: { ...user, createdAt: user.createdAt.toISOString() } },
-  })
-  ```
-
 - **`NaN` and `Infinity` throw** a `TypeError` instead of producing a query the server rejects.
 - **Parameter names and map keys are quoted**, so names such as `my-key` or `@type` now work
   (reference them in the query as `` $`my-key` ``). An empty name, or one that contains the `` ` `` character, throws a
   `TypeError`, because the server cannot represent it. If you compare the generated `CYPHER ...` header text in your own
   tests, expect the names to be quoted.
+
+For example, a class instance with a `Date` field is converted to a plain object first:
+
+```typescript
+// v6: sent {name: "Alice", createdAt: {}}
+await graph.query('CREATE (:User $props)', { params: { props: user } })
+
+// v7
+await graph.query('CREATE (:User $props)', {
+  params: { props: { ...user, createdAt: user.createdAt.toISOString() } },
+})
+```
 
 New in v7: `bigint` values are supported, and typed arrays such as a `Float32Array` vector are sent as lists.
 
