@@ -471,12 +471,16 @@ export default class Graph {
   }
 
   /**
-   * Copies the graph to `destGraph` (`GRAPH.COPY`) and returns the copy, the
-   * same instance `selectGraph(destGraph)` returns.
+   * Copies the graph to `destGraph` (`GRAPH.COPY`) and returns the copy: for
+   * a graph from `selectGraph`, the instance `selectGraph(destGraph)` returns.
    */
   async copy(destGraph: string): Promise<Graph> {
     await this.#client.copy(this.#name, destGraph);
-    return this.#selectGraph?.(destGraph) ?? new Graph(this.#client, destGraph);
+    const copy = this.#selectGraph?.(destGraph);
+    if (!copy) return new Graph(this.#client, destGraph);
+    // Names cached for a graph that had this name before do not apply
+    copy.clearMetadataCache();
+    return copy;
   }
 
   #pendingMetadata?: {

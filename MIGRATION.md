@@ -200,8 +200,9 @@ A name containing the `` ` `` character, such as one you quoted yourself, now th
 
 ## 9. `copy` returns the new `Graph`
 
-`graph.copy(name)` now resolves to the `Graph` for the copy, the same instance `db.selectGraph(name)` returns,
-instead of the server's `'OK'`.
+`graph.copy(name)` now resolves to the `Graph` for the copy instead of the server's `'OK'`. For a graph from
+`db.selectGraph`, that is the instance `db.selectGraph(name)` returns; a `Graph` constructed directly returns a
+new instance.
 
 **Why:** the reply carried no information, so every caller had to select the new graph themselves before using
 it.
