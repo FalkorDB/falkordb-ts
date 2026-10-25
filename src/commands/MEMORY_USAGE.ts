@@ -8,7 +8,8 @@ export function parseCommand(
   key: string,
   options?: MemoryUsageOptions
 ): void {
-  parser.push("GRAPH.MEMORY", "USAGE", key);
+  parser.push("GRAPH.MEMORY", "USAGE");
+  parser.pushKey(key);
   if (options?.SAMPLES) {
     parser.push(String(options.SAMPLES));
   }

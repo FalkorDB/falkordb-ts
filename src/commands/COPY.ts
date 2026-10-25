@@ -1,7 +1,9 @@
 import { CommandParser } from '@redis/client';
 
 export function parseCommand(parser: CommandParser, srcGraph: string, destGraph: string): void {
-    parser.push('GRAPH.COPY', srcGraph, destGraph);
+    parser.push('GRAPH.COPY');
+    parser.pushKey(srcGraph);
+    parser.pushKey(destGraph);
 }
 
 export function transformArguments( srcGraph: string, destGraph: string): Array<string> {

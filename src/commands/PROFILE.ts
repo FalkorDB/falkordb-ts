@@ -2,7 +2,8 @@ import { CommandParser } from '@redis/client';
 
 export const FIRST_KEY_INDEX = 1;
 
-export const IS_READ_ONLY = true;
+// PROFILE executes the query, which may write
+export const IS_READ_ONLY = false;
 
 export function parseCommand(parser: CommandParser, key: string, query: string): void {
     parser.push('GRAPH.PROFILE');

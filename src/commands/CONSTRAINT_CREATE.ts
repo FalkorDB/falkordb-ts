@@ -12,9 +12,10 @@ export function parseCommand(
     entityType: EntityType,
     label: string,
     ...properties: string[]): void {
+    parser.push('GRAPH.CONSTRAINT', 'CREATE');
+    parser.pushKey(key);
     parser.push(
-        'GRAPH.CONSTRAINT', 'CREATE',
-        key, constraintType, entityType, label, 
+        constraintType, entityType, label,
         'PROPERTIES', properties.length.toString(), ...properties
     );
 }
