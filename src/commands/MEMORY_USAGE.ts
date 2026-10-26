@@ -10,8 +10,8 @@ export function parseCommand(
 ): void {
   parser.push("GRAPH.MEMORY", "USAGE");
   parser.pushKey(key);
-  if (options?.SAMPLES) {
-    parser.push(String(options.SAMPLES));
+  if (options?.SAMPLES !== undefined) {
+    parser.push("SAMPLES", String(options.SAMPLES));
   }
 }
 
@@ -20,7 +20,9 @@ export function transformArguments(
   options?: MemoryUsageOptions
 ): Array<string> {
   const args = ["GRAPH.MEMORY", "USAGE", key];
-  return options?.SAMPLES ? [...args, String(options.SAMPLES)] : [...args];
+  return options?.SAMPLES !== undefined
+    ? [...args, "SAMPLES", String(options.SAMPLES)]
+    : args;
 }
 
 export function transformReply(reply: unknown): MemoryUsageReply {
