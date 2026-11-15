@@ -11,6 +11,7 @@ import { Single } from './clients/single';
 import { Sentinel, type SentinelOptions } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
+import { serverMode } from './server-mode';
 import type { FalkorDBOptions, SingleGraphConnection, TypedRedisClientOptions } from './types';
 
 export type {
@@ -50,11 +51,11 @@ function initialReconnectStrategy(retries: number, cause: Error, tlsEnabled: boo
 
 async function clientFactory(client: SingleGraphConnection, sentinelOptions: SentinelOptions) {
 
-    const info = await client.info("server")
+    const mode = serverMode(await client.info("server"))
 
-    if (info.includes("redis_mode:sentinel")) {
+    if (mode === "sentinel") {
         return new Sentinel(client, sentinelOptions)
-    } else if (info.includes("redis_mode:cluster")) {
+    } else if (mode === "cluster") {
         // Connecting through a replica (or asking for `readonly`) opts in to
         // serving read-only commands from replicas, see `Cluster`.
         const replication = await client.info("replication");
