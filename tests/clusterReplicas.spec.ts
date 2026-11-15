@@ -64,7 +64,7 @@ function bulkString(value: string) {
  * A cluster node that answers `INFO server` and `INFO replication` with the
  * given role, and `+OK` to everything else.
  */
-async function fakeClusterNode(role: 'master' | 'slave', options: { readonly?: boolean } = {}) {
+async function fakeClusterNode(role: 'master' | 'slave' | 'replica', options: { readonly?: boolean } = {}) {
   const server = net.createServer(socket => {
     accepted.push(socket);
     let buffer = '';
@@ -168,6 +168,13 @@ describe('Cluster replicas', () => {
     it('uses replicas when connecting through a replica', async () => {
       const { createCluster } = mockCluster();
       const db = await fakeClusterNode('slave');
+      expect(useReplicasOption(createCluster)).toBe(true);
+      await db.close();
+    });
+
+    it('uses replicas when the node reports its role as replica', async () => {
+      const { createCluster } = mockCluster();
+      const db = await fakeClusterNode('replica');
       expect(useReplicasOption(createCluster)).toBe(true);
       await db.close();
     });
