@@ -310,7 +310,8 @@ describe('Sentinel Integration Tests', () => {
     });
 
     it('should handle cleanup operations through sentinel', async () => {
-        const graph = sentinelClient.selectGraph(graphName('cleanup-graph'));
+        // Registered so afterEach removes it if a check fails before the delete
+        const graph = selectGraph('cleanup-graph');
         await graph.query('CREATE ()');
         expect(await sentinelClient.list()).toContain(graph.name);
 
