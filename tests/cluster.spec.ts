@@ -1,6 +1,7 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import { createClient } from 'redis';
 import FalkorDB from '../src/falkordb';
+import { isReplica } from '../src/replication-role';
 import { ConstraintType, EntityType } from '../src/graph';
 
 function getRandomNumber(): number {
@@ -342,7 +343,7 @@ describe('Cluster Client through a replica', () => {
 
             const replicas = [];
             for (const node of nodes) {
-                if ((await node.info('replication')).includes('role:slave')) replicas.push(node);
+                if (isReplica(await node.info('replication'))) replicas.push(node);
             }
             expect(replicas.length).toBeGreaterThan(0);
             const count = async () => {

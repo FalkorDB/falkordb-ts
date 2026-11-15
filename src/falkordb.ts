@@ -12,6 +12,7 @@ import { Sentinel, type SentinelOptions } from './clients/sentinel';
 import { Cluster } from './clients/cluster';
 import { NullClient } from './clients/nullClient';
 import { serverMode } from './server-mode';
+import { isReplica } from './replication-role';
 import type { FalkorDBOptions, SingleGraphConnection, TypedRedisClientOptions } from './types';
 
 export type {
@@ -59,7 +60,7 @@ async function clientFactory(client: SingleGraphConnection, sentinelOptions: Sen
         // Connecting through a replica (or asking for `readonly`) opts in to
         // serving read-only commands from replicas, see `Cluster`.
         const replication = await client.info("replication");
-        const useReplicas = client.options?.readonly === true || /^role:slave\r?$/m.test(replication);
+        const useReplicas = client.options?.readonly === true || isReplica(replication);
         return new Cluster(client, { useReplicas });
     }
     return new Single(client)
