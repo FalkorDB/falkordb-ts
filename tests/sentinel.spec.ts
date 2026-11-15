@@ -399,10 +399,12 @@ describe('Sentinel Integration Tests', () => {
         const tempClient = await FalkorDB.connect({
             socket: { host: 'sentinel-2', port: 26380 },
         });
-        expect(await tempClient.info()).toEqual(expect.arrayContaining(['# Running queries']));
-
-        // close() also disconnects the sentinel connection
-        await tempClient.close();
+        try {
+            expect(await tempClient.info()).toEqual(expect.arrayContaining(['# Running queries']));
+        } finally {
+            // close() also disconnects the sentinel connection
+            await tempClient.close();
+        }
         await expect(tempClient.info()).rejects.toThrow(ClientClosedError);
     });
 
