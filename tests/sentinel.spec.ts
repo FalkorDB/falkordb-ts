@@ -47,7 +47,7 @@ describe('Sentinel Integration Tests', () => {
     // talks to the sentinel itself instead of the master it names (as it did
     // on Valkey, which reports `server_mode:sentinel`). This one does not.
     it('sends commands to the master the sentinel names', async () => {
-        const graph = sentinelClient.selectGraph(`sentinel-master-${process.pid}`);
+        const graph = sentinelClient.selectGraph(`sentinel-master-${process.pid}-${Date.now()}`);
         try {
             await graph.query('CREATE (:Probe {value: 1})');
             const result = await graph.roQuery<{ value: number }>('MATCH (p:Probe) RETURN p.value AS value');
