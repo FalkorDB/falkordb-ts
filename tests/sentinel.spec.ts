@@ -43,6 +43,21 @@ describe('Sentinel Integration Tests', () => {
         expect(sentinelClient).toBeDefined();
     });
 
+    // The tests below accept any error, so they pass even when the client
+    // talks to the sentinel itself instead of the master it names (as it did
+    // on Valkey, which reports `server_mode:sentinel`). This one does not.
+    it('sends commands to the master the sentinel names', async () => {
+        const graph = sentinelClient.selectGraph(`sentinel-master-${process.pid}`);
+        try {
+            await graph.query('CREATE (:Probe {value: 1})');
+            const result = await graph.roQuery<{ value: number }>('MATCH (p:Probe) RETURN p.value AS value');
+            expect(result.data).toEqual([{ value: 1 }]);
+        } finally {
+            // Without a master connection this fails too; keep the first error
+            await graph.delete().catch(() => undefined);
+        }
+    });
+
     it('should execute query through sentinel', async () => {
         try {
             const graph = sentinelClient.selectGraph('test-graph');
