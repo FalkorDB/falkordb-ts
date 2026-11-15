@@ -42,19 +42,23 @@ describe("Single Client Tests", () => {
     }
   });
 
+  // Fails rather than passes when beforeAll could not connect: a test that
+  // returns early without running would report success
   function skipIfNoClient(testFn: () => void | Promise<void>) {
     return async () => {
       if (!singleClient) {
-        return;
+        throw new Error("No FalkorDB connection; see the error logged by beforeAll");
       }
       await testFn();
     };
   }
 
+  // Fails rather than passes when beforeAll could not connect: a test that
+  // returns early without running would report success
   function skipIfNoPooledClient(testFn: () => void | Promise<void>) {
     return async () => {
       if (!pooledClient) {
-        return;
+        throw new Error("No FalkorDB connection; see the error logged by beforeAll");
       }
       await testFn();
     };
@@ -285,16 +289,27 @@ describe("Single Client Tests", () => {
             "Person",
             "email"
           );
+          // Enforced asynchronously: wait until the server reports it built
+          const deadline = Date.now() + 10000;
+          let constraints = await graph.listConstraints();
+          while (constraints[0]?.status !== "OPERATIONAL" && Date.now() < deadline) {
+            await new Promise((resolve) => setTimeout(resolve, 50));
+            constraints = await graph.listConstraints();
+          }
+          expect(constraints).toEqual([
+            { type: "UNIQUE", label: "Person", properties: ["email"], entityType: "NODE", status: "OPERATIONAL" },
+          ]);
+
           await graph.constraintDrop(
             ConstraintType.UNIQUE,
             EntityType.NODE,
             "Person",
             "email"
           );
-        } catch (error) {
-          expect(error).toBeDefined();
+          expect(await graph.listConstraints()).toEqual([]);
+        } finally {
+          await graph.delete().catch(() => {});
         }
-        await graph.delete();
       })
     );
 
@@ -758,10 +773,12 @@ describe("Single Client Tests", () => {
         await graph.query("CREATE (n:Test)");
         await graph.delete();
 
+        // Querying a deleted graph starts a new, empty one under that name
         try {
-          await graph.query("MATCH (n) RETURN n");
-        } catch (error) {
-          expect(error).toBeDefined();
+          const result = await graph.query("MATCH (n) RETURN n");
+          expect(result.data).toEqual([]);
+        } finally {
+          await graph.delete().catch(() => {});
         }
       })
     );

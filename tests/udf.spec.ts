@@ -21,8 +21,9 @@ describe("UDF API Tests", () => {
 
   function skipIfNoClient(testFn: () => void | Promise<void>) {
     return async () => {
+      // Fail rather than pass when beforeAll could not connect
       if (!falkorClient) {
-        return;
+        throw new Error("No FalkorDB connection; see the error logged by beforeAll");
       }
       await testFn();
     };
