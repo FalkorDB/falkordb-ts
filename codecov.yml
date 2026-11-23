@@ -1,0 +1,14 @@
+# Project coverage flips between two results on identical code (e.g. main at
+# 60a2fc1 vs 7977996: 99.05% vs 99.07%) because a few lines in the sentinel and
+# graph suites are timing dependent. With Codecov's default zero tolerance that
+# noise fails `codecov/project` on unrelated PRs, so allow a small drop. Real
+# regressions in changed code are still caught by `codecov/patch`.
+coverage:
+  status:
+    project:
+      default:
+        target: auto
+        threshold: 0.1%
+    patch:
+      default:
+        target: auto
