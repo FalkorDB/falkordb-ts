@@ -89,9 +89,10 @@ export class Cluster implements Client {
     options?: QueryOptions,
     compact = true,
     version?: number,
-    exactIntegers = false
+    exactIntegers = false,
+    schemaHash?: string
   ) {
-    return this.#withIntegers(exactIntegers).falkordb.query(graph, query, options, compact, version);
+    return this.#withIntegers(exactIntegers).falkordb.query(graph, query, options, compact, version, schemaHash);
   }
 
   #withIntegers(exactIntegers: boolean) {
@@ -106,19 +107,20 @@ export class Cluster implements Client {
     compact = true,
     version?: number,
     primary = false,
-    exactIntegers = false
+    exactIntegers = false,
+    schemaHash?: string
   ) {
     if (primary) {
       // Still GRAPH.RO_QUERY, so read-only users can run it, but routed to the
       // slot's master as a write would be
-      const args = RO_QUERY.transformArguments(graph, query, options, compact, version);
+      const args = RO_QUERY.transformArguments(graph, query, options, compact, version, schemaHash);
       return RO_QUERY.transformReply(
         exactIntegers
           ? await this.#client.sendCommand(graph, false, args, { typeMapping: EXACT_INTEGERS })
           : await this.#client.sendCommand(graph, false, args)
       );
     }
-    return this.#withIntegers(exactIntegers).falkordb.roQuery(graph, query, options, compact, version);
+    return this.#withIntegers(exactIntegers).falkordb.roQuery(graph, query, options, compact, version, schemaHash);
   }
 
   async delete(graph: string) {

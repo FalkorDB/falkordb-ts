@@ -81,7 +81,8 @@ export function pushQueryArguments(
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
     compact?: boolean,
-    version?: number
+    version?: number,
+    schemaHash?: string
 ): Array<RedisArgument> {
     args.push(graph);
 
@@ -102,6 +103,14 @@ export function pushQueryArguments(
 
     if (compact) {
         args.push('--compact');
+    }
+
+    // Last, after `--compact`, which the server requires it to come with
+    if (schemaHash !== undefined) {
+        if (!compact) {
+            throw new TypeError('SCHEMA_HASH requires a compact query');
+        }
+        args.push('SCHEMA_HASH', schemaHash);
     }
 
     return args;

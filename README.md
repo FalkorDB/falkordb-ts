@@ -115,6 +115,20 @@ console.log(stats.cachedExecution)            // false
 
 Version 7 removed the raw `metadata` lines (such as `"Nodes created: 1"`) from these replies; read the matching `stats` field instead.
 
+### Schema Cache
+
+Compact replies refer to labels, relationship types and property keys by id, so the client caches the names of each graph.
+On FalkorDB 6.2.0 and later, each query sends the hash of the cached names (`SCHEMA_HASH`), and the server returns the
+current names with the reply whenever they no longer match. A reply therefore decodes with the right names even after
+another client deleted and recreated the graph, and without extra queries to fetch them. Older servers ignore the
+argument, and the client checks the schema `version` instead, as before.
+
+If a proxy between the client and the server rejects unknown arguments, turn it off:
+
+```typescript
+const db = await FalkorDB.connect({ host: 'localhost', port: 6379, schemaHash: false })
+```
+
 ### Connection Options
 
 `host` and `port` are the shorthand for a plain TCP connection and default to `localhost:6379`.

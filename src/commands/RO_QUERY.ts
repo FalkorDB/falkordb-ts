@@ -11,7 +11,8 @@ export function parseCommand(
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
     compact?: boolean,
-    version?: number
+    version?: number,
+    schemaHash?: string
 ): void {
     // The graph is pushed as a key so that cluster clients route the command
     // to the graph's shard rather than a random node
@@ -21,7 +22,8 @@ export function parseCommand(
         query,
         options,
         compact,
-        version
+        version,
+        schemaHash
     );
     parser.push('GRAPH.RO_QUERY');
     parser.pushKey(graph);
@@ -33,7 +35,8 @@ export function transformArguments(
     query: RedisArgument,
     options?: QueryOptionsBackwardCompatible,
     compact?: boolean,
-    version?: number
+    version?: number,
+    schemaHash?: string
 ): Array<RedisArgument> {
     return pushQueryArguments(
         ['GRAPH.RO_QUERY'],
@@ -41,7 +44,8 @@ export function transformArguments(
         query,
         options,
         compact,
-        version
+        version,
+        schemaHash
     );
 }
 

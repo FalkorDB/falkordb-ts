@@ -43,6 +43,8 @@ export interface Client {
   /**
    * @param exactIntegers Return integer replies as strings of their exact
    * digits (see `EXACT_INTEGERS`)
+   * @param schemaHash Sent as `SCHEMA_HASH`, so the reply carries the graph's
+   * schema (FalkorDB 6.2.0 and later)
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   query<T>(
@@ -51,7 +53,8 @@ export interface Client {
     options?: QueryOptions,
     compact?: boolean,
     version?: number,
-    exactIntegers?: boolean
+    exactIntegers?: boolean,
+    schemaHash?: string
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -66,6 +69,7 @@ export interface Client {
    * by replicas, for a reply that must be at least as new as the master's
    * @param exactIntegers Return integer replies as strings of their exact
    * digits (see `EXACT_INTEGERS`)
+   * @param schemaHash Sent as `SCHEMA_HASH`, see `query`
    */
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   roQuery<T>(
@@ -75,7 +79,8 @@ export interface Client {
     compact?: boolean,
     version?: number,
     primary?: boolean,
-    exactIntegers?: boolean
+    exactIntegers?: boolean,
+    schemaHash?: string
   ): Promise<any>;
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
