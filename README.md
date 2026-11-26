@@ -118,10 +118,12 @@ Version 7 removed the raw `metadata` lines (such as `"Nodes created: 1"`) from t
 ### Schema Cache
 
 Compact replies refer to labels, relationship types and property keys by id, so the client caches the names of each graph.
-On FalkorDB 6.2.0 and later, each query sends the hash of the cached names (`SCHEMA_HASH`), and the server returns the
-current names with the reply whenever they no longer match. A reply therefore decodes with the right names even after
-another client deleted and recreated the graph, and without extra queries to fetch them. Older servers ignore the
-argument, and the client checks the schema `version` instead, as before.
+`graph.query`, `graph.roQuery` and the methods built on them (such as `graph.callProcedure`) send `SCHEMA_HASH` with each
+query. The first query for a graph sends `SCHEMA_HASH 0`, which tells whether the server supports it. On FalkorDB 6.2.0 and
+later, later queries send the hash of the cached names, and the server returns the current names with the reply whenever
+they no longer match. A reply therefore decodes with the right names even after another client deleted and recreated
+the graph, and without extra queries to fetch them. Older servers ignore the argument, and the client checks the schema
+`version` instead, as before. `graph.explain` and `graph.profile` return no ids to decode, and send no hash.
 
 If a proxy between the client and the server rejects unknown arguments, turn it off:
 

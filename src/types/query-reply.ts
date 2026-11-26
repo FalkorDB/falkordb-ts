@@ -6,12 +6,25 @@ type Data = Array<string | number | null | Data>;
 
 type Metadata = Array<string>;
 
+// ['hash', h, 'labels', [...], 'relationshipTypes', [...], 'propertyKeys', [...]],
+// or ['hash', h] alone
+type SchemaElement = Array<string | number | Array<string>>;
+
 export type QueryRawReply = [
     headers: Headers,
     data: Data,
     metadata: Metadata
 ] | [
     metadata: Metadata
+] | [
+    // A query sent with `SCHEMA_HASH` to FalkorDB 6.2.0 or later
+    headers: Headers,
+    data: Data,
+    metadata: Metadata,
+    schema: SchemaElement
+] | [
+    metadata: Metadata,
+    schema: SchemaElement
 ];
 
 /**

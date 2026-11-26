@@ -463,7 +463,7 @@ describe("Single Client Tests", () => {
     // leaves FalkorDB 6.0.x. See tests/globalSetup.ts.
     const itWithHashedSchemaVersion =
       process.env.FALKORDB_SCHEMA_VERSION === "counter" &&
-      process.env.FALKORDB_SCHEMA_HASH !== "supported"
+      process.env.FALKORDB_SCHEMA_HASH === "unsupported"
         ? it.skip
         : it;
 

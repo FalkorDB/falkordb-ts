@@ -1,4 +1,4 @@
-import { describe, it, expect } from '@jest/globals';
+import { describe, it, expect, jest } from '@jest/globals';
 import Graph, { GraphSchemaState } from '../src/graph';
 import { Client } from '../src/clients/client';
 import * as QUERY from '../src/commands/QUERY';
@@ -277,29 +277,33 @@ describe('SCHEMA_HASH', () => {
             expect(state.sent.at(-1)?.hash).toBe(state.hashOf(names(['Movie'], ['title'])));
         });
 
-        it('keeps the cached names when a reply carries an older schema', async () => {
-            const { state, client } = server(names(['A', 'B'], ['p']));
+        it('does not let a reply to a query sent with an older hash replace the cache', async () => {
+            const { state, client } = server(names(['A'], ['p']));
             const graph = new Graph(client, 'g');
-
-            // A replica that is behind answers a read sent with the old hash
-            // after the newer names were cached
             await read(graph);
-            const newer = state.hashOf(state.schema);
+
+            // Two reads sent with the same hash: the first is held after the
+            // server ran it on schema B, the second runs on schema C and
+            // updates the cache first
+            state.schema = names(['B'], ['q']);
             let release!: () => void;
             state.hold = new Promise<void>((resolve) => (release = resolve));
-            state.schema = names(['A'], ['p']);
-            const behind = read(graph, true);
-            state.schema = names(['A', 'B'], ['p']);
+            const crossed = read(graph, true);
+            state.schema = names(['C'], ['r']);
+            expect(await read(graph, true)).toEqual({ labels: ['C'], properties: { r: 'v' } });
             release();
-            expect(await behind).toEqual({ labels: ['A'], properties: { p: 'v' } });
+            expect(await crossed).toEqual({ labels: ['B'], properties: { q: 'v' } });
 
             await read(graph);
-            expect(state.sent.at(-1)?.hash).toBe(newer);
+            expect(state.sent.at(-1)?.hash).toBe(state.hashOf(names(['C'], ['r'])));
         });
 
         it.each([
             ['the graph grew', names(['A'], ['p']), names(['A', 'B'], ['p', 'q'])],
             ['the graph was recreated', names(['A', 'B'], ['p']), names(['B', 'A'], ['p'])],
+            // The new names are a prefix of the cached ones, as a replica that
+            // is behind would send
+            ['the graph was recreated with fewer names', names(['A', 'B'], ['p', 'q']), names(['A'], ['p'])],
         ])('replaces the cached names when %s', async (_case, before, after) => {
             const { state, client } = server(before);
             const graph = new Graph(client, 'g');
@@ -414,6 +418,58 @@ describe('SCHEMA_HASH', () => {
                 expect(state.fetches).toBe(3);
                 await read(graph);
                 expect(state.sent.at(-1)).toMatchObject({ version: 0, hash: '0' });
+            });
+
+            it('decodes every hash-only reply the older server sent with names fetched afresh', async () => {
+                const { state, client } = server(names(['A'], ['p']));
+                const graph = new Graph(client, 'g');
+                await read(graph);
+
+                // Two reads in flight when the server stops answering
+                // SCHEMA_HASH; the second finishes first and fetches names,
+                // then the graph is recreated before the first reply arrives
+                state.supportsHash = false;
+                let release!: () => void;
+                state.hold = new Promise<void>((resolve) => (release = resolve));
+                const first = read(graph, true);
+                expect(await read(graph, true)).toEqual({ labels: ['A'], properties: { p: 'v' } });
+                state.schema = names(['B'], ['q']);
+                release();
+                expect(await first).toEqual({ labels: ['B'], properties: { q: 'v' } });
+            });
+
+            it('asks again now and then whether the server supports SCHEMA_HASH when it cannot send it with version', async () => {
+                let now = 1_000_000;
+                jest.spyOn(Date, 'now').mockImplementation(() => now);
+                const { state, client } = server(names(['A'], ['p']), { supportsHash: false });
+                const graph = new Graph(client, 'g');
+                const timed = () => graph.query<Row>('MATCH (n) RETURN n', { TIMEOUT: 100 });
+                const sent = () => {
+                    const { version, hash } = state.sent.at(-1)!;
+                    return { version, hash };
+                };
+
+                await timed();
+                await timed();
+                expect(sent()).toEqual({ version: 0, hash: undefined });
+
+                // A minute on: one probe, decoded with names fetched afresh
+                now += 60_000;
+                const fetches = state.fetches;
+                state.schema = names(['B'], ['q']);
+                expect((await timed()).data![0].n.labels).toEqual(['B']);
+                expect(sent()).toEqual({ version: undefined, hash: '0' });
+                expect(state.fetches).toBe(fetches + 3);
+                await timed();
+                expect(sent()).toEqual({ version: 0, hash: undefined });
+
+                // Upgraded meanwhile: the next probe finds it out
+                state.supportsHash = true;
+                now += 60_000;
+                await timed();
+                await timed();
+                expect(sent()).toEqual({ version: undefined, hash: state.hashOf(state.schema) });
+                jest.restoreAllMocks();
             });
         });
 

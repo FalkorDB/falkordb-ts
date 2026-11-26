@@ -91,6 +91,12 @@ const MAX_VERSIONED_READS = 5;
 // one pair too many
 const MAX_QUERY_ARGUMENTS = 8;
 
+// How often a server found not to answer `SCHEMA_HASH` is asked again by a
+// query that cannot send it alongside `version`, e.g. one with a timeout, so
+// that an upgrade is noticed. Such a probe is checked by neither, so its
+// reply is decoded with names fetched afresh.
+const SCHEMA_HASH_PROBE_INTERVAL_MS = 60_000;
+
 // The names of a graph with no labels, relationship types or property keys,
 // whose schema hash is 0
 const NO_NAMES: GraphMetadata = Object.freeze({
@@ -124,6 +130,9 @@ interface SchemaCheck {
   hash?: string;
   // The names the reply decodes with if the server confirms `hash`
   snapshot?: SchemaSnapshot;
+  // Only the hash checks the reply: `version` was left out for it. A reply
+  // without a schema element was then checked by nothing.
+  hashOnly?: boolean;
   // `GraphSchemaState.generation` when the query was sent
   generation: number;
 }
@@ -147,6 +156,9 @@ export interface GraphSchemaState {
   // hash instead of `version`, and the server replies with new names when it
   // no longer matches.
   snapshot?: SchemaSnapshot;
+  // When a query last asked a server without `SCHEMA_HASH` support whether it
+  // has it now, see `SCHEMA_HASH_PROBE_INTERVAL_MS`
+  probedAt?: number;
 }
 
 export interface GraphCacheOptions {
@@ -158,17 +170,6 @@ export interface GraphCacheOptions {
   integers?: "number" | "bigint";
   // Whether queries send `SCHEMA_HASH`, see `FalkorDBOptions`
   schemaHash?: boolean;
-}
-
-// Whether every list in `older` starts with the corresponding list in
-// `newer`: names are only ever appended, so `newer` is then the same schema
-// or a later one
-function isPrefixOf(older: GraphMetadata, newer: GraphMetadata): boolean {
-  return (["labels", "relationshipTypes", "propertyKeys"] as const).every(
-    (key) =>
-      older[key].length <= newer[key].length &&
-      older[key].every((name, i) => newer[key][i] === name)
-  );
 }
 
 // Unknown value types already warned about, so each is reported only once
@@ -276,7 +277,8 @@ export default class Graph {
    * - otherwise `version`, as on servers without it, and `SCHEMA_HASH 0` too
    *   where it fits, so the server can show it supports it. Until a reply
    *   shows whether it does, `SCHEMA_HASH` is the one kept when both do not
-   *   fit: nothing has been cached that `version` would protect.
+   *   fit: nothing has been cached that `version` would protect. Once one
+   *   shows it does not, `version` is, except for a probe now and then.
    */
   #schemaCheck(version: number | undefined, options?: QueryOptions): SchemaCheck {
     const generation = this.#schema.generation;
@@ -284,7 +286,7 @@ export default class Graph {
 
     if (this.#schema.hashSupport) {
       const snapshot = this.#schema.snapshot;
-      return { hash: snapshot?.hash ?? "0", snapshot, generation };
+      return { hash: snapshot?.hash ?? "0", snapshot, hashOnly: true, generation };
     }
 
     // GRAPH.QUERY graph query [TIMEOUT ms] [version v] --compact SCHEMA_HASH h.
@@ -296,9 +298,14 @@ export default class Graph {
     if (length <= MAX_QUERY_ARGUMENTS) {
       return { version, hash: "0", generation };
     }
-    return this.#schema.hashSupport === false
-      ? { version, generation }
-      : { hash: "0", generation };
+    if (this.#schema.hashSupport === false) {
+      const now = Date.now();
+      if (now - (this.#schema.probedAt ?? 0) < SCHEMA_HASH_PROBE_INTERVAL_MS) {
+        return { version, generation };
+      }
+      this.#schema.probedAt = now;
+    }
+    return { hash: "0", hashOnly: true, generation };
   }
 
   /**
@@ -309,20 +316,25 @@ export default class Graph {
   #namesFor(reply: QueryReply, check: SchemaCheck): GraphMetadata | undefined {
     const { schema } = reply;
     if (!schema) {
-      if (check.hash !== undefined) {
-        if (this.#schema.hashSupport && check.version === undefined) {
-          // The server stopped answering SCHEMA_HASH, e.g. after a failover
-          // to an older one, and nothing else checked the cached names
-          this.clearMetadataCache();
-        }
+      if (check.hash !== undefined && this.#schema.hashSupport !== false) {
         this.#schema.hashSupport = false;
+        this.#schema.probedAt = Date.now();
+        // No longer kept up to date, so it must not outlast an upgrade
+        this.#schema.snapshot = undefined;
+      }
+      if (check.hashOnly) {
+        // The server ignored SCHEMA_HASH, e.g. after a failover to an older
+        // one, and `version` was not sent: nothing checked the cached names,
+        // so the reply is decoded with names fetched afresh. Done for every
+        // such reply, even once another one has already found this out.
+        this.clearMetadataCache();
       }
       return undefined;
     }
 
     this.#schema.hashSupport = true;
     if (schema.names) {
-      this.#offerSnapshot({ hash: schema.hash, names: schema.names }, check.generation);
+      this.#offerSnapshot({ hash: schema.hash, names: schema.names }, check);
       return schema.names;
     }
     if (schema.hash === check.hash) {
@@ -334,22 +346,19 @@ export default class Graph {
   }
 
   /**
-   * Caches names a reply carried, unless the cache already holds the same
-   * schema or a newer one: names are only ever appended, so a reply whose
-   * names the cached ones start with comes from a replica that is behind, or
-   * crossed a newer reply. Whichever reply wins, each decodes correctly with
-   * the names it was sent with or carried; this only saves resending them.
+   * Caches names a reply carried when its query was sent with the hash cached
+   * now, so the server said that hash is stale, or when nothing is cached. A
+   * reply to a query sent with an older hash crossed a newer reply that
+   * already updated the cache, and is not cached: the newer names may well be
+   * the newer schema, which a recreated graph's names cannot tell, and if they
+   * are not, the next query brings the right ones. Each reply decodes
+   * correctly whichever is cached; this only saves resending names.
    */
-  #offerSnapshot(snapshot: SchemaSnapshot, generation: number) {
+  #offerSnapshot(snapshot: SchemaSnapshot, check: SchemaCheck) {
     // Not cached when the graph was deleted while the query ran
-    if (generation !== this.#schema.generation) return;
+    if (check.generation !== this.#schema.generation) return;
     const current = this.#schema.snapshot;
-    if (
-      current &&
-      (current.hash === snapshot.hash || isPrefixOf(snapshot.names, current.names))
-    ) {
-      return;
-    }
+    if (current && current.hash !== check.hash) return;
     this.#schema.snapshot = snapshot;
   }
 

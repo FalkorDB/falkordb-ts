@@ -5,8 +5,8 @@ import { Single } from '../src/clients/single';
 import { client } from './dbConnection';
 import type { QueryReply } from '../src/types';
 
-// What tests/globalSetup.ts found the server under test to do
-const SCHEMA_HASH = process.env.FALKORDB_SCHEMA_HASH === 'supported';
+// Whether the server under test versions a graph's schema with a hash of its
+// names, as tests/globalSetup.ts found
 const HASHED_VERSION = process.env.FALKORDB_SCHEMA_VERSION === 'hash';
 
 // The queries the client fetches a graph's names with on older servers
@@ -21,9 +21,23 @@ describe('SCHEMA_HASH against the server', () => {
     let other: FalkorDB;
     const graphs: Graph[] = [];
 
+    // Whether the server answers SCHEMA_HASH (FalkorDB 6.2.0 and later),
+    // probed here so that a failed probe fails the suite instead of reading
+    // as an older server
+    let SCHEMA_HASH: boolean;
+
     beforeAll(async () => {
         db = await client();
         other = await client();
+
+        const probe = graphName('probe');
+        const connection = await db.connection;
+        const reply = (await connection.sendCommand([
+            'GRAPH.QUERY', probe, 'RETURN 1', '--compact', 'SCHEMA_HASH', '0',
+        ])) as unknown[];
+        await connection.sendCommand(['GRAPH.DELETE', probe]).catch(() => {});
+        const last = reply[reply.length - 1];
+        SCHEMA_HASH = Array.isArray(last) && last[0] === 'hash';
     });
 
     afterEach(async () => {
@@ -178,17 +192,20 @@ describe('SCHEMA_HASH against the server', () => {
         const graph = select(db, graphName('concurrent'));
         await graph.query('CREATE (:L0 {p0: 0})');
 
-        const writes = Array.from({ length: 10 }, (_, i) =>
-            graph.query<Row>(`CREATE (n:L${i + 1} {p${i + 1}: ${i + 1}}) RETURN n`)
-        );
-        const reads = Array.from({ length: 10 }, () =>
-            graph.roQuery<Row>('MATCH (n:L0) RETURN n')
-        );
-        const written = await Promise.all(writes);
+        // Both batches are awaited together, so a rejection in either fails
+        // the test instead of going unhandled
+        const [written, read] = await Promise.all([
+            Promise.all(Array.from({ length: 10 }, (_, i) =>
+                graph.query<Row>(`CREATE (n:L${i + 1} {p${i + 1}: ${i + 1}}) RETURN n`)
+            )),
+            Promise.all(Array.from({ length: 10 }, () =>
+                graph.roQuery<Row>('MATCH (n:L0) RETURN n')
+            )),
+        ]);
         written.forEach((reply, i) =>
             expect(reply.data![0].n).toMatchObject({ labels: [`L${i + 1}`], properties: { [`p${i + 1}`]: i + 1 } })
         );
-        for (const reply of await Promise.all(reads)) {
+        for (const reply of read) {
             expect(reply.data![0].n).toMatchObject({ labels: ['L0'], properties: { p0: 0 } });
         }
 

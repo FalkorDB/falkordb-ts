@@ -16,7 +16,8 @@ const SCHEMA_VERSION_SCHEMES: Array<[RegExp, string]> = [
  * an unknown reply), so that a test run never fails here.
  *
  * Also records in `FALKORDB_SCHEMA_HASH` whether the server answers
- * `SCHEMA_HASH` (FalkorDB 6.2.0 and later): `supported` or `unsupported`.
+ * `SCHEMA_HASH` (FalkorDB 6.2.0 and later): `supported` or `unsupported`,
+ * or unset when that probe fails. Each probe runs whatever the other found.
  */
 export default async function globalSetup() {
     require('dns').setDefaultResultOrder('ipv4first');
@@ -48,17 +49,21 @@ export default async function globalSetup() {
         if (scheme) {
             process.env.FALKORDB_SCHEMA_VERSION = scheme[1];
         }
+    } catch {
+        // Not a FalkorDB, or not one this probe understands: leave it unset
+    }
 
+    try {
         // A server that knows SCHEMA_HASH appends ['hash', h, ...] to the
         // reply; older ones ignore the argument
         const reply = (await client.sendCommand([
-            'GRAPH.RO_QUERY', graph, 'RETURN 1', '--compact', 'SCHEMA_HASH', '0',
+            'GRAPH.QUERY', graph, 'RETURN 1', '--compact', 'SCHEMA_HASH', '0',
         ])) as unknown[];
         const last = reply[reply.length - 1];
         process.env.FALKORDB_SCHEMA_HASH =
             Array.isArray(last) && last[0] === 'hash' ? 'supported' : 'unsupported';
     } catch {
-        // Not a FalkorDB, or not one this probe understands: leave it unset
+        // The probe failed: leave it unset, which tests read as unknown
     } finally {
         await client.sendCommand(['GRAPH.DELETE', graph]).catch(() => {});
         await client.quit().catch(() => {});
