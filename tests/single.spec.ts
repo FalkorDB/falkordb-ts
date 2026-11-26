@@ -431,7 +431,8 @@ describe("Single Client Tests", () => {
     // runs on that client's handle.
     async function decodeAfterExternalRecreate(
       graphName: string,
-      recreate: (other: Graph) => Promise<void>
+      recreate: (other: Graph) => Promise<void>,
+      expected: string[] = ["First"]
     ) {
       const graph = singleClient.selectGraph(graphName);
       try {
@@ -450,22 +451,28 @@ describe("Single Client Tests", () => {
         const result = await graph.query<{ n: { labels: string[] } }>(
           "MATCH (n:First) RETURN n"
         );
-        expect(result.data?.[0].n.labels).toEqual(["First"]);
+        expect(result.data?.[0].n.labels).toEqual(expected);
       } finally {
         await graph.delete().catch(() => {});
       }
     }
 
-    // A counter reaches the old schema version again after as many schema
-    // changes, so on the Rust engine the server cannot tell the client its
-    // names are stale through `version`; the C engine's hash of the names
-    // catches it, and so does SCHEMA_HASH (FalkorDB 6.2.0 and later), which
-    // leaves FalkorDB 6.0.x. See tests/globalSetup.ts.
-    const itWithHashedSchemaVersion =
-      process.env.FALKORDB_SCHEMA_VERSION === "counter" &&
-      process.env.FALKORDB_SCHEMA_HASH === "unsupported"
-        ? it.skip
-        : it;
+    // Whether the server appends the schema to a reply sent with SCHEMA_HASH
+    // (FalkorDB 6.2.0 and later), asked here rather than read from
+    // globalSetup, whose probe leaves it unknown when it fails
+    async function serverAnswersSchemaHash(): Promise<boolean> {
+      const probe = `single-schema-hash-probe-${getRandomNumber()}`;
+      const connection = await singleClient.connection;
+      try {
+        const reply = (await connection.sendCommand([
+          "GRAPH.QUERY", probe, "RETURN 1", "--compact", "SCHEMA_HASH", "0",
+        ])) as unknown[];
+        const last = reply[reply.length - 1];
+        return Array.isArray(last) && last[0] === "hash";
+      } finally {
+        await connection.sendCommand(["GRAPH.DELETE", probe]).catch(() => {});
+      }
+    }
 
     it(
       "should decode labels correctly after another client recreates the graph with another schema version",
@@ -482,14 +489,31 @@ describe("Single Client Tests", () => {
       })
     );
 
-    itWithHashedSchemaVersion(
+    // A counter reaches the old schema version again after as many schema
+    // changes, so on the Rust engine the server cannot tell the client its
+    // names are stale through `version`; the C engine's hash of the names
+    // catches it, and so does SCHEMA_HASH (FalkorDB 6.2.0 and later). That
+    // leaves FalkorDB 6.0.x, where the stale names are asserted instead: each
+    // label id then names the other label. See tests/globalSetup.ts.
+    it(
       "should decode labels correctly after another client recreates the graph with as many schema changes",
       skipIfNoClient(async () => {
+        let expected = ["First"];
+        if (!(await serverAnswersSchemaHash())) {
+          const scheme = process.env.FALKORDB_SCHEMA_VERSION;
+          if (scheme === undefined) {
+            throw new Error(
+              "globalSetup could not tell how this server versions a schema, so the expected labels are unknown"
+            );
+          }
+          if (scheme === "counter") expected = ["Second"];
+        }
         await decodeAfterExternalRecreate(
           `single-reuse-external-same-${getRandomNumber()}`,
           async (other) => {
             await other.query("CREATE (:Second), (:First)");
-          }
+          },
+          expected
         );
       })
     );
