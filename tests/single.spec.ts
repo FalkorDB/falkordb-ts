@@ -458,10 +458,14 @@ describe("Single Client Tests", () => {
 
     // A counter reaches the old schema version again after as many schema
     // changes, so on the Rust engine the server cannot tell the client its
-    // names are stale; only the C engine's hash of the names catches it.
-    // See tests/globalSetup.ts.
+    // names are stale through `version`; the C engine's hash of the names
+    // catches it, and so does SCHEMA_HASH (FalkorDB 6.2.0 and later), which
+    // leaves FalkorDB 6.0.x. See tests/globalSetup.ts.
     const itWithHashedSchemaVersion =
-      process.env.FALKORDB_SCHEMA_VERSION === "counter" ? it.skip : it;
+      process.env.FALKORDB_SCHEMA_VERSION === "counter" &&
+      process.env.FALKORDB_SCHEMA_HASH !== "supported"
+        ? it.skip
+        : it;
 
     it(
       "should decode labels correctly after another client recreates the graph with another schema version",
