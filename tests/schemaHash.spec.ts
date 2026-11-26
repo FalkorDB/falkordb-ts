@@ -49,6 +49,7 @@ describe('SCHEMA_HASH', () => {
             // Read without exact integers it is a number: kept as its digits,
             // rounded, which costs a resend of the names but never wrong names
             expect(parseSchemaElement(['hash', 5])?.hash).toBe('5');
+            expect(parseSchemaElement(['hash', BigInt(BIG_HASH)])?.hash).toBe(BIG_HASH);
         });
 
         it('rejects a malformed hash', () => {
@@ -335,6 +336,15 @@ describe('SCHEMA_HASH', () => {
             const graph = new Graph(client, 'g');
             await expect(read(graph)).rejects.toThrow('Cannot find value from labels[0]');
             expect(state.fetches).toBe(0);
+        });
+
+        it('throws on a reply whose hash differs from the one sent but carries no names', async () => {
+            const client = {
+                query: async () => QUERY.transformReply([STATS, ['hash', '5']] as any),
+            } as unknown as Client;
+            await expect(new Graph(client, 'g').query('CREATE ()')).rejects.toThrow(
+                'Schema hash 5 in reply does not match the hash sent, and carries no names'
+            );
         });
 
         it('never sends more than 8 arguments', async () => {

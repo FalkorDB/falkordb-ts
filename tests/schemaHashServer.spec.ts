@@ -117,6 +117,12 @@ describe('SCHEMA_HASH against the server', () => {
         }
     });
 
+    it('rejects a schemaHash option that is not a boolean', async () => {
+        await expect(
+            FalkorDB.connect({ host: 'localhost', schemaHash: 'yes' as unknown as boolean })
+        ).rejects.toThrow(new TypeError('schemaHash must be a boolean, not "yes"'));
+    });
+
     it('decodes a graph recreated with the same names in the same order', async () => {
         const name = graphName('same');
         const graph = select(db, name);
