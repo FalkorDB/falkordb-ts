@@ -511,6 +511,14 @@ describe('SCHEMA_HASH', () => {
             expect(state.sent[0].exact).toBe(true);
         });
 
+        it('keeps SCHEMA_HASH turned off for a copy', async () => {
+            const { state, client } = server(names(['A'], ['p']));
+            (client as unknown as { copy: () => Promise<string> }).copy = async () => 'OK';
+            const copy = await new Graph(client, 'g', { schemaHash: false }).copy('g2');
+            await read(copy);
+            expect(state.sent.at(-1)?.hash).toBeUndefined();
+        });
+
         it('sends neither SCHEMA_HASH nor exact integers when turned off', async () => {
             const { state, client } = server(names(['A'], ['p']));
             const graph = new Graph(client, 'g', { schemaHash: false });

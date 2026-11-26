@@ -662,6 +662,7 @@ export default class Graph {
     if (!copy) {
       return new Graph(this.#client, destGraph, {
         integers: this.#exactIntegers ? "bigint" : "number",
+        schemaHash: this.#useSchemaHash,
       });
     }
     // Names cached for a graph that had this name before do not apply
