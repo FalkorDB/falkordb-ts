@@ -13,7 +13,8 @@ these workflows:
 1. **CI** (`.github/workflows/node.js.yml`) runs the whole suite on the released commit, against
    the newest FalkorDB 6.x and 4.x, on Node.js 20 and 22.
 2. **Publish to npm** (`.github/workflows/publish.yml`) waits for that CI run, and publishes nothing
-   unless it passes. It then builds the package and sets its version from the tag
+   unless it passes. Only a CI run started for this release counts, not one left over from an
+   earlier release of the same tag. It then builds the package and sets its version from the tag
    (`npm version <tag> --no-git-tag-version`, with a leading `v` dropped). It publishes the package
    to npm with provenance, through npm trusted publishing, so no npm token is involved.
 3. **Polish release notes** (`.github/workflows/release-notes.yml`) rewrites the notes that GitHub
@@ -35,7 +36,16 @@ sends `published` but not `created`, so a release that was a draft never reaches
    - **Minor** (`7.0.1` → `7.1.0`): new features or options, backward compatible.
    - **Major** (`7.0.1` → `8.0.0`): breaking changes. Update [MIGRATION.md](MIGRATION.md) first.
 
-3. **Create the release.** The tag is the bare version, with no `v` or `falkordb@` prefix:
+3. **Create the release.** The tag is the bare version, with no `v` or `falkordb@` prefix. Check
+   first that the tag does not exist yet: this prints nothing for a new version.
+
+   ```bash
+   git ls-remote --tags origin 7.1.0
+   ```
+
+   If it prints a commit, the tag is left over from an earlier attempt. `--target main` does not
+   move an existing tag, so the release would publish that commit. Delete the tag
+   (`git push origin :refs/tags/7.1.0`) unless it already points at the commit to release. Then:
 
    ```bash
    gh release create 7.1.0 --target main --title 7.1.0 --generate-notes
@@ -53,10 +63,11 @@ sends `published` but not `created`, so a release that was a draft never reaches
 
 ### Beta versions
 
-`publish.yml` publishes every release under the npm dist-tag `latest`. A beta such as
-`7.1.0-beta.1` would therefore become the version that `npm install falkordb` installs, even when
-GitHub shows the release as a beta. Don't release one this way until `publish.yml` publishes betas
-under another dist-tag, such as `beta`.
+`publish.yml` runs `npm publish` without `--tag`, and npm 11 refuses to publish a prerelease
+version such as `7.1.0-beta.1` that way ("You must specify a tag using --tag when publishing a
+prerelease version"). A beta release therefore fails at the publish step, and nothing reaches npm.
+Don't release one until `publish.yml` publishes prereleases under a dist-tag other than `latest`,
+such as `beta`.
 
 ## Troubleshooting
 
