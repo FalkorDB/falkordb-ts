@@ -3,6 +3,7 @@ import { ClientClosedError, createClient } from 'redis';
 import FalkorDB from '../src/falkordb';
 import Graph, { ConstraintType, EntityType } from '../src/graph';
 import { Sentinel } from '../src/clients/sentinel';
+import { expectPlanShape, expectProfileShape } from './planHelpers';
 
 const SENTINEL_HOST = process.env.SENTINEL_HOST || 'sentinel-1';
 const SENTINEL_PORT = parseInt(process.env.SENTINEL_PORT || '26379', 10);
@@ -165,7 +166,8 @@ describe('Sentinel Integration Tests', () => {
     it('should profile query through sentinel', async () => {
         const graph = selectGraph('test-graph-profile');
         const plan = await graph.profile('RETURN 1');
-        expect(plan.root).toMatchObject({ name: 'Project', recordsProduced: 1 });
+        // 4.x puts a Results operation above Project, which the helper skips
+        expectProfileShape(plan, ['Project'], 1);
     });
 
     it('should set config through sentinel', async () => {
@@ -431,8 +433,8 @@ describe('Sentinel Integration Tests', () => {
 
         expect((await graph.query('RETURN 1')).data).toEqual([{ '1': 1 }]);
         expect((await graph.roQuery('RETURN 2')).data).toEqual([{ '2': 2 }]);
-        expect((await graph.explain('RETURN 3')).root.name).toBe('Project');
-        expect((await graph.profile('RETURN 4')).root).toMatchObject({ name: 'Project', recordsProduced: 1 });
+        expectPlanShape(await graph.explain('RETURN 3'), ['Project']);
+        expectProfileShape(await graph.profile('RETURN 4'), ['Project'], 1);
         // A failing query leaves the connection usable
         await expect(graph.query('RETURN nonexistent_function()')).rejects.toThrow(/Unknown function 'nonexistent_function'/);
         expect((await graph.query('RETURN 5')).data).toEqual([{ '5': 5 }]);
