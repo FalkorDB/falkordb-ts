@@ -3,7 +3,7 @@ import FalkorDB from "../src/falkordb";
 import { Single } from "../src/clients/single";
 import Graph, { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
-import { serverAnswersSchemaHash } from "./serverVersion";
+import { answersSchemaHash, hashesSchemaVersion, serverModuleVersion } from "./serverVersion";
 import { ExecutionPlan } from "../src/execution-plan";
 
 function getRandomNumber(): number {
@@ -477,23 +477,14 @@ describe("Single Client Tests", () => {
     // changes, so on the Rust engine the server cannot tell the client its
     // names are stale through `version`; the C engine's hash of the names
     // catches it, and so does SCHEMA_HASH (FalkorDB 6.2.0 and later). That
-    // leaves FalkorDB 6.0.x, where the stale names are asserted instead: each
-    // label id then names the other label. See tests/globalSetup.ts.
+    // leaves FalkorDB 6.0.x and 6.1.x, where the stale names are asserted
+    // instead: each label id then names the other label.
     it(
       "should decode labels correctly after another client recreates the graph with as many schema changes",
       skipIfNoClient(async () => {
-        let expected = ["First"];
-        // Asked here rather than read from globalSetup, whose probe leaves
-        // SCHEMA_HASH support unknown when it fails
-        if (!(await serverAnswersSchemaHash(await singleClient.connection))) {
-          const scheme = process.env.FALKORDB_SCHEMA_VERSION;
-          if (scheme === undefined) {
-            throw new Error(
-              "globalSetup could not tell how this server versions a schema, so the expected labels are unknown"
-            );
-          }
-          if (scheme === "counter") expected = ["Second"];
-        }
+        const version = await serverModuleVersion(await singleClient.connection);
+        const expected =
+          answersSchemaHash(version) || hashesSchemaVersion(version) ? ["First"] : ["Second"];
         await decodeAfterExternalRecreate(
           `single-reuse-external-same-${getRandomNumber()}`,
           async (other) => {

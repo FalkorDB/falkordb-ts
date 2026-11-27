@@ -3,12 +3,8 @@ import FalkorDB from '../src/falkordb';
 import Graph from '../src/graph';
 import { Single } from '../src/clients/single';
 import { client } from './dbConnection';
-import { serverAnswersSchemaHash } from './serverVersion';
+import { answersSchemaHash, hashesSchemaVersion, serverModuleVersion } from './serverVersion';
 import type { QueryReply } from '../src/types';
-
-// Whether the server under test versions a graph's schema with a hash of its
-// names, as tests/globalSetup.ts found
-const HASHED_VERSION = process.env.FALKORDB_SCHEMA_VERSION === 'hash';
 
 // The queries the client fetches a graph's names with on older servers
 const METADATA_QUERIES = ['CALL db.labels()', 'CALL db.relationshipTypes()', 'CALL db.propertyKeys()'];
@@ -22,16 +18,19 @@ describe('SCHEMA_HASH against the server', () => {
     let other: FalkorDB;
     const graphs: Graph[] = [];
 
-    // Whether the server answers SCHEMA_HASH (FalkorDB 6.2.0 and later),
-    // probed here so that a failed probe fails the suite instead of reading
-    // as an older server
+    // What the server under test does, by its graph module version: whether
+    // it answers SCHEMA_HASH (6.2.0 and later), and whether it versions a
+    // graph's schema with a hash of its names (4.x) rather than a counter
     let SCHEMA_HASH: boolean;
+    let HASHED_VERSION: boolean;
 
     beforeAll(async () => {
         db = await client();
         other = await client();
 
-        SCHEMA_HASH = await serverAnswersSchemaHash(await db.connection);
+        const version = await serverModuleVersion(await db.connection);
+        SCHEMA_HASH = answersSchemaHash(version);
+        HASHED_VERSION = hashesSchemaVersion(version);
     });
 
     afterEach(async () => {

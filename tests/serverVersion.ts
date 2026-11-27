@@ -32,10 +32,26 @@ export async function serverModuleVersion(server: CommandSender): Promise<number
 }
 
 /**
- * Whether the server answers `SCHEMA_HASH` (FalkorDB 6.2.0 and later): it
- * appends `['hash', h, ...]` to the reply, where older servers ignore the
- * argument. Asked of the server itself rather than read from its version, as
- * `edge` reports no real one.
+ * Whether a server with this `graph` module version versions a graph's schema
+ * with a hash of its names, as 4.x does, rather than with a count of
+ * schema-changing writes, as 6.x does
+ */
+export function hashesSchemaVersion(moduleVersion: number): boolean {
+    return moduleVersion < 60000;
+}
+
+/**
+ * Whether a server with this `graph` module version answers `SCHEMA_HASH`,
+ * which came in 6.2.0
+ */
+export function answersSchemaHash(moduleVersion: number): boolean {
+    return moduleVersion >= 60200;
+}
+
+/**
+ * Whether the server answers `SCHEMA_HASH`: it appends `['hash', h, ...]` to
+ * the reply, where older servers ignore the argument. Asked of the server
+ * itself, to check that `answersSchemaHash()` holds for it.
  */
 export async function serverAnswersSchemaHash(server: CommandSender): Promise<boolean> {
     const probe = `schema-hash-probe-${process.pid}-${Math.floor(Math.random() * 999999)}`;

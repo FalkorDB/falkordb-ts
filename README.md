@@ -185,7 +185,7 @@ await client.close();
 
 ## Contributing
 
-To run the tests, against FalkorDB 4.x and 6.x, see [CONTRIBUTING.md](CONTRIBUTING.md).
+To run the tests against FalkorDB 4.x and 6.x, see [CONTRIBUTING.md](CONTRIBUTING.md).
 For information on how to release a new version to npm, see [RELEASE.md](RELEASE.md).
 
 ## License

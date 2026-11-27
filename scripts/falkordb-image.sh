@@ -48,12 +48,15 @@ fetch_4_tags() {
         cat "$FALKORDB_TAGS_FILE"
         return
     fi
+    # Each step returns on failure itself: newest_4 calls this in a
+    # condition, where set -e does not apply, and a page that failed must
+    # reach the fallback rather than end the listing early
     local url=$TAGS_URL page body
     for ((page = 0; page < MAX_PAGES; page++)); do
-        body=$(curl -fsS --retry 2 --max-time 20 "$url")
-        jq -r '.results[].name' <<<"$body"
-        url=$(jq -r '.next // empty' <<<"$body")
-        [[ -z "$url" ]] && return
+        body=$(curl -fsS --retry 2 --max-time 20 "$url") || return 1
+        jq -r '.results | map(.name) | .[]' <<<"$body" || return 1
+        url=$(jq -er '.next // ""' <<<"$body") || return 1
+        [[ -z "$url" ]] && return 0
     done
     echo "more than $MAX_PAGES pages of tags" >&2
     return 1

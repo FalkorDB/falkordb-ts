@@ -30,6 +30,12 @@ tests reach them by container name, so the names need entries in `/etc/hosts` th
 
 ```bash
 for stack in standalone sentinel cluster; do docker compose -f docker/$stack-compose.yml up -d; done
+# The cluster forms some seconds after its containers start
+for i in {1..30}; do
+  docker exec node0 redis-cli -p 17000 cluster info | grep -q cluster_state:ok && break
+  [ "$i" -eq 30 ] && { echo "The cluster did not form"; exit 1; }
+  sleep 2
+done
 FALKORDB_HOST=127.0.0.1 FALKORDB_PORT=6379 npx jest --forceExit
 ```
 
@@ -64,12 +70,13 @@ the server**: what it sends, or how it reads a reply.
 ### Tests that depend on the server
 
 A test that holds on only some servers asserts what each server does. It never skips, or returns
-early, on the others, so every leg runs all of it. Ask the server through `tests/serverVersion.ts`:
+early, on the others, so every leg runs all of it. Read the server through `tests/serverVersion.ts`:
 
 - `serverModuleVersion()` returns the `graph` module version, e.g. 42205 for 4.22.5. The `edge`
   build reports 999999.
-- `serverAnswersSchemaHash()` asks the server whether it answers `SCHEMA_HASH`. A test of a feature
-  should ask the server whether it has the feature, rather than compare versions.
+- `hashesSchemaVersion()` and `answersSchemaHash()` say what a server of that version does. Add one
+  like them for a new difference, rather than comparing versions inside a test.
 
-`tests/globalSetup.ts` also records how the server versions a schema in `FALKORDB_SCHEMA_VERSION`
-(`hash` on 4.x, `counter` on 6.x).
+`tests/serverVersion.spec.ts` checks that the server under test does what these say: it asks the
+server whether it answers `SCHEMA_HASH`, and `tests/globalSetup.ts` records in
+`FALKORDB_SCHEMA_VERSION` how it versions a schema (`hash` on 4.x, `counter` on 6.x).

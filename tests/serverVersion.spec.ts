@@ -1,7 +1,13 @@
 import { describe, it, beforeAll, afterAll, expect } from '@jest/globals';
 import FalkorDB from '../src/falkordb';
 import { client } from './dbConnection';
-import { CommandSender, serverAnswersSchemaHash, serverModuleVersion } from './serverVersion';
+import {
+    CommandSender,
+    answersSchemaHash,
+    hashesSchemaVersion,
+    serverAnswersSchemaHash,
+    serverModuleVersion,
+} from './serverVersion';
 
 const fake = (reply: (args: Array<string>) => unknown) => {
     const sent: Array<Array<string>> = [];
@@ -36,6 +42,17 @@ describe('serverVersion', () => {
         });
     });
 
+    it.each([
+        [42205, true, false],
+        [60004, false, false],
+        [60201, false, true],
+        // edge
+        [999999, false, true],
+    ])('reads graph module %i as hashing the schema version: %s, answering SCHEMA_HASH: %s', (version, hashes, answers) => {
+        expect(hashesSchemaVersion(version)).toBe(hashes);
+        expect(answersSchemaHash(version)).toBe(answers);
+    });
+
     describe('serverAnswersSchemaHash', () => {
         it.each([
             ['answers', [[], [], ['Cached execution: 0'], ['hash', '0']], true],
@@ -59,22 +76,20 @@ describe('serverVersion', () => {
             await db?.close();
         });
 
-        it('agrees with what the server does', async () => {
+        // The version-dependent tests read what the server does from its
+        // version, so check that the server does it
+        it('reads from the version what the server does', async () => {
             const connection = await db.connection;
             const version = await serverModuleVersion(connection);
             expect(version).toBeGreaterThanOrEqual(40000);
 
-            // 4.x versions a schema with a hash of its names, 6.x with a counter
-            const scheme = process.env.FALKORDB_SCHEMA_VERSION;
-            if (scheme === 'hash') expect(version).toBeLessThan(60000);
-            if (scheme === 'counter') expect(version).toBeGreaterThanOrEqual(60000);
+            expect(await serverAnswersSchemaHash(connection)).toBe(answersSchemaHash(version));
 
-            // SCHEMA_HASH came in 6.2.0
-            if (await serverAnswersSchemaHash(connection)) {
-                expect(version).toBeGreaterThanOrEqual(60200);
-            } else {
-                expect(version).toBeLessThan(60200);
-            }
+            // As tests/globalSetup.ts found from how the server rejects a
+            // stale version
+            const scheme = process.env.FALKORDB_SCHEMA_VERSION;
+            expect(scheme).toBeDefined();
+            expect(scheme === 'hash').toBe(hashesSchemaVersion(version));
         });
     });
 });

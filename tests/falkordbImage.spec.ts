@@ -1,6 +1,6 @@
 import { describe, it, afterAll, expect } from '@jest/globals';
 import { spawnSync } from 'child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 
@@ -8,9 +8,10 @@ const SCRIPT = join(__dirname, '..', 'scripts', 'falkordb-image.sh');
 
 const dir = mkdtempSync(join(tmpdir(), 'falkordb-image-'));
 
-const run = (args: Array<string>, tags?: Array<string> | null) => {
+const run = (args: Array<string>, tags?: Array<string> | null, path?: string) => {
     const env = { ...process.env };
     delete env.FALKORDB_TAGS_FILE;
+    if (path) env.PATH = `${path}:${env.PATH}`;
     if (tags !== undefined) {
         // null stands for Docker Hub being unreachable
         env.FALKORDB_TAGS_FILE = join(dir, tags === null ? 'missing' : `tags-${Math.random()}`);
@@ -33,6 +34,24 @@ describe('scripts/falkordb-image.sh', () => {
         it('skips suffixed builds and other tags', () => {
             const tags = ['v4.22.5', 'v4.22.6-alpine', 'v4.22.6-x64', 'v4.22.6-rhel9-x64', 'v4.30', 'v4.30.0rc1', 'v40.1.0'];
             expect(run(['4'], tags)).toMatchObject({ status: 0, stdout: 'v4.22.5' });
+        });
+
+        it('falls back to a pinned release when a later page of tags fails', () => {
+            // A curl that serves the first page, which links to a second, and
+            // fails on the second
+            const bin = join(dir, 'bin');
+            mkdirSync(bin, { recursive: true });
+            const page = JSON.stringify({ results: [{ name: 'v4.99.0' }], next: 'https://hub.docker.com/next?page=2' });
+            writeFileSync(join(bin, 'curl'), [
+                '#!/usr/bin/env bash',
+                'for url; do :; done',
+                'case $url in *page=2*) exit 22 ;; esac',
+                `echo '${page}'`,
+            ].join('\n') + '\n', { mode: 0o755 });
+
+            const result = run(['4'], undefined, bin);
+            expect(result).toMatchObject({ status: 0, stdout: 'v4.22.5' });
+            expect(result.stderr).toMatch(/::warning::/);
         });
 
         it('falls back to a pinned release, with a warning, when no tag can be listed', () => {

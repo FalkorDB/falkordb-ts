@@ -192,7 +192,8 @@ jobs:
       run: |
         set -euo pipefail
         docker exec falkordb-standalone redis-cli INFO server | grep -E '^(redis|valkey)_version'
-        modules=$(docker exec falkordb-standalone redis-cli MODULE LIST)
+        # --raw: one value per line, whether or not there is a terminal
+        modules=$(docker exec falkordb-standalone redis-cli --raw MODULE LIST)
         echo "$modules"
         # Looked up by name: 4.x lists `vectorset` before `graph`
         version=$(awk 'prev == "name" { name = $0 } prev == "ver" && name == "graph" { print; exit } { prev = $0 }' <<<"$modules")
