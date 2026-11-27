@@ -1,4 +1,5 @@
 import { createClient } from 'redis';
+import { serverAnswersSchemaHash, serverModuleVersion } from './serverVersion';
 
 // How each engine rejects a stale `version`
 const SCHEMA_VERSION_SCHEMES: Array<[RegExp, string]> = [
@@ -8,9 +9,9 @@ const SCHEMA_VERSION_SCHEMES: Array<[RegExp, string]> = [
 
 /**
  * Records in `FALKORDB_SCHEMA_VERSION` how the server under test versions a
- * graph's schema, so tests that only hold for one scheme can be skipped
- * visibly: `hash` for the C engine (a hash of the schema names), `counter`
- * for the Rust engine (a count of schema-changing writes). They word the
+ * graph's schema, so tests can assert what each scheme does: `hash` for
+ * the C engine (FalkorDB 4.x) (a hash of the schema names), `counter`
+ * for the Rust engine (6.x, a count of schema-changing writes). They word the
  * rejection of a stale version differently, which tells them apart. Left
  * unset when the probe cannot tell (no server, a server that is not FalkorDB,
  * an unknown reply), so that a test run never fails here.
@@ -18,6 +19,8 @@ const SCHEMA_VERSION_SCHEMES: Array<[RegExp, string]> = [
  * Also records in `FALKORDB_SCHEMA_HASH` whether the server answers
  * `SCHEMA_HASH` (FalkorDB 6.2.0 and later): `supported` or `unsupported`,
  * or unset when that probe fails. Each probe runs whatever the other found.
+ * Both, and the `graph` module version, are logged, so that a CI log always
+ * says which server it ran against.
  */
 export default async function globalSetup() {
     require('dns').setDefaultResultOrder('ipv4first');
@@ -51,21 +54,23 @@ export default async function globalSetup() {
         }
     } catch {
         // Not a FalkorDB, or not one this probe understands: leave it unset
+    } finally {
+        await client.sendCommand(['GRAPH.DELETE', graph]).catch(() => {});
     }
 
     try {
-        // A server that knows SCHEMA_HASH appends ['hash', h, ...] to the
-        // reply; older ones ignore the argument
-        const reply = (await client.sendCommand([
-            'GRAPH.QUERY', graph, 'RETURN 1', '--compact', 'SCHEMA_HASH', '0',
-        ])) as unknown[];
-        const last = reply[reply.length - 1];
         process.env.FALKORDB_SCHEMA_HASH =
-            Array.isArray(last) && last[0] === 'hash' ? 'supported' : 'unsupported';
+            (await serverAnswersSchemaHash(client)) ? 'supported' : 'unsupported';
     } catch {
         // The probe failed: leave it unset, which tests read as unknown
-    } finally {
-        await client.sendCommand(['GRAPH.DELETE', graph]).catch(() => {});
-        await client.quit().catch(() => {});
     }
+
+    // Name the server in the log, so a failure says which CI leg it came from
+    const version = await serverModuleVersion(client).catch((error: Error) => error.message);
+    console.log(
+        `FalkorDB under test: graph module ${version}, ` +
+        `schema version ${process.env.FALKORDB_SCHEMA_VERSION ?? 'unknown'}, ` +
+        `SCHEMA_HASH ${process.env.FALKORDB_SCHEMA_HASH ?? 'unknown'}`
+    );
+    await client.quit().catch(() => {});
 }

@@ -3,6 +3,7 @@ import FalkorDB from '../src/falkordb';
 import Graph from '../src/graph';
 import { Single } from '../src/clients/single';
 import { client } from './dbConnection';
+import { serverAnswersSchemaHash } from './serverVersion';
 import type { QueryReply } from '../src/types';
 
 // Whether the server under test versions a graph's schema with a hash of its
@@ -30,14 +31,7 @@ describe('SCHEMA_HASH against the server', () => {
         db = await client();
         other = await client();
 
-        const probe = graphName('probe');
-        const connection = await db.connection;
-        const reply = (await connection.sendCommand([
-            'GRAPH.QUERY', probe, 'RETURN 1', '--compact', 'SCHEMA_HASH', '0',
-        ])) as unknown[];
-        await connection.sendCommand(['GRAPH.DELETE', probe]).catch(() => {});
-        const last = reply[reply.length - 1];
-        SCHEMA_HASH = Array.isArray(last) && last[0] === 'hash';
+        SCHEMA_HASH = await serverAnswersSchemaHash(await db.connection);
     });
 
     afterEach(async () => {
