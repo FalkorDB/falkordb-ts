@@ -21,3 +21,5 @@ md
 TCP
 TLS
 redis
+prerelease
+prereleases
