@@ -34,6 +34,18 @@ export interface FalkorDBOptions {
     integers?: 'number' | 'bigint';
 
     /**
+     * Send `SCHEMA_HASH` with each query, so that FalkorDB 6.2.0 and later
+     * return the graph's labels, relationship types and property keys with a
+     * reply whenever they changed since the client last saw them. The reply
+     * then decodes with the right names even when another client deleted and
+     * recreated the graph, and without the extra queries that fetch them.
+     * Older servers ignore the argument and keep the `version` check. Turn it
+     * off only for a proxy or middleware that rejects unknown arguments.
+     * @default true
+     */
+    schemaHash?: boolean;
+
+    /**
      * Sentinel only. Resend write commands to the new master when the
      * connection is lost while waiting for their reply, e.g. during a master
      * hand-over. The old master may have already run them, so a write can be

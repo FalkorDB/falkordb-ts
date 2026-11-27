@@ -75,6 +75,7 @@ export default class FalkorDB extends EventEmitter {
 
     #client: Client = new NullClient();
     #integers: 'number' | 'bigint' = 'number';
+    #schemaHash = true;
     #graphs = new Map<string, Graph>();
     // Shared by every instance for a graph id, including ones evicted from
     // #graphs that callers still hold. Weakly held, so an entry lives only as
@@ -87,11 +88,21 @@ export default class FalkorDB extends EventEmitter {
     });
 
     static async connect(options?: FalkorDBOptions) {
-        const { host, port, retryWritesOnConnectionLoss, integers = 'number', ...rest } = options ?? {};
+        const {
+            host,
+            port,
+            retryWritesOnConnectionLoss,
+            integers = 'number',
+            schemaHash = true,
+            ...rest
+        } = options ?? {};
         const redisOption = rest as TypedRedisClientOptions;
 
         if (integers !== 'number' && integers !== 'bigint') {
             throw new TypeError(`integers must be 'number' or 'bigint', not ${JSON.stringify(integers)}`);
+        }
+        if (typeof schemaHash !== 'boolean') {
+            throw new TypeError(`schemaHash must be a boolean, not ${JSON.stringify(schemaHash)}`);
         }
 
         // Support the top-level `host`/`port` shorthand used by the other FalkorDB
@@ -186,6 +197,7 @@ export default class FalkorDB extends EventEmitter {
         // Set the client to the FalkorDB instance after it was initialized
         falkordb.#client = client;  
         falkordb.#integers = integers;
+        falkordb.#schemaHash = schemaHash;
 
         return falkordb
     }
@@ -196,9 +208,11 @@ export default class FalkorDB extends EventEmitter {
      * property keys) is shared instead of being refetched by every new handle.
      * The instance is released when the graph is deleted through it, or when
      * more than `MAX_CACHED_GRAPHS` graphs have been selected since its last use.
-     * Each query carries the schema version the cached metadata matches, so a
-     * schema changed by another client (e.g. the graph deleted and recreated) is
-     * rejected by the server and the metadata refreshed before the query is retried.
+     * Each query carries the schema hash (FalkorDB 6.2.0 and later) or version
+     * the cached metadata matches, so a schema changed by another client (e.g.
+     * the graph deleted and recreated) is detected by the server: the reply
+     * carries the new names, or the query is rejected and retried once the
+     * metadata is refreshed.
      */
     selectGraph(graphId: string) {
         let graph = this.#graphs.get(graphId);
@@ -216,6 +230,7 @@ export default class FalkorDB extends EventEmitter {
                 },
                 selectGraph: (name) => this.selectGraph(name),
                 integers: this.#integers,
+                schemaHash: this.#schemaHash,
             });
         }
         this.#graphs.set(graphId, graph);

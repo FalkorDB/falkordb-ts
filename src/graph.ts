@@ -86,6 +86,25 @@ function indexPattern(entityType: "NODE" | "EDGE", label: string): string {
 // replica's version, the master's, and a further change on the master.
 const MAX_VERSIONED_READS = 5;
 
+// The most arguments GRAPH.QUERY and GRAPH.RO_QUERY accept, the command name
+// included: `TIMEOUT ms`, `version v`, `--compact` and `SCHEMA_HASH h` are
+// one pair too many
+const MAX_QUERY_ARGUMENTS = 8;
+
+// How often a server found not to answer `SCHEMA_HASH` is asked again by a
+// query that cannot send it alongside `version`, e.g. one with a timeout, so
+// that an upgrade is noticed. Such a probe is checked by neither, so its
+// reply is decoded with names fetched afresh.
+const SCHEMA_HASH_PROBE_INTERVAL_MS = 60_000;
+
+// The names of a graph with no labels, relationship types or property keys,
+// whose schema hash is 0
+const NO_NAMES: GraphMetadata = Object.freeze({
+  labels: [],
+  relationshipTypes: [],
+  propertyKeys: [],
+}) as GraphMetadata;
+
 // State shared while decoding one reply
 interface ParseContext {
   // Name lookups that had to fetch metadata
@@ -93,6 +112,29 @@ interface ParseContext {
   // The schema version the server checked the reply against, if any: the
   // names used to decode it must come from that same schema
   version?: number;
+  // The names the reply's ids refer to, when the server vouched for them
+  // through `SCHEMA_HASH`: nothing is fetched then
+  names?: GraphMetadata;
+}
+
+/** A graph's names, as the server sent them for a schema hash */
+export interface SchemaSnapshot {
+  // The hash, as its exact decimal digits
+  hash: string;
+  names: GraphMetadata;
+}
+
+// What a query sends to have its reply checked against the cached schema
+interface SchemaCheck {
+  version?: number;
+  hash?: string;
+  // The names the reply decodes with if the server confirms `hash`
+  snapshot?: SchemaSnapshot;
+  // Only the hash checks the reply: `version` was left out for it. A reply
+  // without a schema element was then checked by nothing.
+  hashOnly?: boolean;
+  // `GraphSchemaState.generation` when the query was sent
+  generation: number;
 }
 
 /**
@@ -107,6 +149,16 @@ export interface GraphSchemaState {
   // it if the schema changed (e.g. the graph was deleted and recreated by
   // another client) instead of the reply being decoded with stale names
   version: number;
+  // Whether the server answers `SCHEMA_HASH` (FalkorDB 6.2.0 and later), as
+  // the last reply showed; undefined until a reply tells
+  hashSupport?: boolean;
+  // The newest names a reply carried with its schema hash. Queries send that
+  // hash instead of `version`, and the server replies with new names when it
+  // no longer matches.
+  snapshot?: SchemaSnapshot;
+  // When a query last asked a server without `SCHEMA_HASH` support whether it
+  // has it now, see `SCHEMA_HASH_PROBE_INTERVAL_MS`
+  probedAt?: number;
 }
 
 export interface GraphCacheOptions {
@@ -116,6 +168,8 @@ export interface GraphCacheOptions {
   selectGraph?: (name: string) => Graph;
   // How integers in query results are returned, see `FalkorDBOptions`
   integers?: "number" | "bigint";
+  // Whether queries send `SCHEMA_HASH`, see `FalkorDBOptions`
+  schemaHash?: boolean;
 }
 
 // Unknown value types already warned about, so each is reported only once
@@ -136,6 +190,8 @@ export default class Graph {
   #selectGraph?: (name: string) => Graph;
   // Integers are read from their exact digits and returned as bigint
   #exactIntegers: boolean;
+  // Queries send `SCHEMA_HASH`
+  #useSchemaHash: boolean;
 
   constructor(client: Client, name: string, cache?: GraphCacheOptions) {
     this.#client = client;
@@ -144,6 +200,7 @@ export default class Graph {
     this.#onDelete = cache?.onDelete;
     this.#selectGraph = cache?.selectGraph;
     this.#exactIntegers = cache?.integers === "bigint";
+    this.#useSchemaHash = cache?.schemaHash ?? true;
   }
 
   /** The graph's name (its Redis key) */
@@ -151,11 +208,28 @@ export default class Graph {
     return this.#name;
   }
 
+  // Replies are read with exact integers whenever they can carry a schema
+  // hash, which a number would round; #parseValue still returns a number for
+  // each integer value unless integers are read as bigint
+  get #readExactIntegers(): boolean {
+    return this.#exactIntegers || this.#useSchemaHash;
+  }
+
   async query<T>(query: RedisArgument, options?: QueryOptions) {
-    const reply = await this.#withSchemaVersion((version) =>
-      this.#client.query(this.#name, query, options, true, version, this.#exactIntegers)
-    );
-    return this.#parseReply<T>(reply);
+    const [reply, check] = await this.#withSchemaVersion(async (version) => {
+      const check = this.#schemaCheck(version, options);
+      const reply: QueryReply = await this.#client.query(
+        this.#name,
+        query,
+        options,
+        true,
+        check.version,
+        this.#readExactIntegers,
+        check.hash
+      );
+      return [reply, check] as const;
+    });
+    return this.#parseReply<T>(reply, check);
   }
 
   async roQuery<T>(query: RedisArgument, options?: QueryOptions) {
@@ -163,19 +237,22 @@ export default class Graph {
     // names come from, rejects the schema version
     let primary = false;
     for (let attempt = 1; ; attempt++) {
-      const version =
-        attempt < MAX_VERSIONED_READS ? this.#schema.version : undefined;
+      const check = this.#schemaCheck(
+        attempt < MAX_VERSIONED_READS ? this.#schema.version : undefined,
+        options
+      );
       try {
-        const reply = await this.#client.roQuery(
+        const reply: QueryReply = await this.#client.roQuery(
           this.#name,
           query,
           options,
           true,
-          version,
+          check.version,
           primary,
-          this.#exactIntegers
+          this.#readExactIntegers,
+          check.hash
         );
-        return await this.#parseReply<T>(reply, version);
+        return await this.#parseReply<T>(reply, check, check.version);
       } catch (err) {
         if (!(err instanceof SchemaVersionMismatchError)) throw err;
 
@@ -192,9 +269,100 @@ export default class Graph {
     }
   }
 
-  async #withSchemaVersion(
-    run: (version?: number) => Promise<QueryReply>
-  ): Promise<QueryReply> {
+  /**
+   * What a query sends so that its reply is checked against the cached schema,
+   * given the `version` it would send without `SCHEMA_HASH`:
+   * - once the server has answered `SCHEMA_HASH`, the hash of the cached names
+   *   alone. The reply then decodes with those names, or carries new ones.
+   * - otherwise `version`, as on servers without it, and `SCHEMA_HASH 0` too
+   *   where it fits, so the server can show it supports it. Until a reply
+   *   shows whether it does, `SCHEMA_HASH` is the one kept when both do not
+   *   fit: nothing has been cached that `version` would protect. Once one
+   *   shows it does not, `version` is, except for a probe now and then.
+   */
+  #schemaCheck(version: number | undefined, options?: QueryOptions): SchemaCheck {
+    const generation = this.#schema.generation;
+    if (!this.#useSchemaHash) return { version, generation };
+
+    if (this.#schema.hashSupport) {
+      const snapshot = this.#schema.snapshot;
+      return { hash: snapshot?.hash ?? "0", snapshot, hashOnly: true, generation };
+    }
+
+    // GRAPH.QUERY graph query [TIMEOUT ms] [version v] --compact SCHEMA_HASH h.
+    // Plain JavaScript callers may still pass the timeout as a bare number.
+    const timeout =
+      typeof options === "number" || options?.TIMEOUT !== undefined;
+    const length =
+      3 + (timeout ? 2 : 0) + (version !== undefined ? 2 : 0) + 1 + 2;
+    if (length <= MAX_QUERY_ARGUMENTS) {
+      return { version, hash: "0", generation };
+    }
+    if (this.#schema.hashSupport === false) {
+      const now = Date.now();
+      if (now - (this.#schema.probedAt ?? 0) < SCHEMA_HASH_PROBE_INTERVAL_MS) {
+        return { version, generation };
+      }
+      this.#schema.probedAt = now;
+    }
+    return { hash: "0", hashOnly: true, generation };
+  }
+
+  /**
+   * The names a reply's ids refer to when the server checked it by schema
+   * hash, or `undefined` for a reply from a server that ignored `SCHEMA_HASH`
+   * (or was not sent it), to be decoded through `version` as before.
+   */
+  #namesFor(reply: QueryReply, check: SchemaCheck): GraphMetadata | undefined {
+    const { schema } = reply;
+    if (!schema) {
+      if (check.hash !== undefined && this.#schema.hashSupport !== false) {
+        this.#schema.hashSupport = false;
+        this.#schema.probedAt = Date.now();
+        // No longer kept up to date, so it must not outlast an upgrade
+        this.#schema.snapshot = undefined;
+      }
+      if (check.hashOnly) {
+        // The server ignored SCHEMA_HASH, e.g. after a failover to an older
+        // one, and `version` was not sent: nothing checked the cached names,
+        // so the reply is decoded with names fetched afresh. Done for every
+        // such reply, even once another one has already found this out.
+        this.clearMetadataCache();
+      }
+      return undefined;
+    }
+
+    this.#schema.hashSupport = true;
+    if (schema.names) {
+      this.#offerSnapshot({ hash: schema.hash, names: schema.names }, check);
+      return schema.names;
+    }
+    if (schema.hash === check.hash) {
+      return check.snapshot?.names ?? NO_NAMES;
+    }
+    throw new Error(
+      `Schema hash ${schema.hash} in reply does not match the hash sent, and carries no names`
+    );
+  }
+
+  /**
+   * Caches names a reply carried when its query was sent with the hash cached
+   * now, so the server said that hash is stale, or when nothing is cached. A
+   * reply to a query sent with an older hash crossed a newer reply that
+   * already updated the cache, and is not cached: the newer names may well be
+   * the newer schema, which a recreated graph's names cannot tell, and if they
+   * are not, the next query brings the right ones. Each reply decodes
+   * correctly whichever is cached; this only saves resending names.
+   */
+  #offerSnapshot(snapshot: SchemaSnapshot, check: SchemaCheck) {
+    // Not cached when the graph was deleted while the query ran
+    if (check.generation !== this.#schema.generation) return;
+    const current = this.#schema.snapshot;
+    if (current && current.hash !== check.hash) return;
+    this.#schema.snapshot = snapshot;
+  }
+
+  async #withSchemaVersion<R>(run: (version?: number) => Promise<R>): Promise<R> {
     try {
       return await run(this.#schema.version);
     } catch (err) {
@@ -231,6 +399,7 @@ export default class Graph {
    */
   clearMetadataCache() {
     this.#schema.generation++;
+    this.#schema.snapshot = undefined;
     this.#metadata = undefined;
   }
 
@@ -493,6 +662,7 @@ export default class Graph {
     if (!copy) {
       return new Graph(this.#client, destGraph, {
         integers: this.#exactIntegers ? "bigint" : "number",
+        schemaHash: this.#useSchemaHash,
       });
     }
     // Names cached for a graph that had this name before do not apply
@@ -582,8 +752,18 @@ export default class Graph {
   #getMetadata<T extends keyof GraphMetadata>(
     key: T,
     id: number,
-    version?: number
+    ctx: ParseContext
   ): GraphMetadata[T][number] | Promise<GraphMetadata[T][number]> {
+    if (ctx.names) {
+      // The server vouched for these names, so a missing id is not a stale
+      // cache that fetching would fix
+      const value = ctx.names[key][id];
+      if (value === undefined)
+        throw new Error(`Cannot find value from ${key}[${id}]`);
+      return value;
+    }
+
+    const { version } = ctx;
     const metadata =
       this.#metadata?.generation === this.#schema.generation &&
       (version === undefined || this.#metadata.version === version)
@@ -604,10 +784,18 @@ export default class Graph {
     return value;
   }
 
+  /**
+   * @param version The schema version the server checked the reply against,
+   * which names fetched for it must match
+   */
   async #parseReply<T>(
     reply: QueryReply,
+    check: SchemaCheck,
     version?: number
   ): Promise<GraphReply<T>> {
+    // Read even for a reply with no rows, since it can carry new names
+    const names = this.#namesFor(reply, check);
+
     // The raw statistic lines are replaced by their parsed form
     const stats = parseQueryStatistics(reply.metadata);
     if (!reply.data) return { stats };
@@ -616,7 +804,7 @@ export default class Graph {
     const headers = (reply.headers as unknown as Array<[number, string]>).map(
       ([, name]) => name
     );
-    const ctx: ParseContext = { promises: [], version },
+    const ctx: ParseContext = { promises: [], version, names },
       parsed = {
         headers,
         stats,
@@ -656,8 +844,10 @@ export default class Graph {
         return value;
 
       case GraphValueTypes.INTEGER:
-        // Digits only arrive as a string when integers are read exactly
-        return typeof value === "string" ? BigInt(value as string) : value;
+        // Digits only arrive as a string when integers are read exactly,
+        // which they are for a schema hash even if returned as numbers
+        if (typeof value !== "string") return value;
+        return this.#exactIntegers ? BigInt(value) : Number(value);
 
       case GraphValueTypes.BOOLEAN:
         return value === "true";
@@ -750,7 +940,7 @@ export default class Graph {
     const relationshipType = this.#getMetadata(
       "relationshipTypes",
       Number(relationshipTypeId),
-      ctx.version
+      ctx
     );
     if (relationshipType instanceof Promise) {
       ctx.promises.push(
@@ -769,7 +959,7 @@ export default class Graph {
   ): GraphNode {
     const labels = new Array<string>(labelIds.length);
     for (let i = 0; i < labelIds.length; i++) {
-      const value = this.#getMetadata("labels", Number(labelIds[i]), ctx.version);
+      const value = this.#getMetadata("labels", Number(labelIds[i]), ctx);
       if (value instanceof Promise) {
         ctx.promises.push(value.then((value) => (labels[i] = value)));
       } else {
@@ -794,7 +984,7 @@ export default class Graph {
           [type, value] as GraphRawValue,
           ctx
         ),
-        key = this.#getMetadata("propertyKeys", Number(id), ctx.version);
+        key = this.#getMetadata("propertyKeys", Number(id), ctx);
       if (key instanceof Promise) {
         ctx.promises.push(key.then((key) => (parsed[key] = parsedValue)));
       } else {

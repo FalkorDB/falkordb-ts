@@ -52,10 +52,11 @@ export class Single implements Client {
     options?: QueryOptions,
     compact = true,
     version?: number,
-    exactIntegers = false
+    exactIntegers = false,
+    schemaHash?: string
   ) {
     return await this.run((client) =>
-      withIntegers(client, exactIntegers).falkordb.query(graph, query, options, compact, version)
+      withIntegers(client, exactIntegers).falkordb.query(graph, query, options, compact, version, schemaHash)
     );
   }
 
@@ -67,11 +68,12 @@ export class Single implements Client {
     compact = true,
     version?: number,
     _primary = false,
-    exactIntegers = false
+    exactIntegers = false,
+    schemaHash?: string
   ) {
     return await this.run(
       (client) =>
-        withIntegers(client, exactIntegers).falkordb.roQuery(graph, query, options, compact, version),
+        withIntegers(client, exactIntegers).falkordb.roQuery(graph, query, options, compact, version, schemaHash),
       READ_ONLY
     );
   }
