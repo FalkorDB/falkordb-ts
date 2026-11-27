@@ -3,6 +3,7 @@ import FalkorDB from "../src/falkordb";
 import { Single } from "../src/clients/single";
 import Graph, { ConstraintType, EntityType } from "../src/graph";
 import { client } from "./dbConnection";
+import { answersSchemaHash, hashesSchemaVersion, serverModuleVersion } from "./serverVersion";
 import { ExecutionPlan } from "../src/execution-plan";
 
 function getRandomNumber(): number {
@@ -457,23 +458,6 @@ describe("Single Client Tests", () => {
       }
     }
 
-    // Whether the server appends the schema to a reply sent with SCHEMA_HASH
-    // (FalkorDB 6.2.0 and later), asked here rather than read from
-    // globalSetup, whose probe leaves it unknown when it fails
-    async function serverAnswersSchemaHash(): Promise<boolean> {
-      const probe = `single-schema-hash-probe-${getRandomNumber()}`;
-      const connection = await singleClient.connection;
-      try {
-        const reply = (await connection.sendCommand([
-          "GRAPH.QUERY", probe, "RETURN 1", "--compact", "SCHEMA_HASH", "0",
-        ])) as unknown[];
-        const last = reply[reply.length - 1];
-        return Array.isArray(last) && last[0] === "hash";
-      } finally {
-        await connection.sendCommand(["GRAPH.DELETE", probe]).catch(() => {});
-      }
-    }
-
     it(
       "should decode labels correctly after another client recreates the graph with another schema version",
       skipIfNoClient(async () => {
@@ -493,21 +477,14 @@ describe("Single Client Tests", () => {
     // changes, so on the Rust engine the server cannot tell the client its
     // names are stale through `version`; the C engine's hash of the names
     // catches it, and so does SCHEMA_HASH (FalkorDB 6.2.0 and later). That
-    // leaves FalkorDB 6.0.x, where the stale names are asserted instead: each
-    // label id then names the other label. See tests/globalSetup.ts.
+    // leaves FalkorDB 6.0.x and 6.1.x, where the stale names are asserted
+    // instead: each label id then names the other label.
     it(
       "should decode labels correctly after another client recreates the graph with as many schema changes",
       skipIfNoClient(async () => {
-        let expected = ["First"];
-        if (!(await serverAnswersSchemaHash())) {
-          const scheme = process.env.FALKORDB_SCHEMA_VERSION;
-          if (scheme === undefined) {
-            throw new Error(
-              "globalSetup could not tell how this server versions a schema, so the expected labels are unknown"
-            );
-          }
-          if (scheme === "counter") expected = ["Second"];
-        }
+        const version = await serverModuleVersion(await singleClient.connection);
+        const expected =
+          answersSchemaHash(version) || hashesSchemaVersion(version) ? ["First"] : ["Second"];
         await decodeAfterExternalRecreate(
           `single-reuse-external-same-${getRandomNumber()}`,
           async (other) => {

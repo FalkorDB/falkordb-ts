@@ -21,9 +21,13 @@ on:
   workflow_dispatch:
     inputs:
       falkordb_image_tag:
-        description: "FalkorDB Docker image tag to test against (defaults to latest)"
+        description: "FalkorDB Docker image tag to test against, alone (defaults to latest)"
         required: false
         default: "latest"
+      falkordb_lines:
+        description: "FalkorDB release lines to test against instead, e.g. 4,6 (4, 6 or edge)"
+        required: false
+        default: ""
 
 concurrency:
   # The event name is part of the group because creating a release also creates
@@ -34,13 +38,60 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
-env:
-  # FalkorDB image tag under test, read by the docker/*-compose.yml files: the
-  # released `latest` for pull requests, pushes, tags and releases, `edge` for
-  # the scheduled daily run, or an explicit tag on manual dispatch.
-  FALKORDB_VERSION: ${{ github.event.inputs.falkordb_image_tag || (github.event_name == 'schedule' && 'edge' || 'latest') }}
-
 jobs:
+  # The FalkorDB servers `build` runs against, one leg each. The client
+  # supports 4.x and 6.x, which version a graph's schema differently and
+  # answer different arguments, so both run on every change:
+  #   pull requests, pushes, tags, releases  the newest 6.x and the newest 4.x
+  #   the scheduled daily run                 edge, to catch breaking changes
+  #                                           in upcoming releases, and the
+  #                                           newest 4.x, which has no edge build
+  #   manual dispatch                         `falkordb_lines` when given, else
+  #                                           the `falkordb_image_tag` alone
+  # scripts/falkordb-image.sh picks each line's image, as it does locally.
+  falkordb-servers:
+    runs-on: ubuntu-latest
+
+    timeout-minutes: 5
+
+    outputs:
+      servers: ${{ steps.servers.outputs.servers }}
+
+    steps:
+    - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      with:
+        persist-credentials: false
+
+    - name: List the servers
+      id: servers
+      # The inputs reach the shell through env only, never by interpolation
+      env:
+        EVENT: ${{ github.event_name }}
+        IMAGE_TAG: ${{ github.event.inputs.falkordb_image_tag }}
+        LINES: ${{ github.event.inputs.falkordb_lines }}
+      run: |
+        set -euo pipefail
+        # The lines are split on spaces below, never globbed
+        set -f
+        case $EVENT in
+          schedule) lines='edge 4' ;;
+          workflow_dispatch) lines=$(tr ',' ' ' <<<"$LINES") ;;
+          *) lines='6 4' ;;
+        esac
+        if [[ -z "$(tr -d ' ' <<<"$lines")" ]]; then
+          # `check` is empty: an explicit tag belongs to no line
+          servers=$(jq -cn --arg tag "${IMAGE_TAG:-latest}" '[{line: $tag, tag: $tag, check: ""}]')
+        else
+          servers='[]'
+          for line in $lines; do
+            tag=$(scripts/falkordb-image.sh "$line")
+            servers=$(jq -c --arg line "$line" --arg tag "$tag" \
+              '. + [{line: (if $line == "edge" then "edge" else "\($line).x" end), tag: $tag, check: $line}]' <<<"$servers")
+          done
+        fi
+        echo "$servers" | jq .
+        echo "servers=$servers" >> "$GITHUB_OUTPUT"
+
   # Lint and compile on a runner of their own, with no FalkorDB container in
   # sight, so a lint or type error is reported in roughly ten seconds instead
   # of after three docker stacks have been pulled and started.
@@ -85,6 +136,9 @@ jobs:
         '
 
   build:
+    needs: falkordb-servers
+
+    name: build (${{ matrix.server.line }}, ${{ matrix.node-version }})
 
     runs-on: ubuntu-latest
 
@@ -93,8 +147,16 @@ jobs:
     timeout-minutes: 30
 
     strategy:
+      # A failure on one server or Node version must not cancel the others,
+      # which would hide whether it is specific to that leg
+      fail-fast: false
       matrix:
+        server: ${{ fromJSON(needs.falkordb-servers.outputs.servers) }}
         node-version: [20.x, 22.x]
+
+    env:
+      # The FalkorDB image tag under test, read by the docker/*-compose.yml files
+      FALKORDB_VERSION: ${{ matrix.server.tag }}
 
     steps:
     - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
@@ -121,6 +183,24 @@ jobs:
         docker ps -a
         docker logs falkordb-standalone
         docker exec falkordb-standalone redis-cli ping || { echo "FalkorDB standalone instance is not running"; exit 1; }
+
+    - name: Show the FalkorDB server under test
+      # And check it belongs to the leg's line, so that `latest` moving to a
+      # new major release cannot silently turn the 6.x leg into another one
+      env:
+        LINE: ${{ matrix.server.check }}
+      run: |
+        set -euo pipefail
+        docker exec falkordb-standalone redis-cli INFO server | grep -E '^(redis|valkey)_version'
+        # --raw: one value per line, whether or not there is a terminal
+        modules=$(docker exec falkordb-standalone redis-cli --raw MODULE LIST)
+        echo "$modules"
+        # Looked up by name: 4.x lists `vectorset` before `graph`
+        version=$(awk 'prev == "name" { name = $0 } prev == "ver" && name == "graph" { print; exit } { prev = $0 }' <<<"$modules")
+        echo "FalkorDB image $FALKORDB_VERSION runs graph module $version"
+        if [[ -n "$LINE" ]]; then
+          scripts/falkordb-image.sh --check "$LINE" "$version"
+        fi
 
     - name: Run docker-compose for FalkorDB replication instance
       uses: hoverkraft-tech/compose-action@cdaf49f2d715a87c3387e86cb35c772b14f0efe0 # v3.2.1
@@ -243,12 +323,31 @@ jobs:
       with:
           webhookUrl: '${{ secrets.DRIVERS_GOOGLE_CHAT_WEBHOOK_URL }}'
           jobStatus: ${{ job.status }}
+          subtitle: 'FalkorDB ${{ matrix.server.line }} (${{ matrix.server.tag }}), Node.js ${{ matrix.node-version }}'
           threadKey: ${{ github.event.number }}
 
     - name: Upload coverage reports to Codecov
       uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
+
+  # The one status check branch protection requires: the matrix legs' names
+  # change with the servers under test, so requiring them one by one would
+  # leave every pull request waiting on a leg that no longer runs. Fails
+  # unless every leg passed, including when no leg ran at all.
+  build-result:
+    name: build result
+    needs: build
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+    - name: Check every build leg passed
+      env:
+        RESULT: ${{ needs.build.result }}
+      run: |
+        echo "build: $RESULT"
+        [[ "$RESULT" == success ]]
 
   # A cron job has nobody watching it: GitHub only emails whoever last touched
   # the cron line, so a failing daily run would otherwise go unnoticed. The
@@ -257,7 +356,7 @@ jobs:
   # downgrade the caller's token.
   report-scheduled-failure:
     name: Report scheduled failure
-    needs: [build, lint]
+    needs: [falkordb-servers, build, lint]
     # `cancelled` as well as `failure`: a job stopped by its own timeout, or one
     # that ran into GitHub's six hour ceiling, reports `cancelled`, and a nightly
     # that hangs is exactly the case this alert exists for.

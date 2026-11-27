@@ -13,7 +13,7 @@ name: Spellcheck
 # Safe to filter here because Spellcheck is not a required status check. CI
 # deliberately has no such filter: "If a workflow is skipped due to path
 # filtering, branch filtering or a commit message, then checks associated with
-# that workflow will remain in a 'Pending' state", and `build (20.x)` is
+# that workflow will remain in a 'Pending' state", and `build result` is
 # required on main, so a docs-only pull request could never be merged.
 on:
   push:
