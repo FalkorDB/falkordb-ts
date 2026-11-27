@@ -5,7 +5,7 @@ import * as QUERY from '../src/commands/QUERY';
 import * as RO_QUERY from '../src/commands/RO_QUERY';
 import { parseSchemaElement } from '../src/commands/QUERY';
 import { SchemaVersionMismatchError } from '../src/errors';
-import type { GraphMetadata, QueryOptions } from '../src/types';
+import type { GraphEdge, GraphMetadata, QueryOptions } from '../src/types';
 
 // The example hash in FalkorDB/FalkorDB#3846, beyond Number.MAX_SAFE_INTEGER
 const BIG_HASH = '-1146456808972410223';
@@ -198,9 +198,13 @@ describe('SCHEMA_HASH', () => {
                 if (version !== undefined && version !== state.version) {
                     throw new SchemaVersionMismatchError(state.version);
                 }
+                // `MATCH ()-[e]->() RETURN e` returns one edge, with
+                // relationship type id 0 and property id 0 set to `value`
                 const raw: unknown[] = query.startsWith('CREATE')
                     ? [STATS]
-                    : [[[1, 'n']], [[[8, [0, [0], [[0, state.valueType, state.value]]]]]], STATS];
+                    : query.startsWith('MATCH ()-[e]')
+                        ? [[[1, 'e']], [[[7, [0, 0, 1, 2, [[0, state.valueType, state.value]]]]]], STATS]
+                        : [[[1, 'n']], [[[8, [0, [0], [[0, state.valueType, state.value]]]]]], STATS];
                 if (state.supportsHash && hash !== undefined) {
                     const h = hashOf(current);
                     raw.push(h === hash ? ['hash', h] : [
@@ -230,6 +234,20 @@ describe('SCHEMA_HASH', () => {
             const { labels, properties } = reply.data![0].n;
             return { labels, properties };
         };
+
+        it.each([
+            ['the names the reply carries', true, 0],
+            // An older server: the relationship type is fetched, as on 4.x and 6.0.x
+            ['names fetched from a server without SCHEMA_HASH', false, 3],
+        ])('decodes an edge with %s', async (_case, supportsHash, fetches) => {
+            const { state, client } = server(names([], ['since'], ['KNOWS']), { supportsHash });
+            const graph = new Graph(client, 'g');
+            const { data } = await graph.query<{ e: GraphEdge }>('MATCH ()-[e]->() RETURN e');
+            expect(data![0].e).toEqual({
+                id: 0, relationshipType: 'KNOWS', sourceId: 1, destinationId: 2, properties: { since: 'v' },
+            });
+            expect(state.fetches).toBe(fetches);
+        });
 
         it('decodes with the names a reply carries, then sends their hash alone', async () => {
             const { state, client } = server(names(['Person'], ['name']));
